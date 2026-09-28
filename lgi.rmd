@@ -1,0 +1,86 @@
+---
+title: "LGI Exploratory"
+---
+
+# Set Up
+```{r}
+library(tidyverse)
+library(janitor)
+
+# Define Paths
+dir_dataset <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
+  "dataset_pnc_cross"
+)
+
+dir_evolpsy <- file.path(
+  "/", "data", "secure", "bit_repo", "pi_repo", "raquel_gur", "evolpsy", "data"
+)
+
+path_imaging <- file.path(dir_dataset, "imaging_data.csv")
+path_sub_ses <- file.path(dir_dataset, "subjects_sessions.csv")
+
+path_merge <- file.path(
+  dir_evolpsy, "go1_files", "pncgo1_data_merge_mar2025.csv"
+)
+
+path_env_ses <- file.path(dir_evolpsy, "zac_data", "env_scores.csv")
+path_env_trauma <- file.path(dir_evolpsy, "zac_data", "env_for_zac.csv")
+
+# Read Data
+raw_imaging <- read_csv(path_imaging)
+raw_sub_ses <- read_csv(path_sub_ses)
+
+raw_merge <- read_csv(path_merge)
+
+raw_env_ses <- read_csv(path_env_ses)
+raw_env_trauma <- read_csv(path_env_trauma)
+```
+
+
+# Clean Data
+```{r}
+# Demographics
+demo <- raw_sub_ses |>
+  select(bblid, age) |>
+  left_join(
+    select(raw_merge, bblid, sex, clinical_goassessDxpmr7),
+    by = "bblid"
+  ) |>
+  rename(dx = clinical_goassessDxpmr7) |>
+  mutate(
+    sex = case_when(sex == 1 ~ "male", sex == 2 ~ "female"),
+    dx = str_to_lower(dx)
+  )
+
+# Environment
+env <- full_join(raw_env_ses, raw_env_trauma, by = "bblid") |>
+  select(bblid, envSES, Trauma_Exposure) |>
+  clean_names()
+
+# Imaging
+imaging_qc <- raw_sub_ses |>
+  mutate(qc = cume_dist(euler)) |>
+  filter(qc > 0.01) |>
+  select(bblid, scanid)
+
+imaging <- raw_imaging |>
+  filter(metric == "lgi") |>
+  semi_join(imaging_qc, by = c("bblid", "scanid")) |>
+  select(bblid, laterality, region, value)
+
+# Clinical
+clinical <- raw_merge |>
+  select(bblid, starts_with("clinical_longfactor_corrTraits_")) |>
+  pivot_longer(cols = -bblid, values_to = "score", names_to = "factor") |>
+  mutate(factor = str_replace(factor, "clinical_longfactor_corrTraits_", ""))
+
+# Cognitive
+cnb <- raw_merge |>
+  select(bblid, starts_with("cnb") & ends_with("efficiency_agereg")) |>
+  pivot_longer(cols = -bblid, values_to = "efficiency", names_to = "domain") |>
+  mutate(
+    domain = str_replace_all(domain, c("cnb_" = "", "_efficiency_agereg" = ""))
+  ) |>
+  filter(domain != "discounting")
+```
