@@ -51,3 +51,26 @@ report_t_test <- function(test, sigfigs = 3) {
     sep = ", "
   )
 }
+
+report_jt <- function(test, sigfigs = 3) {
+  test <- test |>
+    broom::tidy() |>
+    janitor::clean_names()
+
+  jt <- test$statistic
+  p <- test$p_value
+
+  if (p < 0.001) {
+    p <- 0.001
+    p_operator <- "<"
+  } else {
+    p <- signif(p, digits = sigfigs)
+    p_operator <- "="
+  }
+
+  stringr::str_c(
+    stringr::str_c("JT = ", jt),
+    stringr::str_c("p", p_operator, p, sep = " "),
+    sep = ", "
+  )
+}

@@ -34,6 +34,11 @@ path_merge <- file.path(
 path_env_ses <- file.path(dir_evolpsy, "zac_data", "env_scores.csv")
 path_env_trauma <- file.path(dir_evolpsy, "zac_data", "env_for_zac.csv")
 
+path_goassess <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "goassess_scoring",
+  "results", "data_score.csv"
+)
+
 # Read Data
 raw_imaging <- read_csv(path_imaging)
 raw_sub_ses <- read_csv(path_sub_ses)
@@ -42,6 +47,8 @@ raw_merge <- read_csv(path_merge)
 
 raw_env_ses <- read_csv(path_env_ses)
 raw_env_trauma <- read_csv(path_env_trauma)
+
+raw_goassess <- read_csv(path_goassess)
 ```
 
 ```{r}
@@ -99,6 +106,14 @@ cnb <- raw_merge |>
     domain = str_replace_all(domain, c("cnb_" = "", "_efficiency_agereg" = ""))
   ) |>
   filter(domain != "discounting")
+
+# GOASSESS
+goassess <-
+  raw_goassess |>
+  semi_join(demo, by = c("subject_id" = "bblid")) |>
+  filter(version == 1) |>
+  group_by(subject_id) |>
+  summarize(across(starts_with("smry_"), \(x) max(x, na.rm = TRUE)))
 ```
 
 # Two-Way Interactions
@@ -190,7 +205,7 @@ test_lgi_sex <-
 
 plot_lgi_sex <-
   ggplot(data = data_lgi_sex, aes(x = sex, y = lgi, color = sex, fill = sex)) +
-  geom_jitter() +
+  geom_jitter(alpha = 0.25) +
   geom_violin(alpha = 0.5) +
   theme_minimal() +
   theme(legend.position = "none") +
@@ -204,4 +219,49 @@ plot_lgi_sex <-
   )
 
 plot_lgi_sex
+```
+
+## Global LGI vs GOASSESS Psychosis Category
+```{r}
+#| label: lgi vs psy
+data_lgi_psy <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(lgi, smry_psy_cat) |>
+  filter(smry_psy_cat %in% c(0, 1, 2, 3, 4)) |>
+  mutate(smry_psy_cat = ordered(smry_psy_cat)) |>
+  drop_na()
+
+test_lgi_psy <-
+  clinfun::jonckheere.test(
+    x = data_lgi_psy$lgi,
+    g = data_lgi_psy$smry_psy_cat,
+    alternative = "decreasing"
+  )
+
+plot_lgi_psy <-
+  ggplot(
+    data = data_lgi_psy,
+    aes(x = smry_psy_cat, y = lgi, color = smry_psy_cat, fill = smry_psy_cat)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Psychosis Categories",
+    subtitle = report_jt(test_lgi_psy),
+    x = "GOASSESS Psychosis Category",
+    y = "LGI (global)"
+  )
+
+plot_lgi_psy
 ```
