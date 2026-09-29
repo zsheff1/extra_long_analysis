@@ -100,3 +100,108 @@ cnb <- raw_merge |>
   ) |>
   filter(domain != "discounting")
 ```
+
+# Two-Way Interactions
+## Global LGI vs Age
+```{r}
+#| label: lgi vs age
+data_lgi_age <-
+  inner_join(global_lgi, demo, by = c("bblid")) |>
+  select(lgi, age) |>
+  drop_na()
+
+test_lgi_age <-
+  cor.test(data_lgi_age$lgi, data_lgi_age$age)
+
+plot_lgi_age <-
+  ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    title = "Correlation of Global LGI and Age",
+    subtitle = report_correlation(test_lgi_age),
+    x = "Age",
+    y = "LGI (global)"
+  )
+
+plot_lgi_age
+```
+
+## Global LGI vs Socioeconomic Status
+```{r}
+#| label: lgi vs ses
+data_lgi_ses <-
+  inner_join(global_lgi, env, by = "bblid") |>
+  select(lgi, env_ses) |>
+  drop_na()
+
+test_lgi_ses <-
+  cor.test(data_lgi_ses$lgi, data_lgi_ses$env_ses)
+
+plot_lgi_ses <-
+  ggplot(data = data_lgi_ses, aes(x = env_ses, y = lgi)) +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    title = "Correlation of Global LGI and Socioeconomic Status",
+    subtitle = report_correlation(test_lgi_ses),
+    x = "Socioeconomic Status",
+    y = "LGI (global)"
+  )
+
+plot_lgi_ses
+```
+
+## Global LGI vs Trauma Exposure
+```{r}
+#| label: lgi vs trauma
+data_lgi_trauma <-
+  inner_join(global_lgi, env, by = "bblid") |>
+  select(lgi, trauma_exposure) |>
+  drop_na()
+
+test_lgi_trauma <-
+  cor.test(data_lgi_trauma$lgi, data_lgi_trauma$trauma_exposure)
+
+plot_lgi_trauma <-
+  ggplot(data = data_lgi_trauma, aes(x = trauma_exposure, y = lgi)) +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    title = "Correlation of Global LGI and Trauma Exposure",
+    subtitle = report_correlation(test_lgi_trauma),
+    x = "Trauma Exposure",
+    y = "LGI (global)"
+  )
+
+plot_lgi_trauma
+```
+
+## Global LGI vs Sex
+```{r}
+#| label: lgi vs sex
+data_lgi_sex <-
+  inner_join(global_lgi, demo, by = "bblid") |>
+  select(lgi, sex) |>
+  drop_na()
+
+test_lgi_sex <-
+  t.test(lgi ~ sex, data = data_lgi_sex)
+
+plot_lgi_sex <-
+  ggplot(data = data_lgi_sex, aes(x = sex, y = lgi, color = sex, fill = sex)) +
+  geom_jitter() +
+  geom_violin(alpha = 0.5) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(
+    title = "Differences in Global LGI between Sexes",
+    subtitle = report_t_test(test_lgi_sex),
+    x = "Sex",
+    y = "LGI (global)"
+  )
+
+plot_lgi_sex
+```
