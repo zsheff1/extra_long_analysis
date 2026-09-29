@@ -6,9 +6,13 @@ title: "LGI Exploratory"
 #| label: set up
 #| include: false
 #| message: false
-
+# Import Libraries
 library(tidyverse)
 library(janitor)
+
+# Source
+source("R/plotting.R")
+source("R/reporting.R")
 
 # Define Paths
 dir_dataset <- file.path(
