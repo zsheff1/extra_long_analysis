@@ -56,8 +56,12 @@ demo <- raw_sub_ses |>
   ) |>
   rename(dx = clinical_goassessDxpmr7) |>
   mutate(
-    sex = case_when(sex == 1 ~ "male", sex == 2 ~ "female"),
-    dx = str_to_lower(dx)
+    age = age / 12,
+    dx = str_to_lower(dx),
+    sex = factor(
+      case_when(sex == 1 ~ "Male", sex == 2 ~ "Female"),
+      levels = c("Female", "Male")
+    )
   )
 
 # Environment
@@ -72,9 +76,14 @@ imaging_qc <- raw_sub_ses |>
   select(bblid, scanid)
 
 imaging <- raw_imaging |>
-  filter(metric == "lgi") |>
+  filter(atlas == "desikan_killiany", !is.na(lobe)) |>
   semi_join(imaging_qc, by = c("bblid", "scanid")) |>
-  select(bblid, laterality, region, value)
+  pivot_wider(values_from = value, names_from = metric) |>
+  select(bblid, scanid, laterality, region, lgi, area)
+
+global_lgi <- imaging |>
+  group_by(bblid, scanid) |>
+  summarize(lgi = weighted.mean(lgi, area), .groups = "drop")
 
 # Clinical
 clinical <- raw_merge |>
