@@ -2,8 +2,11 @@
 title: "LGI Exploratory"
 ---
 
-# Set Up
 ```{r}
+#| label: set up
+#| include: false
+#| message: false
+
 library(tidyverse)
 library(janitor)
 
@@ -37,9 +40,9 @@ raw_env_ses <- read_csv(path_env_ses)
 raw_env_trauma <- read_csv(path_env_trauma)
 ```
 
-
-# Clean Data
 ```{r}
+#| label: clean data
+#| include: false
 # Demographics
 demo <- raw_sub_ses |>
   select(bblid, age) |>
