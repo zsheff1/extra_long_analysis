@@ -9,6 +9,7 @@ title: "LGI Exploratory"
 # Import Libraries
 library(tidyverse)
 library(janitor)
+library(mgcv)
 
 # Source
 source("R/plotting.R")
@@ -140,6 +141,42 @@ plot_lgi_age <-
   )
 
 plot_lgi_age
+
+model_lgi_age <- gam(
+  lgi ~ age + s(age, m = c(2, 0)),
+  data = data_lgi_age,
+  method = "REML"
+)
+
+summary(model_lgi_age)
+
+plot_lgi_age_linearity <- ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
+  geom_point() +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = FALSE,
+    aes(color = "Linear")
+  ) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x),
+    se = FALSE,
+    aes(color = "Nonlinear")
+  ) +
+  scale_color_manual(
+    values = c("Linear" = "blue", "Nonlinear" = "red"),
+    name = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(
+    title = "Linearity of Relationship Between Global LGI and Age",
+    x = "Age",
+    y = "LGI (global)"
+  )
+
+plot_lgi_age_linearity
 ```
 
 ## Global LGI vs Socioeconomic Status
