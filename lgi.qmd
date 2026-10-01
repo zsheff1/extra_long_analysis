@@ -1,11 +1,25 @@
 ---
-title: "LGI Exploratory"
+title: "Local Gyrification Index"
+subtitle: "Exploratory Analyses"
+author: "Zachary Heffernan"
+date: today
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+
+execute: 
+  echo: true
+  warning: false
+  message: false
+  eval: true
 ---
 
 ```{r}
 #| label: set up
 #| include: false
-#| message: false
 # Import Libraries
 library(tidyverse)
 library(janitor)
@@ -117,8 +131,15 @@ goassess <-
   summarize(across(starts_with("smry_"), \(x) max(x, na.rm = TRUE)))
 ```
 
-# Two-Way Interactions
-## Global LGI vs Age
+# Main Effects
+  - [There is a significant nonlinear effect of Age on Global LGI, where Global LGI declines with Age.](#main-age)
+  - [There is a significant positive correlation between Socioeconomic Status and Global LGI.](#main-ses)
+  - [There is a significant nonlinear effect of Trauma Exposure on Global LGI, where those with higher Trauma Exposure have lower Global LGI.](#main-trauma)
+  - [There is a significant difference in Global LGI between sexes, with Males having higher Global LGI than Females.](#main-sex)
+  - [There is a significant decreasing trend in Global LGI across increasing levels of GOASSESS Psychosis Scores.](#main-goa-psy)
+
+## Global LGI ~ Age {#main-age}
+Global LGI is significantly negatively correlated with age. This effect is significantly nonlinear, though the nonlinearity is subtle.
 ```{r}
 #| label: lgi vs age
 data_lgi_age <-
@@ -141,7 +162,10 @@ plot_lgi_age <-
   )
 
 plot_lgi_age
+```
 
+### Global LGI ~ s(Age)
+```{r}
 model_lgi_age <- gam(
   lgi ~ age + s(age, m = c(2, 0)),
   data = data_lgi_age,
@@ -179,7 +203,8 @@ plot_lgi_age_linearity <- ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
 plot_lgi_age_linearity
 ```
 
-## Global LGI vs Socioeconomic Status
+## Global LGI ~ Socioeconomic Status {#main-ses}
+Global LGI is signitifantly positively correlated with socioeconomic status. This effect is not significantly nonlinear.
 ```{r}
 #| label: lgi vs ses
 data_lgi_ses <-
@@ -204,7 +229,19 @@ plot_lgi_ses <-
 plot_lgi_ses
 ```
 
-## Global LGI vs Trauma Exposure
+### Global LGI ~ s(Socioeconomic Status)
+```{r}
+model_lgi_ses <- gam(
+  lgi ~ env_ses + s(env_ses, m = c(2, 0)),
+  data = data_lgi_ses,
+  method = "REML"
+)
+
+summary(model_lgi_ses)
+```
+
+## Global LGI ~ Trauma Exposure {#main-trauma}
+Global LGI is significantly negatively correlated with Trauma Exposure. This effect is significantly nonlinear.
 ```{r}
 #| label: lgi vs trauma
 data_lgi_trauma <-
@@ -229,7 +266,48 @@ plot_lgi_trauma <-
 plot_lgi_trauma
 ```
 
-## Global LGI vs Sex
+### Global LGI ~ s(Trauma Exposure)
+```{r}
+model_lgi_trauma <- gam(
+  lgi ~ trauma_exposure + s(trauma_exposure, k = 7, m = c(2, 0)),
+  data = data_lgi_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_trauma)
+
+plot_lgi_trauma_linearity <-
+  ggplot(data = data_lgi_trauma, aes(x = trauma_exposure, y = lgi)) +
+  geom_point() +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = FALSE,
+    aes(color = "Linear")
+  ) +
+  geom_smooth(
+    method = "gam",
+    formula = y ~ s(x, k = 7),
+    se = FALSE,
+    aes(color = "Nonlinear")
+  ) +
+  scale_color_manual(
+    values = c("Linear" = "blue", "Nonlinear" = "red"),
+    name = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  labs(
+    title = "Linearity of Relationship Between Global LGI and Trauma Exposure",
+    x = "Trauma Exposure",
+    y = "LGI (global)"
+  )
+
+plot_lgi_trauma_linearity
+```
+
+## Global LGI ~ Sex {#main-sex}
+There are significant differences in Global LGI between sexes, with Males having higher Global LGI than Females.
 ```{r}
 #| label: lgi vs sex
 data_lgi_sex <-
@@ -258,7 +336,8 @@ plot_lgi_sex <-
 plot_lgi_sex
 ```
 
-## Global LGI vs GOASSESS Psychosis Category
+## Global LGI ~ GOASSESS Psychosis Category {#main-goa-psy}
+Global LGI shows a significant decreasing trend across increasing levels of GOASSESS Psychosis Scores.
 ```{r}
 #| label: lgi vs psy
 data_lgi_psy <-
@@ -301,4 +380,57 @@ plot_lgi_psy <-
   )
 
 plot_lgi_psy
+```
+
+# Two-Way Interactions
+  - [There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
+
+## Global LGI ~ Age * Sex {#two-age-sex}
+```{r}
+data_lgi_age_sex <-
+  inner_join(global_lgi, demo, by = c("bblid")) |>
+  mutate(
+    sex_ord = ordered(sex, levels = c("Female", "Male")),
+    age_c = age - mean(age)
+  ) |>
+  select(lgi, age, age_c, sex, sex_ord) |>
+  drop_na()
+```
+
+### Global LGI ~ Sex + Age + s(Age, m = c(2,0))
+Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
+```{r}
+model_lgi_age_sex_1 <- gam(
+  lgi ~ sex + age_c + s(age_c, m = c(2, 0)),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_1)
+```
+
+### Global LGI ~ Sex * Age + s(Age, m = c(2,0))
+Age and sex do not have a significant linear interaction.
+```{r}
+model_lgi_age_sex_2 <- gam(
+  lgi ~ age_c * sex + s(age_c, m = c(2, 0)),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_2)
+```
+
+### Global LGI ~ Sex * Age + s(Age, m = c(2,0)) + s(Age, m = c(2,0), by = Sex)
+Age and sex do not have a significant nonlinear interaction.
+```{r}
+model_lgi_age_sex_3 <- gam(
+  lgi ~ age_c * sex +
+    s(age_c, m = c(2, 0)) +
+    s(age_c, m = c(2, 0), by = sex_ord),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_3)
 ```
