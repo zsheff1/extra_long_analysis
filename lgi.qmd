@@ -24,6 +24,7 @@ execute:
 library(tidyverse)
 library(janitor)
 library(mgcv)
+library(kableExtra)
 
 # Source
 source("R/plotting.R")
@@ -129,6 +130,75 @@ goassess <-
   filter(version == 1) |>
   group_by(subject_id) |>
   summarize(across(starts_with("smry_"), \(x) max(x, na.rm = TRUE)))
+```
+
+# Sample Description
+## Demographics Table
+```{r}
+#| label: demos table
+
+demo_table <- demo |>
+  summarize(
+    n = n(),
+    age_mean = mean(age, na.rm = TRUE),
+    age_sd = sd(age, na.rm = TRUE),
+    male_n = sum(sex == "Male"),
+    female_n = sum(sex == "Female"),
+    dx_td_n = sum(dx == "td", na.rm = TRUE),
+    dx_ps_n = sum(dx == "ps", na.rm = TRUE),
+    dx_op_n = sum(dx == "op", na.rm = TRUE)
+  ) |>
+  mutate(
+    age = sprintf("%.2f (%.2f)", age_mean, age_sd),
+    male = sprintf("%d (%.2f%%)", male_n, (male_n * 100 / n)),
+    female = sprintf("%d (%.2f%%)", female_n, (female_n * 100 / n)),
+    td = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
+    ps = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
+    op = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n))
+  ) |>
+  mutate(n = as.character(n)) |>
+  select(n, age, male, female, td, ps, op) |>
+  pivot_longer(
+    cols = everything(),
+    names_to = "Characteristic",
+    values_to = "Value"
+  ) |>
+  mutate(Category = c("n", "age", "sex", "sex", "dx", "dx", "dx"))
+
+row_hierarchy <- demo_table |>
+  mutate(row_number = row_number()) |>
+  group_by(Category) |>
+  summarise(
+    start = min(row_number),
+    end = max(row_number),
+    .groups = "drop"
+  ) |>
+  filter(start != end)
+
+demo_kable <- demo_table |>
+  select(-Category) |>
+  kbl(
+    caption = "PNC Cross Sectional Demographics",
+    format = "html",
+    col.names = c("", "Overall"),
+    align = c("l", "c")
+  ) |>
+  kable_styling(
+    full_width = FALSE,
+    position = "left",
+    font_size = 12
+  )
+
+for (i in seq_len(nrow(row_hierarchy))) {
+  demo_kable <- demo_kable |>
+    group_rows(
+      group = row_hierarchy$Category[i],
+      start_row = row_hierarchy$start[i],
+      end_row = row_hierarchy$end[i]
+    )
+}
+
+demo_kable
 ```
 
 # Main Effects
