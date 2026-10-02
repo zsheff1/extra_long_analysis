@@ -204,6 +204,7 @@ demo_kable
 
 ## Comorbidities
 ```{r}
+#| label: comorbidities
 comorbid <- goassess |>
   select(subject_id, ends_with("cat")) |>
   rename(bblid = subject_id) |>
@@ -282,7 +283,7 @@ test_lgi_age <-
 plot_lgi_age <-
   ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
   geom_point() +
-  theme_minimal() +
+  theme_linedraw() +
   labs(
     title = "Correlation of Global LGI and Age",
     subtitle = report_correlation(test_lgi_age),
@@ -322,7 +323,7 @@ plot_lgi_age_linearity <- ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
     values = c("Linear" = "blue", "Nonlinear" = "red"),
     name = NULL
   ) +
-  theme_minimal() +
+  theme_linedraw() +
   theme(legend.position = "bottom") +
   labs(
     title = "Linearity of Relationship Between Global LGI and Age",
@@ -348,7 +349,7 @@ test_lgi_ses <-
 plot_lgi_ses <-
   ggplot(data = data_lgi_ses, aes(x = env_ses, y = lgi)) +
   geom_point() +
-  theme_minimal() +
+  theme_linedraw() +
   labs(
     title = "Correlation of Global LGI and Socioeconomic Status",
     subtitle = report_correlation(test_lgi_ses),
@@ -386,7 +387,7 @@ test_lgi_trauma <-
 plot_lgi_trauma <-
   ggplot(data = data_lgi_trauma, aes(x = trauma_exposure, y = lgi)) +
   geom_point() +
-  theme_minimal() +
+  theme_linedraw() +
   labs(
     title = "Correlation of Global LGI and Trauma Exposure",
     subtitle = report_correlation(test_lgi_trauma),
@@ -427,7 +428,7 @@ plot_lgi_trauma_linearity <-
     values = c("Linear" = "blue", "Nonlinear" = "red"),
     name = NULL
   ) +
-  theme_minimal() +
+  theme_linedraw() +
   theme(legend.position = "bottom") +
   labs(
     title = "Linearity of Relationship Between Global LGI and Trauma Exposure",
@@ -454,7 +455,7 @@ plot_lgi_sex <-
   ggplot(data = data_lgi_sex, aes(x = sex, y = lgi, color = sex, fill = sex)) +
   geom_jitter(alpha = 0.25) +
   geom_violin(alpha = 0.5) +
-  theme_minimal() +
+  theme_linedraw() +
   theme(legend.position = "none") +
   color_scale_sex +
   fill_scale_sex +
@@ -493,7 +494,7 @@ plot_lgi_psy <-
   ) +
   geom_jitter(alpha = 0.25) +
   geom_violin(alpha = 0.5) +
-  theme_minimal() +
+  theme_linedraw() +
   theme(legend.position = "none") +
   scale_x_discrete(
     labels = c(
@@ -518,6 +519,7 @@ plot_lgi_psy
   - [There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
 
 ## Global LGI ~ Age * Sex {#two-age-sex}
+There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`
 ```{r}
 #| label: lgi ~ age * sex
 data_lgi_age_sex <-
