@@ -530,6 +530,73 @@ data_lgi_age_sex <-
   drop_na()
 ```
 
+### Global LGI ~ Age * Sex (Final)
+```{r}
+#| label: lgi ~ age * sex [final]
+model_lgi_age_sex_final <- gam(
+  lgi ~ sex + s(age),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+prediction_lgi_age_sex <- data_lgi_age_sex |>
+  group_by(sex) |>
+  summarise(
+    age = list(
+      seq(
+        min(age, na.rm = TRUE),
+        max(age, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(age)
+
+fit_data_lgi_age_sex <- predict(
+  model_lgi_age_sex_final,
+  newdata = prediction_lgi_age_sex,
+  type = "response",
+  se.fit = TRUE
+)
+
+prediction_lgi_age_sex <- prediction_lgi_age_sex |>
+  mutate(
+    fit = as.vector(pluck(fit_data_lgi_age_sex, "fit")),
+    se_fit = as.vector(pluck(fit_data_lgi_age_sex, "se.fit")),
+    lower = fit - 1.96 * se_fit,
+    upper = fit + 1.96 * se_fit
+  ) |>
+  select(age, sex, fit, upper, lower)
+
+plot_lgi_age_sex <-
+  ggplot(mapping = aes(x = age, y = lgi, color = sex, fill = sex)) +
+  geom_point(data = data_lgi_age_sex, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_age_sex,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_age_sex,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(
+    title = "LGI Developmental Trajectories by Sex",
+    subtitle = "lgi ~ s(age) + sex",
+    x = "Age",
+    y = "LGI (global)"
+  )
+
+plot_lgi_age_sex
+```
+
 ### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
 Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
 ```{r}
