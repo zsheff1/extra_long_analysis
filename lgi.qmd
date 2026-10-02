@@ -25,6 +25,7 @@ library(tidyverse)
 library(janitor)
 library(mgcv)
 library(kableExtra)
+library(ComplexUpset)
 
 # Source
 source("R/plotting.R")
@@ -199,6 +200,64 @@ for (i in seq_len(nrow(row_hierarchy))) {
 }
 
 demo_kable
+```
+
+## Comorbidities
+```{r}
+comorbid <- goassess |>
+  select(subject_id, ends_with("cat")) |>
+  rename(bblid = subject_id) |>
+  rename_with(\(x) str_replace_all(x, c("smry_" = "", "_cat" = ""))) |>
+  mutate(across(
+    -bblid,
+    \(x) case_when(x %in% c(0, 1, 2, 3) ~ FALSE, x == 4 ~ TRUE)
+  )) |>
+  left_join(global_lgi, by = "bblid") |>
+  select(-bblid, -scanid) |>
+  drop_na()
+
+sets <- setdiff(names(comorbid), "lgi")
+
+psy_intersections <- unlist(
+  lapply(
+    seq_along(sets),
+    \(n) combn(sets, n, simplify = FALSE)
+  ),
+  recursive = FALSE
+) |>
+  keep(\(x) "psy" %in% x)
+
+psy_queries <- map(
+  psy_intersections,
+  \(x) {
+    upset_query(
+      intersect = x,
+      color = "red",
+      fill = "red"
+    )
+  }
+)
+
+plot_comorbid <- upset(
+  comorbid,
+  sets,
+  base_annotations = list(
+    "Intersection size" = intersection_size(
+      counts = FALSE
+    )
+  ),
+  annotations = list(
+    "LGI" = ggplot(mapping = aes(x = intersection, y = lgi, color = psy)) +
+      geom_boxplot() +
+      scale_color_manual(
+        values = c(`TRUE` = "red", `FALSE` = "black"),
+        guide = "none"
+      )
+  ),
+  queries = psy_queries
+)
+
+plot_comorbid
 ```
 
 # Main Effects
