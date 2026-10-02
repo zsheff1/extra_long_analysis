@@ -261,6 +261,25 @@ plot_comorbid <- upset(
 plot_comorbid
 ```
 
+# Local Gyrification Index
+## LGI vs eTIV
+```{r}
+#| label: lgi vs etiv
+data_etiv <- raw_imaging |>
+  filter(region == "EstimatedTotalIntraCranialVol") |>
+  rename(etiv = value) |>
+  select(bblid, scanid, etiv)
+
+data_lgi_etiv <- left_join(global_lgi, data_etiv, by = c("bblid", "scanid"))
+
+plot_lgi_etiv <-
+  ggplot(data = data_lgi_etiv, mapping = aes(x = etiv, y = lgi)) +
+  geom_point() +
+  theme_linedraw()
+
+plot_lgi_etiv
+```
+
 # Main Effects
   - [There is a significant nonlinear effect of Age on Global LGI, where Global LGI declines with Age.](#main-age)
   - [There is a significant positive correlation between Socioeconomic Status and Global LGI.](#main-ses)
