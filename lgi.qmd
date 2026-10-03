@@ -535,8 +535,9 @@ plot_lgi_psy
 ```
 
 # Two-Way Interactions
-  - [There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
-  - [There are no significant linear or nonlinear interactions between sex and trauma. When sex and trauma are both included in the model, trauma is no longer significantly nonlinear like it is when in the model by itself. The most complex model supported is `lgi ~ sex + trauma`](#two-sex-trauma)
+  - [There is a significant difference in age between sexes, with females being older than males. There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
+  - [There is a significant difference in ses between sexes, with males having higher SES than females. There are no significant interactions between SES and sex. The most complex model supported is `lgi ~ ses + sex`.](#two-ses-sex)
+  - [There is no significant difference in trauma between sexes. There are no significant linear or nonlinear interactions between sex and trauma. When sex and trauma are both included in the model, trauma is no longer significantly nonlinear like it is when in the model by itself. The most complex model supported is `lgi ~ sex + trauma`.](#two-sex-trauma)
 
 ## Global LGI ~ Age * Sex {#two-age-sex}
 There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`
@@ -550,6 +551,26 @@ data_lgi_age_sex <-
   ) |>
   select(lgi, age, age_c, sex, sex_ord) |>
   drop_na()
+
+t.test(
+  age ~ sex,
+  data = data_lgi_age_sex,
+  var.equal = TRUE
+)
+
+plot_age_sex <-
+  ggplot(
+    data = data_lgi_age_sex,
+    mapping = aes(x = age, group = sex, color = sex, fill = sex)
+  ) +
+  geom_histogram(position = "identity", binwidth = 1, alpha = 0.5) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(title = "Age Distribution by Sex", x = "Age", y = "Count")
+
+plot_age_sex
 ```
 
 ### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
@@ -660,6 +681,133 @@ plot_lgi_age_sex <-
 plot_lgi_age_sex
 ```
 
+## Global LGI ~ SES * Sex {#two-ses-sex}
+```{r}
+#| label: lgi ~ sex * sex
+data_lgi_ses_sex <-
+  global_lgi |>
+  inner_join(demo, by = "bblid") |>
+  inner_join(env, by = "bblid") |>
+  rename(ses = env_ses) |>
+  select(lgi, sex, ses) |>
+  drop_na()
+
+t.test(
+  ses ~ sex,
+  data = data_lgi_ses_sex,
+  var.equal = TRUE
+)
+
+plot_ses_sex <-
+  ggplot(
+    data = data_lgi_ses_sex,
+    mapping = aes(x = ses, group = sex, color = sex, fill = sex)
+  ) +
+  geom_histogram(position = "identity", binwidth = 0.1, alpha = 0.5) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(title = "SES Distribution by Sex", x = "SES", y = "Count")
+
+plot_ses_sex
+```
+
+### Global LGI ~ SES + Sex
+```{r}
+#| label: lgi ~ ses + sex
+model_lgi_ses_sex_1 <- gam(
+  lgi ~ ses + sex,
+  data = data_lgi_ses_sex,
+  method = "REML"
+)
+
+summary(model_lgi_ses_sex_1)
+```
+
+### Global LGI ~ SES * Sex
+```{r}
+#| label: lgi ~ ses * sex [literal]
+model_lgi_ses_sex_2 <- gam(
+  lgi ~ ses * sex,
+  data = data_lgi_ses_sex,
+  method = "REML"
+)
+
+summary(model_lgi_ses_sex_2)
+```
+
+### Global LGI ~ SES * Sex (Final)
+```{r}
+#| label: lgi ~ ses * sex [final]
+model_lgi_ses_sex_final <- model_lgi_ses_sex_1
+
+prediction_lgi_ses_sex <- data_lgi_ses_sex |>
+  group_by(sex) |>
+  summarise(
+    ses = list(
+      seq(
+        min(ses, na.rm = TRUE),
+        max(ses, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(ses)
+
+fit_lgi_ses_sex <-
+  predict(
+    model_lgi_ses_sex_final,
+    newdata = prediction_lgi_ses_sex,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_ses_sex <- prediction_lgi_ses_sex |>
+  bind_cols(fit_lgi_ses_sex)
+
+plot_lgi_ses_sex <-
+  ggplot(mapping = aes(x = ses, y = lgi, color = sex, fill = sex)) +
+  geom_line(
+    data = prediction_lgi_ses_sex,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_ses_sex,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_point(
+    data = data_lgi_ses_sex,
+    position = position_jitterdodge(
+      jitter.width = 0.5,
+      dodge.width = 0.5
+    ),
+    alpha = 0.25,
+    size = 1
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(
+    title = "SES LGI Relationship by Sex",
+    subtitle = "lgi ~ ses + sex",
+    x = "SES",
+    y = "LGI (global)"
+  )
+
+plot_lgi_ses_sex
+```
+
 ## Global LGI ~ Sex * Trauma {#two-sex-trauma}
 ```{r}
 #| label: lgi ~ sex * trauma
@@ -674,6 +822,12 @@ data_lgi_sex_trauma <-
   ) |>
   select(lgi, sex, sex_ord, trauma, trauma_c) |>
   drop_na()
+
+t.test(
+  trauma ~ sex,
+  data = data_lgi_sex_trauma,
+  var.equal = TRUE
+)
 ```
 
 ### Global LGI ~ Sex + Trauma + s(Trauma, m = c(2,0))
