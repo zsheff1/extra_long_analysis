@@ -536,6 +536,7 @@ plot_lgi_psy
 
 # Two-Way Interactions
   - [There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
+  - [There are no significant linear or nonlinear interactions between sex and trauma. When sex and trauma are both included in the model, trauma is no longer significantly nonlinear like it is when in the model by itself. The most complex model supported is `lgi ~ sex + trauma`](#two-sex-trauma)
 
 ## Global LGI ~ Age * Sex {#two-age-sex}
 There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`
@@ -549,6 +550,47 @@ data_lgi_age_sex <-
   ) |>
   select(lgi, age, age_c, sex, sex_ord) |>
   drop_na()
+```
+
+### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
+Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
+```{r}
+#| label: lgi ~ age + sex + s(age, m = 0)
+model_lgi_age_sex_1 <- gam(
+  lgi ~ age_c + sex + s(age_c, m = c(2, 0)),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_1)
+```
+
+### Global LGI ~ Sex * Age + s(Age, m = c(2,0))
+Age and sex do not have a significant linear interaction.
+```{r}
+#| label: lgi ~ age * sex + s(age, m = 0)
+model_lgi_age_sex_2 <- gam(
+  lgi ~ age_c * sex + s(age_c, m = c(2, 0)),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_2)
+```
+
+### Global LGI ~ Sex * Age + s(Age, m = c(2,0)) + s(Age, m = c(2,0), by = Sex)
+Age and sex do not have a significant nonlinear interaction.
+```{r}
+#| label: lgi ~ age * sex + s(age, m = 0) + s(age, m = 0, by = sex)
+model_lgi_age_sex_3 <- gam(
+  lgi ~ age_c * sex +
+    s(age_c, m = c(2, 0)) +
+    s(age_c, m = c(2, 0), by = sex_ord),
+  data = data_lgi_age_sex,
+  method = "REML"
+)
+
+summary(model_lgi_age_sex_3)
 ```
 
 ### Global LGI ~ Age * Sex (Final)
@@ -618,43 +660,152 @@ plot_lgi_age_sex <-
 plot_lgi_age_sex
 ```
 
-### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
-Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
+## Global LGI ~ Sex * Trauma {#two-sex-trauma}
 ```{r}
-#| label: lgi ~ age + sex + s(age, m = 0)
-model_lgi_age_sex_1 <- gam(
-  lgi ~ age_c + sex + s(age_c, m = c(2, 0)),
-  data = data_lgi_age_sex,
-  method = "REML"
-)
-
-summary(model_lgi_age_sex_1)
+#| label: lgi ~ sex * trauma
+data_lgi_sex_trauma <-
+  global_lgi |>
+  inner_join(demo, by = "bblid") |>
+  inner_join(env, by = "bblid") |>
+  rename(trauma = trauma_exposure) |>
+  mutate(
+    sex_ord = ordered(sex, levels = c("Female", "Male")),
+    trauma_c = trauma - mean(trauma)
+  ) |>
+  select(lgi, sex, sex_ord, trauma, trauma_c) |>
+  drop_na()
 ```
 
-### Global LGI ~ Sex * Age + s(Age, m = c(2,0))
-Age and sex do not have a significant linear interaction.
+### Global LGI ~ Sex + Trauma + s(Trauma, m = c(2,0))
 ```{r}
-#| label: lgi ~ age * sex + s(age, m = 0)
-model_lgi_age_sex_2 <- gam(
-  lgi ~ age_c * sex + s(age_c, m = c(2, 0)),
-  data = data_lgi_age_sex,
+#| label: lgi ~ sex + trauma + s(trauma, m = 0)
+model_lgi_sex_trauma_1 <- gam(
+  lgi ~ sex + trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
+  data = data_lgi_sex_trauma,
   method = "REML"
 )
 
-summary(model_lgi_age_sex_2)
+summary(model_lgi_sex_trauma_1)
 ```
 
-### Global LGI ~ Sex * Age + s(Age, m = c(2,0)) + s(Age, m = c(2,0), by = Sex)
-Age and sex do not have a significant nonlinear interaction.
+### Global LGI ~ Sex * Trauma + s(Trauma, m = c(2,0))
 ```{r}
-#| label: lgi ~ age * sex + s(age, m = 0) + s(age, m = 0, by = sex)
-model_lgi_age_sex_3 <- gam(
-  lgi ~ age_c * sex +
-    s(age_c, m = c(2, 0)) +
-    s(age_c, m = c(2, 0), by = sex_ord),
-  data = data_lgi_age_sex,
+#| label: lgi ~ sex * trauma + s(trauma, m = 0)
+model_lgi_sex_trauma_2 <- gam(
+  lgi ~ sex * trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
+  data = data_lgi_sex_trauma,
   method = "REML"
 )
 
-summary(model_lgi_age_sex_3)
+summary(model_lgi_sex_trauma_2)
+```
+
+### Global LGI ~ Sex * Trauma + s(Trauma, m = c(2,0)) + s(Trauma, m = c(2,0), by = Sex)
+```{r}
+#| label: lgi ~ sex * trauma + s(trauma, m = 0) + s(trauma, m = 0, by = sex)
+model_lgi_sex_trauma_3 <- gam(
+  lgi ~ sex * trauma_c +
+    s(trauma_c, k = 7, m = c(2, 0)) +
+    s(trauma_c, k = 7, m = c(2, 0), by = sex_ord),
+  data = data_lgi_sex_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_sex_trauma_3)
+```
+
+### Global LGI ~ Sex * Trauma
+```{r}
+#| label: lgi ~ sex * trauma [literal]
+model_lgi_sex_trauma_4 <- gam(
+  lgi ~ sex * trauma_c,
+  data = data_lgi_sex_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_sex_trauma_4)
+```
+
+### Global LGI ~ Sex + Trauma
+```{r}
+#| label: lgi ~ sex + trauma
+model_lgi_sex_trauma_5 <- gam(
+  lgi ~ sex + trauma,
+  data = data_lgi_sex_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_sex_trauma_5)
+```
+
+
+### Global LGI ~ Sex + Trauma (Final)
+```{r}
+#| label: lgi ~ sex + trauma [final]
+model_lgi_sex_trauma_final <- model_lgi_sex_trauma_5
+
+prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
+  group_by(sex) |>
+  summarise(
+    trauma = list(
+      seq(
+        min(trauma, na.rm = TRUE),
+        max(trauma, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(trauma)
+
+fit_data_lgi_sex_trauma <-
+  predict(
+    model_lgi_sex_trauma_final,
+    newdata = prediction_lgi_sex_trauma,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_sex_trauma <- prediction_lgi_sex_trauma |>
+  bind_cols(fit_data_lgi_sex_trauma)
+
+plot_lgi_sex_trauma <-
+  ggplot(mapping = aes(x = trauma, y = lgi, color = sex, fill = sex)) +
+  geom_line(
+    data = prediction_lgi_sex_trauma,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_sex_trauma,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_point(
+    data = data_lgi_sex_trauma,
+    position = position_jitterdodge(
+      jitter.width = 0.5,
+      dodge.width = 0.5
+    ),
+    alpha = 0.25,
+    size = 1
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(
+    title = "Trauma LGI Relationship by Sex",
+    subtitle = "lgi ~ trauma + sex",
+    x = "Trauma",
+    y = "LGI (global)"
+  )
+
+plot_lgi_sex_trauma
 ```
