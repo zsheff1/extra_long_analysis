@@ -540,6 +540,160 @@ plot_lgi_psy
   - [Global LGI differed by sex and showed a significant nonlinear association with SES, with evidence that the shape of this SES–LGI relationship differed between females and males. `lgi ~ s(ses, by = sex) + sex`.](#two-ses-sex)
   - [Greater trauma exposure was significantly associated with lower global LGI, and global LGI differed by sex, but there was no evidence that the trauma–LGI relationship differed between females and males. `lgi ~ sex + trauma`.](#two-sex-trauma)
 
+## Global LGI ~ Age * SES {#two-age-ses}
+```{r}
+#| label: lgi age ses
+data_lgi_age_ses <-
+  global_lgi |>
+  inner_join(demo, by = "bblid") |>
+  inner_join(env, by = "bblid") |>
+  rename(ses = env_ses) |>
+  mutate(age_c = age - mean(age), ses_c = ses - mean(ses)) |>
+  select(lgi, age, age_c, ses, ses_c) |>
+  drop_na()
+
+test_age_ses <-
+  cor.test(data_lgi_age_ses$age, data_lgi_age_ses$ses)
+
+test_age_ses
+```
+
+```{r}
+#| label: lgi age ses 1
+model_lgi_age_ses_1 <- gam(
+  lgi ~ age_c +
+    ses_c +
+    s(age_c, m = c(2, 0)) +
+    s(ses_c, k = 7, m = c(2, 0)),
+  data = data_lgi_age_ses,
+  method = "REML"
+)
+
+summary(model_lgi_age_ses_1)
+```
+
+```{r}
+#| label: lgi age ses 2
+model_lgi_age_ses_2 <- gam(
+  lgi ~ age_c * ses_c +
+    s(age_c, m = c(2, 0)) +
+    s(ses_c, k = 7, m = c(2, 0)),
+  data = data_lgi_age_ses,
+  method = "REML"
+)
+
+summary(model_lgi_age_ses_2)
+```
+
+```{r}
+#| label: lgi age ses 3
+model_lgi_age_ses_3 <- gam(
+  lgi ~ s(age) +
+    s(ses, k = 7) +
+    ti(age, ses, k = c(10, 7)),
+  data = data_lgi_age_ses,
+  method = "REML"
+)
+
+summary(model_lgi_age_ses_3)
+```
+
+```{r}
+#| label: lgi age ses final
+model_lgi_age_ses_final <- gam(
+  lgi ~ s(age) + s(ses),
+  data = data_lgi_age_ses,
+  method = "REML"
+)
+
+ses_0 <- min(data_lgi_age_ses$ses, na.rm = TRUE)
+ses_16 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 6))
+ses_33 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 3))
+ses_50 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 2))
+ses_66 <- unname(quantile(data_lgi_age_ses$ses, probs = 2 / 3))
+ses_83 <- unname(quantile(data_lgi_age_ses$ses, probs = 5 / 6))
+ses_100 <- max(data_lgi_age_ses$ses, na.rm = TRUE)
+
+prediction_lgi_age_ses <- data_lgi_age_ses |>
+  mutate(
+    ses = case_when(
+      ses <= ses_33 ~ ses_16,
+      ses > ses_33 & ses <= ses_66 ~ ses_50,
+      ses > ses_66 ~ ses_83
+    )
+  ) |>
+  group_by(ses) |>
+  summarise(
+    age = list(
+      seq(
+        min(age, na.rm = TRUE),
+        max(age, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(age)
+
+fit_lgi_age_ses <- predict(
+  model_lgi_age_ses_final,
+  newdata = prediction_lgi_age_ses,
+  type = "response",
+  se.fit = TRUE
+)
+
+prediction_lgi_age_ses <- prediction_lgi_age_ses |>
+  mutate(
+    fit = as.vector(pluck(fit_lgi_age_ses, "fit")),
+    se_fit = as.vector(pluck(fit_lgi_age_ses, "se.fit")),
+    lower = fit - 1.96 * se_fit,
+    upper = fit + 1.96 * se_fit
+  ) |>
+  select(age, ses, fit, upper, lower)
+
+plot_lgi_age_ses <-
+  ggplot(
+    mapping = aes(
+      x = age, y = lgi, group = ses, color = ses, fill = ses
+    )
+  ) +
+  geom_point(data = data_lgi_age_ses, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_age_ses,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_age_ses,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  scale_color_viridis_c(
+    limits = c(ses_0, ses_100),
+    breaks = c(ses_16, ses_50, ses_83),
+    labels = scales::label_number(accuracy = 0.1)
+
+  ) +
+  scale_fill_viridis_c(
+    limits = c(ses_0, ses_100),
+    breaks = c(ses_16, ses_50, ses_83),
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  labs(
+    title = "LGI Developmental Trajectories by SES",
+    subtitle = "lgi ~ s(age) + s(ses)",
+    x = "Age",
+    y = "LGI (global)",
+    color = "SES",
+    fill = "SES"
+  )
+
+plot_lgi_age_ses
+```
+
 ## Global LGI ~ Age * Sex {#two-age-sex}
 Age differed significantly by sex, with females being slightly older than males on average. When age and sex were modeled together, global LGI showed a significant nonlinear association with age and a significant main effect of sex, with males having higher global LGI than females. There was no evidence that the age–LGI relationship differed by sex in either its linear or nonlinear component, indicating that the same nonlinear age-related pattern adequately described both sexes. The most complex model supported by the data was therefore lgi ~ s(age) + sex.
 ```{r}
@@ -830,12 +984,13 @@ plot_lgi_age_trauma <-
     title = "LGI Developmental Trajectories by Trauma",
     subtitle = "lgi ~ s(age) + trauma + age:trauma",
     x = "Age",
-    y = "LGI (global)"
+    y = "LGI (global)",
+    color = "Trauma",
+    fill = "Trauma"
   )
 
 plot_lgi_age_trauma
 ```
-
 
 ## Global LGI ~ SES * Sex {#two-ses-sex}
 SES differed significantly by sex, with males having higher SES than females. Global LGI also differed significantly by sex after accounting for SES. The relationship between SES and global LGI was nonlinear, with evidence that the shape of this relationship differed by sex, although there was no evidence of a sex difference in the linear component of the SES association. The most complex model supported by the data therefore allowed the nonlinear association between SES and global LGI to vary by sex: lgi ~ sex + s(ses, by = sex). In this final model, SES was significantly associated with global LGI in both females (edf = 2.32, p < .001) and males (edf = 3.08, p < .001).
