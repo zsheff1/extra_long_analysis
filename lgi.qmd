@@ -535,12 +535,14 @@ plot_lgi_psy
 ```
 
 # Two-Way Interactions
+  - [Global LGI was nonlinearly associated with both age and SES, with no evidence of either a linear or nonlinear age × SES interaction. `lgi ~ s(age) + s(ses)`](#two-age-ses)
   - [Global LGI showed a significant nonlinear association with age and differed significantly by sex, but there was no evidence that the age–LGI relationship differed between females and males. `lgi ~ s(age) + sex`.](#two-age-sex)
   - [Global LGI was nonlinearly associated with age and linearly associated with trauma exposure, with a significant linear age × trauma interaction but no evidence of a more complex nonlinear interaction. `lgi ~ s(age) + truma + age:trauma`](#two-age-trauma)
   - [Global LGI differed by sex and showed a significant nonlinear association with SES, with evidence that the shape of this SES–LGI relationship differed between females and males. `lgi ~ s(ses, by = sex) + sex`.](#two-ses-sex)
   - [Greater trauma exposure was significantly associated with lower global LGI, and global LGI differed by sex, but there was no evidence that the trauma–LGI relationship differed between females and males. `lgi ~ sex + trauma`.](#two-sex-trauma)
 
 ## Global LGI ~ Age * SES {#two-age-ses}
+Age and SES were not significantly correlated. When modeled together, both age and SES showed significant nonlinear associations with global LGI, indicating that each contributed independently to LGI in a nonlinear manner. There was no evidence of a significant linear age × SES interaction, and a more flexible tensor-product interaction was also not significant. The most complex model supported by the data was therefore `lgi ~ s(age) + s(ses)`.
 ```{r}
 #| label: lgi age ses
 data_lgi_age_ses <-
