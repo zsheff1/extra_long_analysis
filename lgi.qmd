@@ -536,6 +536,7 @@ plot_lgi_psy
 
 # Two-Way Interactions
   - [Global LGI showed a significant nonlinear association with age and differed significantly by sex, but there was no evidence that the age–LGI relationship differed between females and males. `lgi ~ s(age) + sex`.](#two-age-sex)
+  - [Global LGI was nonlinearly associated with age and linearly associated with trauma exposure, with a significant linear age × trauma interaction but no evidence of a more complex nonlinear interaction. `lgi ~ s(age) + truma + age:trauma`](#two-age-trauma)
   - [Global LGI differed by sex and showed a significant nonlinear association with SES, with evidence that the shape of this SES–LGI relationship differed between females and males. `lgi ~ s(ses, by = sex) + sex`.](#two-ses-sex)
   - [Greater trauma exposure was significantly associated with lower global LGI, and global LGI differed by sex, but there was no evidence that the trauma–LGI relationship differed between females and males. `lgi ~ sex + trauma`.](#two-sex-trauma)
 
@@ -680,6 +681,161 @@ plot_lgi_age_sex <-
 
 plot_lgi_age_sex
 ```
+
+## Global LGI ~ Age * Trauma {#two-age-trauma}
+Age and trauma exposure were positively correlated. When modeled together, global LGI showed a significant nonlinear association with age and a significant linear association with trauma exposure. There was also a significant linear age × trauma interaction, indicating that the association between trauma exposure and global LGI varied with age. However, there was no evidence that this interaction required a more complex nonlinear surface. The most complex model supported by the data was therefore `lgi ~ s(age) + trauma + age:trauma`.
+```{r}
+#| label: lgi age trauma
+data_lgi_age_trauma <-
+  global_lgi |>
+  inner_join(demo, by = "bblid") |>
+  inner_join(env, by = "bblid") |>
+  rename(trauma = trauma_exposure) |>
+  mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma)) |>
+  select(lgi, age, age_c, trauma, trauma_c) |>
+  drop_na()
+
+test_age_trauma <-
+  cor.test(data_lgi_age_trauma$age, data_lgi_age_trauma$trauma)
+
+test_age_trauma
+
+plot_age_trauma <-
+  ggplot(data = data_lgi_age_trauma, aes(x = age, y = trauma)) +
+  geom_point() +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = FALSE
+  ) +
+  theme_linedraw() +
+  labs(
+    title = "Correlation of Age and Trauma",
+    subtitle = report_correlation(test_age_trauma),
+    x = "Age",
+    y = "Trauma"
+  )
+
+plot_age_trauma
+```
+
+### LGI ~ s(age) + s(trauma)
+```{r}
+#| label: lgi age trauma 1
+model_lgi_age_trauma_1 <- gam(
+  lgi ~ age_c +
+    trauma_c +
+    s(age_c, m = c(2, 0)) +
+    s(trauma_c, k = 7, m = c(2, 0)),
+  data = data_lgi_age_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_age_trauma_1)
+```
+
+```{r}
+#| label: lgi age trauma 2
+model_lgi_age_trauma_2 <- gam(
+  lgi ~ age_c * trauma_c +
+    s(age_c, m = c(2, 0)),
+  data = data_lgi_age_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_age_trauma_2)
+```
+
+```{r}
+#| label: lgi age trauma 3
+model_lgi_age_trauma_3 <- gam(
+  lgi ~ s(age) +
+    s(trauma, k = 7) +
+    ti(age, trauma, k = c(10, 7)),
+  data = data_lgi_age_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_age_trauma_3)
+```
+
+```{r}
+#| label: lgi age trauma final
+model_lgi_age_trauma_final <- gam(
+  lgi ~ s(age) + trauma + age:trauma,
+  data = data_lgi_age_trauma,
+  method = "REML"
+)
+
+prediction_lgi_age_trauma <- data_lgi_age_trauma |>
+  filter(trauma %in% c(0, 3, 6)) |>
+  group_by(trauma) |>
+  summarise(
+    age = list(
+      seq(
+        min(age, na.rm = TRUE),
+        max(age, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(age)
+
+fit_lgi_age_trauma <- predict(
+  model_lgi_age_trauma_final,
+  newdata = prediction_lgi_age_trauma,
+  type = "response",
+  se.fit = TRUE
+)
+
+prediction_lgi_age_trauma <- prediction_lgi_age_trauma |>
+  mutate(
+    fit = as.vector(pluck(fit_lgi_age_trauma, "fit")),
+    se_fit = as.vector(pluck(fit_lgi_age_trauma, "se.fit")),
+    lower = fit - 1.96 * se_fit,
+    upper = fit + 1.96 * se_fit
+  ) |>
+  select(age, trauma, fit, upper, lower)
+
+plot_lgi_age_trauma <-
+  ggplot(
+    mapping = aes(
+      x = age, y = lgi, group = trauma, color = trauma, fill = trauma
+    )
+  ) +
+  geom_point(data = data_lgi_age_trauma, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_age_trauma,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_age_trauma,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  scale_color_viridis_c(
+    limits = c(0, 7),
+    breaks = c(0, 3, 6)
+  ) +
+  scale_fill_viridis_c(
+    limits = c(0, 7),
+    breaks = c(0, 3, 6)
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom") +
+  labs(
+    title = "LGI Developmental Trajectories by Trauma",
+    subtitle = "lgi ~ s(age) + trauma + age:trauma",
+    x = "Age",
+    y = "LGI (global)"
+  )
+
+plot_lgi_age_trauma
+```
+
 
 ## Global LGI ~ SES * Sex {#two-ses-sex}
 SES differed significantly by sex, with males having higher SES than females. Global LGI also differed significantly by sex after accounting for SES. The relationship between SES and global LGI was nonlinear, with evidence that the shape of this relationship differed by sex, although there was no evidence of a sex difference in the linear component of the SES association. The most complex model supported by the data therefore allowed the nonlinear association between SES and global LGI to vary by sex: lgi ~ sex + s(ses, by = sex). In this final model, SES was significantly associated with global LGI in both females (edf = 2.32, p < .001) and males (edf = 3.08, p < .001).
