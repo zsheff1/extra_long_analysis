@@ -536,7 +536,7 @@ plot_lgi_psy
 
 # Two-Way Interactions
   - [There is a significant difference in age between sexes, with females being older than males. There are no significant linear or nonlinear interactions between age and sex. The most complex model supported is `lgi ~ s(age) + sex`.](#two-age-sex)
-  - [There is a significant difference in ses between sexes, with males having higher SES than females. There are no significant interactions between SES and sex. The most complex model supported is `lgi ~ ses + sex`.](#two-ses-sex)
+  - [Global LGI differed by sex and showed a significant nonlinear association with SES, with evidence that the shape of this SES–LGI relationship differed between females and males. The final supported model is `lgi ~ s(ses, by = sex) + sex`.](#two-ses-sex)
   - [There is no significant difference in trauma between sexes. There are no significant linear or nonlinear interactions between sex and trauma. When sex and trauma are both included in the model, trauma is no longer significantly nonlinear like it is when in the model by itself. The most complex model supported is `lgi ~ sex + trauma`.](#two-sex-trauma)
 
 ## Global LGI ~ Age * Sex {#two-age-sex}
@@ -682,6 +682,7 @@ plot_lgi_age_sex
 ```
 
 ## Global LGI ~ SES * Sex {#two-ses-sex}
+SES differed significantly by sex, with males having higher SES than females. Global LGI also differed significantly by sex after accounting for SES. The relationship between SES and global LGI was nonlinear, with evidence that the shape of this relationship differed by sex, although there was no evidence of a sex difference in the linear component of the SES association. The most complex model supported by the data therefore allowed the nonlinear association between SES and global LGI to vary by sex: lgi ~ sex + s(ses, by = sex). In this final model, SES was significantly associated with global LGI in both females (edf = 2.32, p < .001) and males (edf = 3.08, p < .001).
 ```{r}
 #| label: lgi ~ sex * sex
 data_lgi_ses_sex <-
@@ -690,6 +691,10 @@ data_lgi_ses_sex <-
   inner_join(env, by = "bblid") |>
   rename(ses = env_ses) |>
   select(lgi, sex, ses) |>
+  mutate(
+    sex_ord = ordered(sex, levels = c("Female", "Male")),
+    ses_c = ses - mean(ses)
+  ) |>
   drop_na()
 
 t.test(
@@ -737,10 +742,38 @@ model_lgi_ses_sex_2 <- gam(
 summary(model_lgi_ses_sex_2)
 ```
 
+```{r}
+model_lgi_ses_sex_3 <- gam(
+  lgi ~ ses_c + sex + s(ses_c, m = c(2, 0)),
+  data = data_lgi_ses_sex,
+  method = "REML"
+)
+
+summary(model_lgi_ses_sex_3)
+```
+
+```{r}
+model_lgi_ses_sex_4 <- gam(
+  lgi ~ ses_c * sex +
+    s(ses_c, m = c(2, 0)) +
+    s(ses_c, m = c(2, 0), by = sex_ord),
+  data = data_lgi_ses_sex,
+  method = "REML"
+)
+
+summary(model_lgi_ses_sex_4)
+```
+
 ### Global LGI ~ SES * Sex (Final)
 ```{r}
 #| label: lgi ~ ses * sex [final]
-model_lgi_ses_sex_final <- model_lgi_ses_sex_1
+model_lgi_ses_sex_final <- gam(
+  lgi ~ sex + s(ses, by = sex),
+  data = data_lgi_ses_sex,
+  method = "REML"
+)
+
+summary(model_lgi_ses_sex_final)
 
 prediction_lgi_ses_sex <- data_lgi_ses_sex |>
   group_by(sex) |>
