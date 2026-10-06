@@ -547,7 +547,7 @@ plot_lgi_psy
 ## Global LGI ~ Age * SES {#two-age-ses}
 Age and SES were not significantly correlated. When modeled together, both age and SES showed significant nonlinear associations with global LGI, indicating that each contributed independently to LGI in a nonlinear manner. There was no evidence of a significant linear age × SES interaction, and a more flexible tensor-product interaction was also not significant. The most complex model supported by the data was therefore `lgi ~ s(age) + s(ses)`.
 ```{r}
-#| label: lgi age ses
+#| label: lgi age ses data
 data_lgi_age_ses <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
@@ -556,7 +556,10 @@ data_lgi_age_ses <-
   mutate(age_c = age - mean(age), ses_c = ses - mean(ses)) |>
   select(lgi, age, age_c, ses, ses_c) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi age ses test
 test_age_ses <-
   cor.test(data_lgi_age_ses$age, data_lgi_age_ses$ses)
 
@@ -703,7 +706,7 @@ plot_lgi_age_ses
 ## Global LGI ~ Age * Sex {#two-age-sex}
 Age differed significantly by sex, with females being slightly older than males on average. When age and sex were modeled together, global LGI showed a significant nonlinear association with age and a significant main effect of sex, with males having higher global LGI than females. There was no evidence that the age–LGI relationship differed by sex in either its linear or nonlinear component, indicating that the same nonlinear age-related pattern adequately described both sexes. The most complex model supported by the data was therefore lgi ~ s(age) + sex.
 ```{r}
-#| label: lgi ~ age * sex
+#| label: lgi age sex data
 data_lgi_age_sex <-
   inner_join(global_lgi, demo, by = c("bblid")) |>
   mutate(
@@ -712,7 +715,10 @@ data_lgi_age_sex <-
   ) |>
   select(lgi, age, age_c, sex, sex_ord) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi age sex test
 t.test(
   age ~ sex,
   data = data_lgi_age_sex,
@@ -726,7 +732,6 @@ plot_age_sex <-
   ) +
   geom_histogram(position = "identity", binwidth = 1, alpha = 0.5) +
   theme_linedraw() +
-  # theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(title = "Age Distribution by Sex", x = "Age", y = "Count")
@@ -737,7 +742,7 @@ plot_age_sex
 ### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
 Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
 ```{r}
-#| label: lgi ~ age + sex + s(age, m = 0)
+#| label: lgi age sex 1
 model_lgi_age_sex_1 <- gam(
   lgi ~ age_c + sex + s(age_c, m = c(2, 0)),
   data = data_lgi_age_sex,
@@ -750,7 +755,7 @@ summary(model_lgi_age_sex_1)
 ### Global LGI ~ Sex * Age + s(Age, m = c(2,0))
 Age and sex do not have a significant linear interaction.
 ```{r}
-#| label: lgi ~ age * sex + s(age, m = 0)
+#| label: lgi age sex 2
 model_lgi_age_sex_2 <- gam(
   lgi ~ age_c * sex + s(age_c, m = c(2, 0)),
   data = data_lgi_age_sex,
@@ -763,7 +768,7 @@ summary(model_lgi_age_sex_2)
 ### Global LGI ~ Sex * Age + s(Age, m = c(2,0)) + s(Age, m = c(2,0), by = Sex)
 Age and sex do not have a significant nonlinear interaction.
 ```{r}
-#| label: lgi ~ age * sex + s(age, m = 0) + s(age, m = 0, by = sex)
+#| label: lgi age sex 3
 model_lgi_age_sex_3 <- gam(
   lgi ~ age_c * sex +
     s(age_c, m = c(2, 0)) +
@@ -777,7 +782,7 @@ summary(model_lgi_age_sex_3)
 
 ### Global LGI ~ Age * Sex (Final)
 ```{r}
-#| label: lgi ~ age * sex [final]
+#| label: lgi age sex final
 model_lgi_age_sex_final <- gam(
   lgi ~ sex + s(age),
   data = data_lgi_age_sex,
@@ -846,7 +851,7 @@ plot_lgi_age_sex
 ## Global LGI ~ Age * Trauma {#two-age-trauma}
 Age and trauma exposure were positively correlated. When modeled together, global LGI showed a significant nonlinear association with age and a significant linear association with trauma exposure. There was also a significant linear age × trauma interaction, indicating that the association between trauma exposure and global LGI varied with age. However, there was no evidence that this interaction required a more complex nonlinear surface. The most complex model supported by the data was therefore `lgi ~ s(age) + trauma + age:trauma`.
 ```{r}
-#| label: lgi age trauma
+#| label: lgi age trauma data
 data_lgi_age_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
@@ -855,7 +860,10 @@ data_lgi_age_trauma <-
   mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma)) |>
   select(lgi, age, age_c, trauma, trauma_c) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi age trauma test
 test_age_trauma <-
   cor.test(data_lgi_age_trauma$age, data_lgi_age_trauma$trauma)
 
@@ -997,7 +1005,7 @@ plot_lgi_age_trauma
 ## Global LGI ~ SES * Sex {#two-ses-sex}
 SES differed significantly by sex, with males having higher SES than females. Global LGI also differed significantly by sex after accounting for SES. The relationship between SES and global LGI was nonlinear, with evidence that the shape of this relationship differed by sex, although there was no evidence of a sex difference in the linear component of the SES association. The most complex model supported by the data therefore allowed the nonlinear association between SES and global LGI to vary by sex: lgi ~ sex + s(ses, by = sex). In this final model, SES was significantly associated with global LGI in both females (edf = 2.32, p < .001) and males (edf = 3.08, p < .001).
 ```{r}
-#| label: lgi ses sex
+#| label: lgi ses sex data
 data_lgi_ses_sex <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
@@ -1009,7 +1017,10 @@ data_lgi_ses_sex <-
     ses_c = ses - mean(ses)
   ) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi ses sex test
 t.test(
   ses ~ sex,
   data = data_lgi_ses_sex,
@@ -1151,6 +1162,7 @@ plot_lgi_ses_sex
 ## Global LGI ~ SES * Trauma {#two-ses-trauma}
 SES and trauma exposure were significantly negatively correlated. When modeled together, higher SES was significantly associated with higher global LGI, while trauma exposure showed a significant nonlinear association with global LGI. There was no evidence of a significant linear SES × trauma interaction, and a more flexible nonlinear interaction was also unsupported. The most complex model supported by the data was therefore `lgi ~ ses + s(trauma)`.
 ```{r}
+#| label: lgi ses trauma data
 data_lgi_ses_trauma <-
   global_lgi |>
   inner_join(env, by = "bblid") |>
@@ -1161,7 +1173,10 @@ data_lgi_ses_trauma <-
   ) |>
   select(lgi, ses, ses_c, trauma, trauma_c) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi ses trauma test
 test_ses_trauma <-
   cor.test(data_lgi_ses_trauma$ses, data_lgi_ses_trauma$trauma)
 
@@ -1226,7 +1241,7 @@ summary(model_lgi_ses_trauma_3)
 ```
 
 ```{r}
-#| label: lgi age trauma 4
+#| label: lgi ses trauma 4
 model_lgi_ses_trauma_4 <- gam(
   lgi ~ s(ses) +
     s(trauma, k = 7) +
@@ -1337,7 +1352,7 @@ plot_lgi_ses_trauma
 ## Global LGI ~ Sex * Trauma {#two-sex-trauma}
 Trauma exposure did not differ significantly between females and males. When trauma exposure and sex were modeled together, greater trauma exposure was significantly associated with lower global LGI, and males had significantly higher global LGI than females. There was no significant evidence that the trauma–LGI relationship was nonlinear, nor was there evidence that either the linear or nonlinear association between trauma exposure and global LGI differed by sex. The most complex model supported by the data was therefore `lgi ~ trauma + sex`.
 ```{r}
-#| label: lgi ~ sex * trauma
+#| label: lgi sex trauma data
 data_lgi_sex_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
@@ -1349,7 +1364,10 @@ data_lgi_sex_trauma <-
   ) |>
   select(lgi, sex, sex_ord, trauma, trauma_c) |>
   drop_na()
+```
 
+```{r}
+#| label: lgi sex trauma test
 t.test(
   trauma ~ sex,
   data = data_lgi_sex_trauma,
@@ -1359,7 +1377,7 @@ t.test(
 
 ### Global LGI ~ Sex + Trauma + s(Trauma, m = c(2,0))
 ```{r}
-#| label: lgi ~ sex + trauma + s(trauma, m = 0)
+#| label: lgi sex trauma 1
 model_lgi_sex_trauma_1 <- gam(
   lgi ~ sex + trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
@@ -1371,7 +1389,7 @@ summary(model_lgi_sex_trauma_1)
 
 ### Global LGI ~ Sex * Trauma + s(Trauma, m = c(2,0))
 ```{r}
-#| label: lgi ~ sex * trauma + s(trauma, m = 0)
+#| label: lgi sex trauma 2
 model_lgi_sex_trauma_2 <- gam(
   lgi ~ sex * trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
@@ -1383,7 +1401,7 @@ summary(model_lgi_sex_trauma_2)
 
 ### Global LGI ~ Sex * Trauma + s(Trauma, m = c(2,0)) + s(Trauma, m = c(2,0), by = Sex)
 ```{r}
-#| label: lgi ~ sex * trauma + s(trauma, m = 0) + s(trauma, m = 0, by = sex)
+#| label: lgi sex trauma 3
 model_lgi_sex_trauma_3 <- gam(
   lgi ~ sex * trauma_c +
     s(trauma_c, k = 7, m = c(2, 0)) +
@@ -1397,7 +1415,7 @@ summary(model_lgi_sex_trauma_3)
 
 ### Global LGI ~ Sex * Trauma
 ```{r}
-#| label: lgi ~ sex * trauma [literal]
+#| label: lgi sex trauma 4
 model_lgi_sex_trauma_4 <- gam(
   lgi ~ sex * trauma_c,
   data = data_lgi_sex_trauma,
@@ -1409,7 +1427,7 @@ summary(model_lgi_sex_trauma_4)
 
 ### Global LGI ~ Sex + Trauma
 ```{r}
-#| label: lgi ~ sex + trauma
+#| label: lgi sex trauma 5
 model_lgi_sex_trauma_5 <- gam(
   lgi ~ sex + trauma,
   data = data_lgi_sex_trauma,
@@ -1422,7 +1440,7 @@ summary(model_lgi_sex_trauma_5)
 
 ### Global LGI ~ Sex + Trauma (Final)
 ```{r}
-#| label: lgi ~ sex + trauma [final]
+#| label: lgi sex trauma final
 model_lgi_sex_trauma_final <- model_lgi_sex_trauma_5
 
 prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
