@@ -640,21 +640,21 @@ prediction_lgi_age_ses <- data_lgi_age_ses |>
   ) |>
   unnest(age)
 
-fit_lgi_age_ses <- predict(
-  model_lgi_age_ses_final,
-  newdata = prediction_lgi_age_ses,
-  type = "response",
-  se.fit = TRUE
-)
+fit_lgi_age_ses <-
+  predict(
+    model_lgi_age_ses_final,
+    newdata = prediction_lgi_age_ses,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
 
 prediction_lgi_age_ses <- prediction_lgi_age_ses |>
-  mutate(
-    fit = as.vector(pluck(fit_lgi_age_ses, "fit")),
-    se_fit = as.vector(pluck(fit_lgi_age_ses, "se.fit")),
-    lower = fit - 1.96 * se_fit,
-    upper = fit + 1.96 * se_fit
-  ) |>
-  select(age, ses, fit, upper, lower)
+  bind_cols(fit_lgi_age_ses)
 
 plot_lgi_age_ses <-
   ggplot(
@@ -677,16 +677,14 @@ plot_lgi_age_ses <-
   scale_color_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = scales::label_number(accuracy = 0.01)
 
   ) +
   scale_fill_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = scales::label_number(accuracy = 0.01)
   ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   labs(
     title = "LGI Developmental Trajectories by SES",
     subtitle = model_lgi_age_ses_final |>
@@ -696,7 +694,8 @@ plot_lgi_age_ses <-
     y = "LGI (global)",
     color = "SES",
     fill = "SES"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_age_ses
 ```
@@ -727,7 +726,7 @@ plot_age_sex <-
   ) +
   geom_histogram(position = "identity", binwidth = 1, alpha = 0.5) +
   theme_linedraw() +
-  theme(legend.position = "bottom") +
+  # theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(title = "Age Distribution by Sex", x = "Age", y = "Count")
@@ -799,21 +798,21 @@ prediction_lgi_age_sex <- data_lgi_age_sex |>
   ) |>
   unnest(age)
 
-fit_data_lgi_age_sex <- predict(
-  model_lgi_age_sex_final,
-  newdata = prediction_lgi_age_sex,
-  type = "response",
-  se.fit = TRUE
-)
+fit_data_lgi_age_sex <-
+  predict(
+    model_lgi_age_sex_final,
+    newdata = prediction_lgi_age_sex,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
 
 prediction_lgi_age_sex <- prediction_lgi_age_sex |>
-  mutate(
-    fit = as.vector(pluck(fit_data_lgi_age_sex, "fit")),
-    se_fit = as.vector(pluck(fit_data_lgi_age_sex, "se.fit")),
-    lower = fit - 1.96 * se_fit,
-    upper = fit + 1.96 * se_fit
-  ) |>
-  select(age, sex, fit, upper, lower)
+  bind_cols(fit_data_lgi_age_sex)
 
 plot_lgi_age_sex <-
   ggplot(mapping = aes(x = age, y = lgi, color = sex, fill = sex)) +
@@ -829,16 +828,17 @@ plot_lgi_age_sex <-
     alpha = 0.5,
     color = NA
   ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(
     title = "LGI Developmental Trajectories by Sex",
-    subtitle = "lgi ~ s(age) + sex",
+    subtitle = model_lgi_age_sex_final |>
+      pluck(formula) |>
+      deparse1(),
     x = "Age",
     y = "LGI (global)"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_age_sex
 ```
@@ -943,21 +943,21 @@ prediction_lgi_age_trauma <- data_lgi_age_trauma |>
   ) |>
   unnest(age)
 
-fit_lgi_age_trauma <- predict(
-  model_lgi_age_trauma_final,
-  newdata = prediction_lgi_age_trauma,
-  type = "response",
-  se.fit = TRUE
-)
+fit_lgi_age_trauma <-
+  predict(
+    model_lgi_age_trauma_final,
+    newdata = prediction_lgi_age_trauma,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
 
 prediction_lgi_age_trauma <- prediction_lgi_age_trauma |>
-  mutate(
-    fit = as.vector(pluck(fit_lgi_age_trauma, "fit")),
-    se_fit = as.vector(pluck(fit_lgi_age_trauma, "se.fit")),
-    lower = fit - 1.96 * se_fit,
-    upper = fit + 1.96 * se_fit
-  ) |>
-  select(age, trauma, fit, upper, lower)
+  bind_cols(fit_lgi_age_trauma)
 
 plot_lgi_age_trauma <-
   ggplot(
@@ -977,24 +977,19 @@ plot_lgi_age_trauma <-
     alpha = 0.5,
     color = NA
   ) +
-  scale_color_viridis_c(
-    limits = c(0, 7),
-    breaks = c(0, 3, 6)
-  ) +
-  scale_fill_viridis_c(
-    limits = c(0, 7),
-    breaks = c(0, 3, 6)
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
+  scale_color_viridis_c(limits = c(0, 7), breaks = c(0, 3, 6)) +
+  scale_fill_viridis_c(limits = c(0, 7), breaks = c(0, 3, 6)) +
   labs(
     title = "LGI Developmental Trajectories by Trauma",
-    subtitle = "lgi ~ s(age) + trauma + age:trauma",
+    subtitle = model_lgi_age_trauma_final |>
+      pluck(formula) |>
+      deparse1(),
     x = "Age",
     y = "LGI (global)",
     color = "Trauma",
     fill = "Trauma"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_age_trauma
 ```
@@ -1026,9 +1021,8 @@ plot_ses_sex <-
     data = data_lgi_ses_sex,
     mapping = aes(x = ses, group = sex, color = sex, fill = sex)
   ) +
-  geom_histogram(position = "identity", binwidth = 0.1, alpha = 0.5) +
+  geom_histogram(position = "identity", binwidth = 0.2, alpha = 0.5) +
   theme_linedraw() +
-  theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(title = "SES Distribution by Sex", x = "SES", y = "Count")
@@ -1127,6 +1121,7 @@ prediction_lgi_ses_sex <- prediction_lgi_ses_sex |>
 
 plot_lgi_ses_sex <-
   ggplot(mapping = aes(x = ses, y = lgi, color = sex, fill = sex)) +
+  geom_point(data = data_lgi_ses_sex, alpha = 0.25, size = 1) +
   geom_line(
     data = prediction_lgi_ses_sex,
     mapping = aes(y = fit),
@@ -1138,25 +1133,17 @@ plot_lgi_ses_sex <-
     alpha = 0.5,
     color = NA
   ) +
-  geom_point(
-    data = data_lgi_ses_sex,
-    position = position_jitterdodge(
-      jitter.width = 0.5,
-      dodge.width = 0.5
-    ),
-    alpha = 0.25,
-    size = 1
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(
     title = "SES LGI Relationship by Sex",
-    subtitle = "lgi ~ ses + sex",
+    subtitle = model_lgi_age_ses_final |>
+      pluck(formula) |>
+      deparse1(),
     x = "SES",
     y = "LGI (global)"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_ses_sex
 ```
@@ -1288,21 +1275,21 @@ prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
   ) |>
   unnest(trauma)
 
-fit_lgi_ses_trauma <- predict(
-  model_lgi_ses_trauma_final,
-  newdata = prediction_lgi_ses_trauma,
-  type = "response",
-  se.fit = TRUE
-)
+fit_lgi_ses_trauma <-
+  predict(
+    model_lgi_ses_trauma_final,
+    newdata = prediction_lgi_ses_trauma,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
 
 prediction_lgi_ses_trauma <- prediction_lgi_ses_trauma |>
-  mutate(
-    fit = as.vector(pluck(fit_lgi_ses_trauma, "fit")),
-    se_fit = as.vector(pluck(fit_lgi_ses_trauma, "se.fit")),
-    lower = fit - 1.96 * se_fit,
-    upper = fit + 1.96 * se_fit
-  ) |>
-  select(ses, trauma, fit, upper, lower)
+  bind_cols(fit_lgi_ses_trauma)
 
 plot_lgi_ses_trauma <-
   ggplot(
@@ -1326,15 +1313,12 @@ plot_lgi_ses_trauma <-
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
     labels = scales::label_number(accuracy = 0.1)
-
   ) +
   scale_fill_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
     labels = scales::label_number(accuracy = 0.1)
   ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   labs(
     title = "LGI Trauma Relationship by SES",
     subtitle = model_lgi_ses_trauma_final |>
@@ -1344,7 +1328,8 @@ plot_lgi_ses_trauma <-
     y = "LGI (global)",
     color = "SES",
     fill = "SES"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_ses_trauma
 ```
@@ -1472,6 +1457,15 @@ prediction_lgi_sex_trauma <- prediction_lgi_sex_trauma |>
 
 plot_lgi_sex_trauma <-
   ggplot(mapping = aes(x = trauma, y = lgi, color = sex, fill = sex)) +
+  geom_point(
+    data = data_lgi_sex_trauma,
+    position = position_jitterdodge(
+      jitter.width = 0.5,
+      dodge.width = 0.5
+    ),
+    alpha = 0.25,
+    size = 1
+  ) +
   geom_line(
     data = prediction_lgi_sex_trauma,
     mapping = aes(y = fit),
@@ -1483,25 +1477,17 @@ plot_lgi_sex_trauma <-
     alpha = 0.5,
     color = NA
   ) +
-  geom_point(
-    data = data_lgi_sex_trauma,
-    position = position_jitterdodge(
-      jitter.width = 0.5,
-      dodge.width = 0.5
-    ),
-    alpha = 0.25,
-    size = 1
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   color_scale_sex +
   fill_scale_sex +
   labs(
     title = "Trauma LGI Relationship by Sex",
-    subtitle = "lgi ~ trauma + sex",
+    subtitle = model_lgi_sex_trauma_final |>
+      pluck(formula) |>
+      deparse1(),
     x = "Trauma",
     y = "LGI (global)"
-  )
+  ) +
+  theme_linedraw()
 
 plot_lgi_sex_trauma
 ```
