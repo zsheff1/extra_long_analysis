@@ -638,6 +638,8 @@ model_lgi_age_ses_final <- gam(
   method = "REML"
 )
 
+summary(model_lgi_age_ses_final)
+
 ses_0 <- min(data_lgi_age_ses$ses, na.rm = TRUE)
 ses_16 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 6))
 ses_33 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 3))
@@ -829,6 +831,8 @@ model_lgi_age_sex_final <- gam(
   method = "REML"
 )
 
+summary(model_lgi_age_sex_final)
+
 prediction_lgi_age_sex <- data_lgi_age_sex |>
   group_by(sex) |>
   summarise(
@@ -992,6 +996,8 @@ model_lgi_age_trauma_final <- gam(
   data = data_lgi_age_trauma,
   method = "REML"
 )
+
+summary(model_lgi_age_trauma_final)
 
 prediction_lgi_age_trauma <- data_lgi_age_trauma |>
   filter(trauma %in% c(0, 3, 6)) |>
@@ -1351,6 +1357,8 @@ model_lgi_ses_trauma_final <- gam(
   method = "REML"
 )
 
+summary(model_lgi_ses_trauma_final)
+
 ses_0 <- min(data_lgi_ses_trauma$ses, na.rm = TRUE)
 ses_16 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 1 / 6))
 ses_33 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 1 / 3))
@@ -1543,6 +1551,8 @@ summary(model_lgi_sex_trauma_5)
 ```{r}
 #| label: lgi sex trauma final
 model_lgi_sex_trauma_final <- model_lgi_sex_trauma_5
+
+summary(model_lgi_sex_trauma_final)
 
 prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
   group_by(sex) |>
