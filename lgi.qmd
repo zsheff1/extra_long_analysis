@@ -3,18 +3,6 @@ title: "Local Gyrification Index"
 subtitle: "Exploratory Analyses"
 author: "Zachary Heffernan"
 date: today
-
-format:
-  html:
-    toc: true
-    toc-depth: 3
-    embed-resources: true
-
-execute: 
-  echo: true
-  warning: false
-  message: false
-  eval: true
 ---
 
 ```{r}
@@ -566,6 +554,8 @@ test_age_ses <-
 test_age_ses
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ```{r}
 #| label: lgi age ses 1
 model_lgi_age_ses_1 <- gam(
@@ -605,6 +595,8 @@ model_lgi_age_ses_3 <- gam(
 
 summary(model_lgi_age_ses_3)
 ```
+
+:::
 
 ```{r}
 #| label: lgi age ses final
@@ -739,6 +731,8 @@ plot_age_sex <-
 plot_age_sex
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ### Global LGI ~ Age + Sex + s(Age, m = c(2,0))
 Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
 ```{r}
@@ -779,6 +773,8 @@ model_lgi_age_sex_3 <- gam(
 
 summary(model_lgi_age_sex_3)
 ```
+
+:::
 
 ### Global LGI ~ Age * Sex (Final)
 ```{r}
@@ -888,6 +884,8 @@ plot_age_trauma <-
 plot_age_trauma
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ### LGI ~ s(age) + s(trauma)
 ```{r}
 #| label: lgi age trauma 1
@@ -927,6 +925,8 @@ model_lgi_age_trauma_3 <- gam(
 
 summary(model_lgi_age_trauma_3)
 ```
+
+:::
 
 ```{r}
 #| label: lgi age trauma final
@@ -1041,6 +1041,8 @@ plot_ses_sex <-
 plot_ses_sex
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ### Global LGI ~ SES + Sex
 ```{r}
 #| label: lgi ses sex 1
@@ -1088,6 +1090,8 @@ model_lgi_ses_sex_4 <- gam(
 
 summary(model_lgi_ses_sex_4)
 ```
+
+:::
 
 ### Global LGI ~ SES * Sex (Final)
 ```{r}
@@ -1201,6 +1205,8 @@ plot_ses_trauma <-
 plot_ses_trauma
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ```{r}
 #| label: lgi ses trauma 1
 model_lgi_ses_trauma_1 <- gam(
@@ -1252,6 +1258,8 @@ model_lgi_ses_trauma_4 <- gam(
 
 summary(model_lgi_ses_trauma_4)
 ```
+
+:::
 
 ```{r}
 #| label: lgi ses trauma final
@@ -1375,6 +1383,8 @@ t.test(
 )
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ### Global LGI ~ Sex + Trauma + s(Trauma, m = c(2,0))
 ```{r}
 #| label: lgi sex trauma 1
@@ -1437,6 +1447,7 @@ model_lgi_sex_trauma_5 <- gam(
 summary(model_lgi_sex_trauma_5)
 ```
 
+:::
 
 ### Global LGI ~ Sex + Trauma (Final)
 ```{r}

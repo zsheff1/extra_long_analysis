@@ -1,2 +1,11 @@
 project: 
   output-dir: /data/secure/bit_repo/projects_repo/ExtraLong/results
+
+profile: 
+  default: scratch
+
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
