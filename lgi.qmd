@@ -76,8 +76,9 @@ demo <- raw_sub_ses |>
 
 # Environment
 env <- full_join(raw_env_ses, raw_env_trauma, by = "bblid") |>
-  select(bblid, envSES, Trauma_Exposure) |>
-  clean_names()
+  clean_names() |>
+  rename(trauma = trauma_exposure, ses = env_ses) |>
+  select(bblid, trauma, ses)
 
 # Imaging
 imaging_qc <- raw_sub_ses |>
@@ -294,10 +295,11 @@ plot_lgi_etiv
 # Main Effects
 
   - [There is a significant nonlinear effect of Age on Global LGI, where Global LGI declines with Age.](#main-age)
+  - [There is a significant decreasing trend in Global LGI across increasing levels of GOASSESS Psychosis Scores.](#main-psy)
   - [There is a significant positive correlation between Socioeconomic Status and Global LGI.](#main-ses)
-  - [There is a significant nonlinear effect of Trauma Exposure on Global LGI, where those with higher Trauma Exposure have lower Global LGI.](#main-trauma)
   - [There is a significant difference in Global LGI between sexes, with Males having higher Global LGI than Females.](#main-sex)
-  - [There is a significant decreasing trend in Global LGI across increasing levels of GOASSESS Psychosis Scores.](#main-goa-psy)
+  - [There is a significant nonlinear effect of Trauma Exposure on Global LGI, where those with higher Trauma Exposure have lower Global LGI.](#main-trauma)
+
 
 ## Global LGI ~ Age {#main-age}
 
@@ -426,6 +428,73 @@ plot_lgi_age <-
 plot_lgi_age
 ```
 
+## Global LGI ~ Psychosis {#main-psy}
+
+Global LGI shows a significant decreasing trend across increasing levels of GOASSESS Psychosis Scores.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi psy
+data_lgi_psy <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(psy = smry_psy_cat) |>
+  select(lgi, psy) |>
+  filter(psy %in% c(0, 1, 2, 3, 4)) |>
+  mutate(psy = ordered(psy)) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi psy test
+test_lgi_psy <-
+  clinfun::jonckheere.test(
+    x = data_lgi_psy$lgi,
+    g = data_lgi_psy$psy,
+    alternative = "decreasing"
+  )
+
+test_lgi_psy
+```
+
+### Results
+
+```{r}
+#| label: lgi psy final
+plot_lgi_psy <-
+  ggplot(
+    data = data_lgi_psy,
+    aes(x = psy, y = lgi, color = psy, fill = psy)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  theme_linedraw() +
+  theme(legend.position = "none") +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Psychosis Levels",
+    subtitle = report_jt(test_lgi_psy),
+    x = "Psychosis (GOASSESS Category)",
+    y = "LGI (global)"
+  )
+
+plot_lgi_psy
+```
+
 ## Global LGI ~ SES {#main-ses}
 
 Global LGI is signitifantly positively correlated with socioeconomic status. This effect is not significantly nonlinear.
@@ -438,7 +507,6 @@ Global LGI is signitifantly positively correlated with socioeconomic status. Thi
 #| label: lgi ses data
 data_lgi_ses <-
   inner_join(global_lgi, env, by = "bblid") |>
-  rename(ses = env_ses) |>
   select(lgi, ses) |>
   drop_na()
 ```
@@ -554,6 +622,111 @@ plot_lgi_ses <-
 plot_lgi_ses
 ```
 
+## Global LGI ~ Sex {#main-sex}
+
+There are significant differences in Global LGI between sexes, with Males having higher Global LGI than Females.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi sex data
+data_lgi_sex <-
+  inner_join(global_lgi, demo, by = "bblid") |>
+  select(lgi, sex) |>
+  drop_na()
+```
+
+### Model Selection
+
+```{r}
+#| label: lgi sex final
+model_lgi_sex_final <- gam(
+  lgi ~ sex,
+  data = data_lgi_sex,
+  method = "REML"
+)
+
+gam.check(model_lgi_sex_final)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi sex results
+summary(model_lgi_sex_final)
+
+prediction_lgi_sex <- data_lgi_sex |>
+  distinct(sex) |>
+  mutate(x = as.numeric(sex))
+
+fit_lgi_sex <-
+  predict(
+    model_lgi_sex_final,
+    newdata = prediction_lgi_sex,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(
+    lower = fit - 1.96 * se_fit,
+    upper = fit + 1.96 * se_fit
+  ) |>
+  select(fit, lower, upper)
+
+prediction_lgi_sex <- prediction_lgi_sex |>
+  bind_cols(fit_lgi_sex)
+
+plot_lgi_sex <-
+  ggplot(mapping = aes(x = sex, y = lgi, color = sex, fill = sex)) +
+  geom_jitter(
+    data = data_lgi_sex,
+    alpha = 0.25,
+    size = 1
+  ) +
+  geom_rect(
+    data = prediction_lgi_sex,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = sex
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = prediction_lgi_sex,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = sex
+    ),
+    inherit.aes = FALSE,
+    linewidth = 0.75
+  ) +
+  color_scale_sex +
+  fill_scale_sex +
+  labs(
+    title = "Differences in Global LGI between Sexes",
+    x = "Sex",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_sex
+```
+
 ## Global LGI ~ Trauma {#main-trauma}
 
 Global LGI is significantly negatively correlated with Trauma Exposure. This effect is significantly nonlinear.
@@ -566,7 +739,6 @@ Global LGI is significantly negatively correlated with Trauma Exposure. This eff
 #| label: lgi trauma data
 data_lgi_trauma <-
   inner_join(global_lgi, env, by = "bblid") |>
-  rename(trauma = trauma_exposure) |>
   select(lgi, trauma) |>
   drop_na()
 ```
@@ -687,178 +859,6 @@ plot_lgi_trauma <-
 plot_lgi_trauma
 ```
 
-## Global LGI ~ Sex {#main-sex}
-
-There are significant differences in Global LGI between sexes, with Males having higher Global LGI than Females.
-
-::: {.content-visible when-profile="scratch"}
-
-### Sample
-
-```{r}
-#| label: lgi sex data
-data_lgi_sex <-
-  inner_join(global_lgi, demo, by = "bblid") |>
-  select(lgi, sex) |>
-  drop_na()
-```
-
-### Model Selection
-
-```{r}
-#| label: lgi sex final
-model_lgi_sex_final <- gam(
-  lgi ~ sex,
-  data = data_lgi_sex,
-  method = "REML"
-)
-
-gam.check(model_lgi_sex_final)
-```
-
-### Results
-
-:::
-
-```{r}
-#| label: lgi sex results
-summary(model_lgi_sex_final)
-
-prediction_lgi_sex <- data_lgi_sex |>
-  distinct(sex) |>
-  mutate(x = as.numeric(sex))
-
-fit_lgi_sex <-
-  predict(
-    model_lgi_sex_final,
-    newdata = prediction_lgi_sex,
-    type = "response",
-    se.fit = TRUE
-  ) |>
-  map(as.vector) |>
-  as_tibble() |>
-  clean_names() |>
-  mutate(
-    lower = fit - 1.96 * se_fit,
-    upper = fit + 1.96 * se_fit
-  ) |>
-  select(fit, lower, upper)
-
-prediction_lgi_sex <- prediction_lgi_sex |>
-  bind_cols(fit_lgi_sex)
-
-plot_lgi_sex <-
-  ggplot(mapping = aes(x = sex, y = lgi, color = sex, fill = sex)) +
-  geom_jitter(
-    data = data_lgi_sex,
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = prediction_lgi_sex,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = sex
-    ),
-    inherit.aes = FALSE,
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = prediction_lgi_sex,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = sex
-    ),
-    inherit.aes = FALSE,
-    linewidth = 0.75
-  ) +
-  color_scale_sex +
-  fill_scale_sex +
-  labs(
-    title = "Differences in Global LGI between Sexes",
-    x = "Sex",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_sex
-```
-
-## Global LGI ~ Psychosis {#main-goa-psy}
-
-Global LGI shows a significant decreasing trend across increasing levels of GOASSESS Psychosis Scores.
-
-::: {.content-visible when-profile="scratch"}
-
-### Sample
-
-```{r}
-#| label: lgi psy
-data_lgi_psy <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
-  rename(psy = smry_psy_cat) |>
-  select(lgi, psy) |>
-  filter(psy %in% c(0, 1, 2, 3, 4)) |>
-  mutate(psy = ordered(psy)) |>
-  drop_na()
-```
-
-:::
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi psy test
-test_lgi_psy <-
-  clinfun::jonckheere.test(
-    x = data_lgi_psy$lgi,
-    g = data_lgi_psy$psy,
-    alternative = "decreasing"
-  )
-
-test_lgi_psy
-```
-
-### Results
-
-```{r}
-#| label: lgi psy final
-plot_lgi_psy <-
-  ggplot(
-    data = data_lgi_psy,
-    aes(x = psy, y = lgi, color = psy, fill = psy)
-  ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  theme_linedraw() +
-  theme(legend.position = "none") +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
-  ) +
-  labs(
-    title = "Differences in Global LGI between Psychosis Levels",
-    subtitle = report_jt(test_lgi_psy),
-    x = "Psychosis (GOASSESS Category)",
-    y = "LGI (global)"
-  )
-
-plot_lgi_psy
-```
-
 # Two-Way Interactions
 
   - [Global LGI was nonlinearly associated with both age and SES, with no evidence of either a linear or nonlinear age × SES interaction. `lgi ~ s(age) + s(ses)`](#two-age-ses)
@@ -884,7 +884,6 @@ data_lgi_age_ses <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  rename(ses = env_ses) |>
   mutate(age_c = age - mean(age), ses_c = ses - mean(ses)) |>
   select(lgi, age, age_c, ses, ses_c) |>
   drop_na()
@@ -1268,7 +1267,6 @@ data_lgi_age_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  rename(trauma = trauma_exposure) |>
   mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma)) |>
   select(lgi, age, age_c, trauma, trauma_c) |>
   drop_na()
@@ -1469,7 +1467,6 @@ data_lgi_ses_sex <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  rename(ses = env_ses) |>
   select(lgi, sex, ses) |>
   mutate(
     sex_ord = ordered(sex, levels = c("Female", "Male")),
@@ -1661,7 +1658,6 @@ SES and trauma exposure were significantly negatively correlated. When modeled t
 data_lgi_ses_trauma <-
   global_lgi |>
   inner_join(env, by = "bblid") |>
-  rename(ses = env_ses, trauma = trauma_exposure) |>
   mutate(
     ses_c = ses - mean(ses),
     trauma_c = trauma - mean(trauma)
@@ -1807,18 +1803,14 @@ ses_66 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 2 / 3))
 ses_83 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 5 / 6))
 ses_100 <- max(data_lgi_ses_trauma$ses, na.rm = TRUE)
 
-data_lgi_ses_trauma <- data_lgi_ses_trauma |>
+prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
   mutate(
-    ses_tri = case_when(
+    ses = case_when(
       ses <= ses_33 ~ ses_16,
       ses > ses_33 & ses <= ses_66 ~ ses_50,
       ses > ses_66 ~ ses_83
     )
-  )
-
-prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
-  select(-ses) |>
-  rename(ses = ses_tri) |>
+  ) |>
   group_by(ses) |>
   summarise(
     trauma = list(
@@ -1912,7 +1904,6 @@ data_lgi_sex_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  rename(trauma = trauma_exposure) |>
   mutate(
     sex_ord = ordered(sex, levels = c("Female", "Male")),
     trauma_c = trauma - mean(trauma)
