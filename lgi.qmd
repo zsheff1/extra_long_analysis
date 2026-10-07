@@ -283,238 +283,475 @@ plot_lgi_etiv
 
 Global LGI is significantly negatively correlated with age. This effect is significantly nonlinear, though the nonlinearity is subtle.
 
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
 ```{r}
-#| label: lgi ~ age
+#| label: lgi age data
 data_lgi_age <-
   inner_join(global_lgi, demo, by = c("bblid")) |>
   select(lgi, age) |>
   drop_na()
-
-test_lgi_age <-
-  cor.test(data_lgi_age$lgi, data_lgi_age$age)
-
-plot_lgi_age <-
-  ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
-  geom_point() +
-  theme_linedraw() +
-  labs(
-    title = "Correlation of Global LGI and Age",
-    subtitle = report_correlation(test_lgi_age),
-    x = "Age",
-    y = "LGI (global)"
-  )
-
-plot_lgi_age
 ```
 
-### Nonlinearity
+### Model Selection
 
 ```{r}
-#| label: lgi ~ s(age)
-model_lgi_age <- gam(
+#| label: lgi age 1
+model_lgi_age_1 <- gam(
+  lgi ~ age,
+  data = data_lgi_age,
+  method = "REML"
+)
+
+summary(model_lgi_age_1)
+```
+
+```{r}
+#| label: lgi age 2
+model_lgi_age_2 <- gam(
   lgi ~ age + s(age, m = c(2, 0)),
   data = data_lgi_age,
   method = "REML"
 )
 
-summary(model_lgi_age)
+summary(model_lgi_age_2)
+```
 
-plot_lgi_age_linearity <- ggplot(data = data_lgi_age, aes(x = age, y = lgi)) +
-  geom_point() +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = FALSE,
-    aes(color = "Linear")
+### Results
+
+:::
+
+```{r}
+#| label: lgi age final
+model_lgi_age_final <- gam(
+  lgi ~ s(age),
+  data = data_lgi_age,
+  method = "REML"
+)
+
+summary(model_lgi_age_final)
+
+prediction_lgi_age <- data_lgi_age |>
+  summarise(
+    age = list(
+      seq(
+        min(age, na.rm = TRUE),
+        max(age, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(age)
+
+fit_lgi_age <-
+  predict(
+    model_lgi_age_final,
+    newdata = prediction_lgi_age,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_age <- prediction_lgi_age |>
+  bind_cols(fit_lgi_age)
+
+plot_lgi_age <-
+  ggplot(mapping = aes(x = age, y = lgi)) +
+  geom_point(data = data_lgi_age, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_age,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
-  geom_smooth(
-    method = "gam",
-    formula = y ~ s(x),
-    se = FALSE,
-    aes(color = "Nonlinear")
+  geom_ribbon(
+    data = prediction_lgi_age,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
   ) +
-  scale_color_manual(
-    values = c("Linear" = "blue", "Nonlinear" = "red"),
-    name = NULL
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom") +
   labs(
-    title = "Linearity of Relationship Between Global LGI and Age",
+    title = "LGI Developmental Trajectory",
     x = "Age",
     y = "LGI (global)"
-  )
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
 
-plot_lgi_age_linearity
+plot_lgi_age
 ```
 
 ## Global LGI ~ SES {#main-ses}
 
 Global LGI is signitifantly positively correlated with socioeconomic status. This effect is not significantly nonlinear.
 
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
 ```{r}
-#| label: lgi ~ ses
+#| label: lgi ses data
 data_lgi_ses <-
   inner_join(global_lgi, env, by = "bblid") |>
-  select(lgi, env_ses) |>
+  rename(ses = env_ses) |>
+  select(lgi, ses) |>
   drop_na()
-
-test_lgi_ses <-
-  cor.test(data_lgi_ses$lgi, data_lgi_ses$env_ses)
-
-plot_lgi_ses <-
-  ggplot(data = data_lgi_ses, aes(x = env_ses, y = lgi)) +
-  geom_point() +
-  theme_linedraw() +
-  labs(
-    title = "Correlation of Global LGI and Socioeconomic Status",
-    subtitle = report_correlation(test_lgi_ses),
-    x = "Socioeconomic Status",
-    y = "LGI (global)"
-  )
-
-plot_lgi_ses
 ```
 
-### Nonlinearity
+### Model Selection
 
 ```{r}
-#| label: lgi ~ s(ses)
-model_lgi_ses <- gam(
-  lgi ~ env_ses + s(env_ses, m = c(2, 0)),
+#| label: lgi ses 1
+model_lgi_ses_1 <- gam(
+  lgi ~ ses,
   data = data_lgi_ses,
   method = "REML"
 )
 
-summary(model_lgi_ses)
+summary(model_lgi_ses_1)
+```
+
+```{r}
+#| label: lgi ses 2
+model_lgi_ses_2 <- gam(
+  lgi ~ ses + s(ses, m = c(2, 0)),
+  data = data_lgi_ses,
+  method = "REML"
+)
+
+summary(model_lgi_ses_2)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi ses final
+model_lgi_ses_final <- gam(
+  lgi ~ ses,
+  data = data_lgi_ses,
+  method = "REML"
+)
+
+summary(model_lgi_ses_final)
+
+prediction_lgi_ses <- data_lgi_ses |>
+  summarise(
+    ses = list(
+      seq(
+        min(ses, na.rm = TRUE),
+        max(ses, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(ses)
+
+fit_lgi_ses <-
+  predict(
+    model_lgi_ses_final,
+    newdata = prediction_lgi_ses,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_ses <- prediction_lgi_ses |>
+  bind_cols(fit_lgi_ses)
+
+plot_lgi_ses <-
+  ggplot(mapping = aes(x = ses, y = lgi)) +
+  geom_point(data = data_lgi_ses, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_ses,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_ses,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  labs(
+    title = "LGI SES Relationship",
+    x = "SES",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_ses
 ```
 
 ## Global LGI ~ Trauma {#main-trauma}
 
 Global LGI is significantly negatively correlated with Trauma Exposure. This effect is significantly nonlinear.
 
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
 ```{r}
-#| label: lgi ~ trauma
+#| label: lgi trauma data
 data_lgi_trauma <-
   inner_join(global_lgi, env, by = "bblid") |>
-  select(lgi, trauma_exposure) |>
+  rename(trauma = trauma_exposure) |>
+  select(lgi, trauma) |>
   drop_na()
-
-test_lgi_trauma <-
-  cor.test(data_lgi_trauma$lgi, data_lgi_trauma$trauma_exposure)
-
-plot_lgi_trauma <-
-  ggplot(data = data_lgi_trauma, aes(x = trauma_exposure, y = lgi)) +
-  geom_point() +
-  theme_linedraw() +
-  labs(
-    title = "Correlation of Global LGI and Trauma Exposure",
-    subtitle = report_correlation(test_lgi_trauma),
-    x = "Trauma Exposure",
-    y = "LGI (global)"
-  )
-
-plot_lgi_trauma
 ```
 
-### Nonlinearity
+### Model Selection
 
 ```{r}
-#| label: lgi ~ s(trauma)
-model_lgi_trauma <- gam(
-  lgi ~ trauma_exposure + s(trauma_exposure, k = 7, m = c(2, 0)),
+#| label: lgi trauma 1
+model_lgi_trauma_1 <- gam(
+  lgi ~ trauma,
   data = data_lgi_trauma,
   method = "REML"
 )
 
-summary(model_lgi_trauma)
+summary(model_lgi_trauma_1)
+```
 
-plot_lgi_trauma_linearity <-
-  ggplot(data = data_lgi_trauma, aes(x = trauma_exposure, y = lgi)) +
-  geom_point() +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = FALSE,
-    aes(color = "Linear")
+```{r}
+#| label: lgi trauma 2
+model_lgi_trauma_2 <- gam(
+  lgi ~ trauma + s(trauma, k = 7, m = c(2, 0)),
+  data = data_lgi_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_trauma_2)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi trauma final
+model_lgi_trauma_final <- gam(
+  lgi ~ s(trauma, k = 7),
+  data = data_lgi_trauma,
+  method = "REML"
+)
+
+summary(model_lgi_trauma_final)
+
+prediction_lgi_trauma <- data_lgi_trauma |>
+  summarise(
+    trauma = list(
+      seq(
+        min(trauma, na.rm = TRUE),
+        max(trauma, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(trauma)
+
+fit_lgi_trauma <-
+  predict(
+    model_lgi_trauma_final,
+    newdata = prediction_lgi_trauma,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_trauma <- prediction_lgi_trauma |>
+  bind_cols(fit_lgi_trauma)
+
+plot_lgi_trauma <-
+  ggplot(mapping = aes(x = trauma, y = lgi)) +
+  geom_point(
+    data = data_lgi_trauma,
+    position = position_jitterdodge(
+      jitter.width = 0.5,
+      dodge.width = 0.5
+    ),
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_smooth(
-    method = "gam",
-    formula = y ~ s(x, k = 7),
-    se = FALSE,
-    aes(color = "Nonlinear")
+  geom_line(
+    data = prediction_lgi_trauma,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
-  scale_color_manual(
-    values = c("Linear" = "blue", "Nonlinear" = "red"),
-    name = NULL
+  geom_ribbon(
+    data = prediction_lgi_trauma,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  labs(
+    title = "LGI Trauma Relationship",
+    x = "Trauma",
+    y = "LGI (global)"
   ) +
   theme_linedraw() +
-  theme(legend.position = "bottom") +
-  labs(
-    title = "Linearity of Relationship Between Global LGI and Trauma Exposure",
-    x = "Trauma Exposure",
-    y = "LGI (global)"
-  )
+  theme(legend.position = "none")
 
-plot_lgi_trauma_linearity
+plot_lgi_trauma
 ```
 
 ## Global LGI ~ Sex {#main-sex}
 
 There are significant differences in Global LGI between sexes, with Males having higher Global LGI than Females.
 
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
 ```{r}
-#| label: lgi ~ sex
+#| label: lgi sex data
 data_lgi_sex <-
   inner_join(global_lgi, demo, by = "bblid") |>
   select(lgi, sex) |>
   drop_na()
+```
 
-test_lgi_sex <-
-  t.test(lgi ~ sex, data = data_lgi_sex)
+### Results
+
+:::
+
+```{r}
+#| label: lgi sex final
+model_lgi_sex_final <- gam(
+  lgi ~ sex,
+  data = data_lgi_sex,
+  method = "REML"
+)
+
+summary(model_lgi_sex_final)
+
+prediction_lgi_sex <- data_lgi_sex |>
+  distinct(sex) |>
+  mutate(x = as.numeric(sex))
+
+fit_lgi_sex <-
+  predict(
+    model_lgi_sex_final,
+    newdata = prediction_lgi_sex,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(
+    lower = fit - 1.96 * se_fit,
+    upper = fit + 1.96 * se_fit
+  ) |>
+  select(fit, lower, upper)
+
+prediction_lgi_sex <- prediction_lgi_sex |>
+  bind_cols(fit_lgi_sex)
 
 plot_lgi_sex <-
-  ggplot(data = data_lgi_sex, aes(x = sex, y = lgi, color = sex, fill = sex)) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  theme_linedraw() +
-  theme(legend.position = "none") +
+  ggplot(mapping = aes(x = sex, y = lgi, color = sex, fill = sex)) +
+  geom_jitter(
+    data = data_lgi_sex,
+    alpha = 0.25,
+    size = 1
+  ) +
+  geom_rect(
+    data = prediction_lgi_sex,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = sex
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = prediction_lgi_sex,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = sex
+    ),
+    inherit.aes = FALSE,
+    linewidth = 0.75
+  ) +
   color_scale_sex +
   fill_scale_sex +
   labs(
     title = "Differences in Global LGI between Sexes",
-    subtitle = report_t_test(test_lgi_sex),
     x = "Sex",
     y = "LGI (global)"
-  )
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
 
 plot_lgi_sex
 ```
 
-## Global LGI ~ GOASSESS Psychosis {#main-goa-psy}
+## Global LGI ~ Psychosis {#main-goa-psy}
 
 Global LGI shows a significant decreasing trend across increasing levels of GOASSESS Psychosis Scores.
 
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
 ```{r}
-#| label: lgi ~ goa_smry_psy
+#| label: lgi psy 
 data_lgi_psy <-
   inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
-  select(lgi, smry_psy_cat) |>
-  filter(smry_psy_cat %in% c(0, 1, 2, 3, 4)) |>
-  mutate(smry_psy_cat = ordered(smry_psy_cat)) |>
+  rename(psy = smry_psy_cat) |>
+  select(lgi, psy) |>
+  filter(psy %in% c(0, 1, 2, 3, 4)) |>
+  mutate(psy = ordered(psy)) |>
   drop_na()
+```
 
+:::
+
+### Hypothesis Test
+
+```{r}
 test_lgi_psy <-
   clinfun::jonckheere.test(
     x = data_lgi_psy$lgi,
-    g = data_lgi_psy$smry_psy_cat,
+    g = data_lgi_psy$psy,
     alternative = "decreasing"
   )
 
+test_lgi_psy
+```
+
+### Results
+
+```{r}
 plot_lgi_psy <-
   ggplot(
     data = data_lgi_psy,
-    aes(x = smry_psy_cat, y = lgi, color = smry_psy_cat, fill = smry_psy_cat)
+    aes(x = psy, y = lgi, color = psy, fill = psy)
   ) +
   geom_jitter(alpha = 0.25) +
   geom_violin(alpha = 0.5) +
@@ -530,9 +767,9 @@ plot_lgi_psy <-
     )
   ) +
   labs(
-    title = "Differences in Global LGI between Psychosis Categories",
+    title = "Differences in Global LGI between Psychosis Levels",
     subtitle = report_jt(test_lgi_psy),
-    x = "GOASSESS Psychosis Category",
+    x = "Psychosis (GOASSESS Category)",
     y = "LGI (global)"
   )
 
