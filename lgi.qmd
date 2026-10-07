@@ -339,10 +339,6 @@ model_lgi_age_2 <- gam(
 summary(model_lgi_age_2)
 ```
 
-### Results
-
-:::
-
 ```{r}
 #| label: lgi age final
 model_lgi_age_final <- gam(
@@ -351,6 +347,15 @@ model_lgi_age_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_age_final)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi age results
 summary(model_lgi_age_final)
 
 prediction_lgi_age <- data_lgi_age |>
@@ -448,10 +453,6 @@ model_lgi_ses_2 <- gam(
 summary(model_lgi_ses_2)
 ```
 
-### Results
-
-:::
-
 ```{r}
 #| label: lgi ses final
 model_lgi_ses_final <- gam(
@@ -460,6 +461,15 @@ model_lgi_ses_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_ses_final)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi ses results
 summary(model_lgi_ses_final)
 
 prediction_lgi_ses <- data_lgi_ses |>
@@ -557,10 +567,6 @@ model_lgi_trauma_2 <- gam(
 summary(model_lgi_trauma_2)
 ```
 
-### Results
-
-:::
-
 ```{r}
 #| label: lgi trauma final
 model_lgi_trauma_final <- gam(
@@ -569,6 +575,15 @@ model_lgi_trauma_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_trauma_final)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi trauma results
 summary(model_lgi_trauma_final)
 
 prediction_lgi_trauma <- data_lgi_trauma |>
@@ -646,9 +661,7 @@ data_lgi_sex <-
   drop_na()
 ```
 
-### Results
-
-:::
+### Model Selection
 
 ```{r}
 #| label: lgi sex final
@@ -658,6 +671,15 @@ model_lgi_sex_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_sex_final)
+```
+
+### Results
+
+:::
+
+```{r}
+#| label: lgi sex results
 summary(model_lgi_sex_final)
 
 prediction_lgi_sex <- data_lgi_sex |>
@@ -882,10 +904,6 @@ model_lgi_age_ses_3 <- gam(
 summary(model_lgi_age_ses_3)
 ```
 
-:::
-
-### Results
-
 ```{r}
 #| label: lgi age ses final
 model_lgi_age_ses_final <- gam(
@@ -894,6 +912,15 @@ model_lgi_age_ses_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_age_ses_final)
+```
+
+:::
+
+### Results
+
+```{r}
+#| label: lgi age ses results
 summary(model_lgi_age_ses_final)
 
 ses_0 <- min(data_lgi_age_ses$ses, na.rm = TRUE)
@@ -1075,10 +1102,6 @@ model_lgi_age_sex_3 <- gam(
 summary(model_lgi_age_sex_3)
 ```
 
-:::
-
-### Results
-
 ```{r}
 #| label: lgi age sex final
 model_lgi_age_sex_final <- gam(
@@ -1087,6 +1110,15 @@ model_lgi_age_sex_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_age_sex_final)
+```
+
+:::
+
+### Results
+
+```{r}
+#| label: lgi age sex results
 summary(model_lgi_age_sex_final)
 
 prediction_lgi_age_sex <- data_lgi_age_sex |>
@@ -1249,10 +1281,6 @@ model_lgi_age_trauma_3 <- gam(
 summary(model_lgi_age_trauma_3)
 ```
 
-:::
-
-### Results
-
 ```{r}
 #| label: lgi age trauma final
 model_lgi_age_trauma_final <- gam(
@@ -1261,6 +1289,15 @@ model_lgi_age_trauma_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_age_trauma_final)
+```
+
+:::
+
+### Results
+
+```{r}
+#| label: lgi age trauma results
 summary(model_lgi_age_trauma_final)
 
 prediction_lgi_age_trauma <- data_lgi_age_trauma |>
@@ -1428,10 +1465,6 @@ model_lgi_ses_sex_4 <- gam(
 summary(model_lgi_ses_sex_4)
 ```
 
-:::
-
-### Results
-
 ```{r}
 #| label: lgi ses sex final
 model_lgi_ses_sex_final <- gam(
@@ -1440,6 +1473,15 @@ model_lgi_ses_sex_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_ses_sex_final)
+```
+
+:::
+
+### Results
+
+```{r}
+#| label: lgi ses sex results
 summary(model_lgi_ses_sex_final)
 
 prediction_lgi_ses_sex <- data_lgi_ses_sex |>
@@ -1617,10 +1659,6 @@ model_lgi_ses_trauma_4 <- gam(
 summary(model_lgi_ses_trauma_4)
 ```
 
-:::
-
-### Results
-
 ```{r}
 #| label: lgi ses trauma final
 model_lgi_ses_trauma_final <- gam(
@@ -1629,6 +1667,15 @@ model_lgi_ses_trauma_final <- gam(
   method = "REML"
 )
 
+gam.check(model_lgi_ses_trauma_final)
+```
+
+:::
+
+### Results
+
+```{r}
+#| label: lgi ses trauma results
 summary(model_lgi_ses_trauma_final)
 
 ses_0 <- min(data_lgi_ses_trauma$ses, na.rm = TRUE)
@@ -1827,14 +1874,23 @@ model_lgi_sex_trauma_5 <- gam(
 summary(model_lgi_sex_trauma_5)
 ```
 
+```{r}
+#| label: lgi sex trauma final
+model_lgi_sex_trauma_final <- gam(
+  lgi ~ sex + trauma,
+  data = data_lgi_sex_trauma,
+  method = "REML"
+)
+
+gam.check(model_lgi_sex_trauma_final)
+```
+
 :::
 
 ### Results
 
 ```{r}
-#| label: lgi sex trauma final
-model_lgi_sex_trauma_final <- model_lgi_sex_trauma_5
-
+#| label: lgi sex trauma results
 summary(model_lgi_sex_trauma_final)
 
 prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
