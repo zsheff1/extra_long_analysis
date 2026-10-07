@@ -255,7 +255,7 @@ plot_comorbid
 ## LGI vs eTIV
 
 ```{r}
-#| label: lgi vs etiv
+#| label: lgi etiv
 data_etiv <- raw_imaging |>
   filter(region == "EstimatedTotalIntraCranialVol") |>
   rename(etiv = value) |>
@@ -263,9 +263,29 @@ data_etiv <- raw_imaging |>
 
 data_lgi_etiv <- left_join(global_lgi, data_etiv, by = c("bblid", "scanid"))
 
+test_lgi_etiv <-
+  cor.test(data_lgi_etiv$lgi, data_lgi_etiv$etiv)
+
+test_lgi_etiv
+
 plot_lgi_etiv <-
   ggplot(data = data_lgi_etiv, mapping = aes(x = etiv, y = lgi)) +
-  geom_point() +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of LGI and eTIV",
+    subtitle = report_correlation(test_lgi_etiv),
+    x = "eTIV",
+    y = "LGI (global)"
+  ) +
   theme_linedraw()
 
 plot_lgi_etiv
@@ -584,10 +604,7 @@ plot_lgi_trauma <-
   ggplot(mapping = aes(x = trauma, y = lgi)) +
   geom_point(
     data = data_lgi_trauma,
-    position = position_jitterdodge(
-      jitter.width = 0.5,
-      dodge.width = 0.5
-    ),
+    position = position_jitter(width = 0.25),
     alpha = 0.25,
     size = 1
   ) +
@@ -720,7 +737,7 @@ Global LGI shows a significant decreasing trend across increasing levels of GOAS
 ### Sample
 
 ```{r}
-#| label: lgi psy 
+#| label: lgi psy
 data_lgi_psy <-
   inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
   rename(psy = smry_psy_cat) |>
@@ -735,6 +752,7 @@ data_lgi_psy <-
 ### Hypothesis Test
 
 ```{r}
+#| label: lgi psy test
 test_lgi_psy <-
   clinfun::jonckheere.test(
     x = data_lgi_psy$lgi,
@@ -748,6 +766,7 @@ test_lgi_psy
 ### Results
 
 ```{r}
+#| label: lgi psy final
 plot_lgi_psy <-
   ggplot(
     data = data_lgi_psy,
@@ -1162,19 +1181,27 @@ test_age_trauma
 
 plot_age_trauma <-
   ggplot(data = data_lgi_age_trauma, aes(x = age, y = trauma)) +
-  geom_point() +
+  geom_point(
+    position = position_jitter(height = 0.25),
+    alpha = 0.25,
+    size = 1
+  ) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
-    se = FALSE
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
   ) +
-  theme_linedraw() +
   labs(
     title = "Correlation of Age and Trauma",
     subtitle = report_correlation(test_age_trauma),
     x = "Age",
     y = "Trauma"
-  )
+  ) +
+  theme_linedraw()
 
 plot_age_trauma
 ```
@@ -1509,11 +1536,19 @@ test_ses_trauma
 
 plot_ses_trauma <-
   ggplot(data = data_lgi_ses_trauma, aes(x = ses, y = trauma)) +
-  geom_point() +
+  geom_point(
+    position = position_jitter(height = 0.25),
+    alpha = 0.25,
+    size = 1
+  ) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
-    se = FALSE
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
   ) +
   theme_linedraw() +
   labs(
@@ -1604,14 +1639,18 @@ ses_66 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 2 / 3))
 ses_83 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 5 / 6))
 ses_100 <- max(data_lgi_ses_trauma$ses, na.rm = TRUE)
 
-prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
+data_lgi_ses_trauma <- data_lgi_ses_trauma |>
   mutate(
-    ses = case_when(
+    ses_tri = case_when(
       ses <= ses_33 ~ ses_16,
       ses > ses_33 & ses <= ses_66 ~ ses_50,
       ses > ses_66 ~ ses_83
     )
-  ) |>
+  )
+
+prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
+  select(-ses) |>
+  rename(ses = ses_tri) |>
   group_by(ses) |>
   summarise(
     trauma = list(
@@ -1647,7 +1686,14 @@ plot_lgi_ses_trauma <-
       x = trauma, y = lgi, group = ses, color = ses, fill = ses
     )
   ) +
-  geom_point(data = data_lgi_ses_trauma, alpha = 0.25, size = 1) +
+  geom_point(
+    data = data_lgi_ses_trauma,
+    mapping = aes(
+      x = trauma + scales::rescale(ses, to = c(-0.25, 0.25))
+    ),
+    alpha = 0.25,
+    size = 1
+  ) +
   geom_line(
     data = prediction_lgi_ses_trauma,
     mapping = aes(y = fit),
