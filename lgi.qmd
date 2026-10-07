@@ -322,7 +322,7 @@ data_lgi_age <-
 model_lgi_age_1 <- gam(
   lgi ~ age,
   data = data_lgi_age,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_1)
@@ -333,10 +333,24 @@ summary(model_lgi_age_1)
 model_lgi_age_2 <- gam(
   lgi ~ age + s(age, m = c(2, 0)),
   data = data_lgi_age,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_2)
+```
+
+```{r}
+#| label: lgi age selection
+aic_lgi_age <-
+  AIC(
+    model_lgi_age_1,
+    model_lgi_age_2
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_age
 ```
 
 ```{r}
@@ -436,7 +450,7 @@ data_lgi_ses <-
 model_lgi_ses_1 <- gam(
   lgi ~ ses,
   data = data_lgi_ses,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_1)
@@ -447,10 +461,24 @@ summary(model_lgi_ses_1)
 model_lgi_ses_2 <- gam(
   lgi ~ ses + s(ses, m = c(2, 0)),
   data = data_lgi_ses,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_2)
+```
+
+```{r}
+#| label: lgi ses selection
+aic_lgi_ses <-
+  AIC(
+    model_lgi_ses_1,
+    model_lgi_ses_2
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_ses
 ```
 
 ```{r}
@@ -550,7 +578,7 @@ data_lgi_trauma <-
 model_lgi_trauma_1 <- gam(
   lgi ~ trauma,
   data = data_lgi_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_trauma_1)
@@ -561,10 +589,24 @@ summary(model_lgi_trauma_1)
 model_lgi_trauma_2 <- gam(
   lgi ~ trauma + s(trauma, k = 7, m = c(2, 0)),
   data = data_lgi_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_trauma_2)
+```
+
+```{r}
+#| label: lgi trauma selection
+aic_lgi_trauma <-
+  AIC(
+    model_lgi_trauma_1,
+    model_lgi_trauma_2
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_trauma
 ```
 
 ```{r}
@@ -872,7 +914,7 @@ model_lgi_age_ses_1 <- gam(
     s(age_c, m = c(2, 0)) +
     s(ses_c, k = 7, m = c(2, 0)),
   data = data_lgi_age_ses,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_ses_1)
@@ -885,7 +927,7 @@ model_lgi_age_ses_2 <- gam(
     s(age_c, m = c(2, 0)) +
     s(ses_c, k = 7, m = c(2, 0)),
   data = data_lgi_age_ses,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_ses_2)
@@ -898,11 +940,28 @@ model_lgi_age_ses_3 <- gam(
     s(ses, k = 7) +
     ti(age, ses, k = c(10, 7)),
   data = data_lgi_age_ses,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_ses_3)
 ```
+
+
+```{r}
+#| label: lgi age ses selection
+aic_lgi_age_ses <-
+  AIC(
+    model_lgi_age_ses_1,
+    model_lgi_age_ses_2,
+    model_lgi_age_ses_3
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_age_ses
+```
+
 
 ```{r}
 #| label: lgi age ses final
@@ -1068,7 +1127,7 @@ Sex contributes when accounting for age. Age contributes when accounting for sex
 model_lgi_age_sex_1 <- gam(
   lgi ~ age_c + sex + s(age_c, m = c(2, 0)),
   data = data_lgi_age_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_sex_1)
@@ -1081,7 +1140,7 @@ Age and sex do not have a significant linear interaction.
 model_lgi_age_sex_2 <- gam(
   lgi ~ age_c * sex + s(age_c, m = c(2, 0)),
   data = data_lgi_age_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_sex_2)
@@ -1096,10 +1155,25 @@ model_lgi_age_sex_3 <- gam(
     s(age_c, m = c(2, 0)) +
     s(age_c, m = c(2, 0), by = sex_ord),
   data = data_lgi_age_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_sex_3)
+```
+
+```{r}
+#| label: lgi age sex selection
+aic_lgi_age_sex <-
+  AIC(
+    model_lgi_age_sex_1,
+    model_lgi_age_sex_2,
+    model_lgi_age_sex_3
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_age_sex
 ```
 
 ```{r}
@@ -1250,7 +1324,7 @@ model_lgi_age_trauma_1 <- gam(
     s(age_c, m = c(2, 0)) +
     s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_age_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_trauma_1)
@@ -1262,7 +1336,7 @@ model_lgi_age_trauma_2 <- gam(
   lgi ~ age_c * trauma_c +
     s(age_c, m = c(2, 0)),
   data = data_lgi_age_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_trauma_2)
@@ -1275,10 +1349,25 @@ model_lgi_age_trauma_3 <- gam(
     s(trauma, k = 7) +
     ti(age, trauma, k = c(10, 7)),
   data = data_lgi_age_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_age_trauma_3)
+```
+
+```{r}
+#| label: lgi age trauma selection
+aic_lgi_age_trauma <-
+  AIC(
+    model_lgi_age_trauma_1,
+    model_lgi_age_trauma_2,
+    model_lgi_age_trauma_3
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_age_trauma
 ```
 
 ```{r}
@@ -1424,7 +1513,7 @@ plot_ses_sex
 model_lgi_ses_sex_1 <- gam(
   lgi ~ ses + sex,
   data = data_lgi_ses_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_sex_1)
@@ -1435,7 +1524,7 @@ summary(model_lgi_ses_sex_1)
 model_lgi_ses_sex_2 <- gam(
   lgi ~ ses * sex,
   data = data_lgi_ses_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_sex_2)
@@ -1446,7 +1535,7 @@ summary(model_lgi_ses_sex_2)
 model_lgi_ses_sex_3 <- gam(
   lgi ~ ses_c + sex + s(ses_c, m = c(2, 0)),
   data = data_lgi_ses_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_sex_3)
@@ -1459,10 +1548,26 @@ model_lgi_ses_sex_4 <- gam(
     s(ses_c, m = c(2, 0)) +
     s(ses_c, m = c(2, 0), by = sex_ord),
   data = data_lgi_ses_sex,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_sex_4)
+```
+
+```{r}
+#| label: lgi ses sex selection
+aic_lgi_ses_sex <-
+  AIC(
+    model_lgi_ses_sex_1,
+    model_lgi_ses_sex_2,
+    model_lgi_ses_sex_3,
+    model_lgi_ses_sex_4
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_ses_sex
 ```
 
 ```{r}
@@ -1615,7 +1720,7 @@ model_lgi_ses_trauma_1 <- gam(
     s(ses_c, m = c(2, 0)) +
     s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_ses_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_trauma_1)
@@ -1628,7 +1733,7 @@ model_lgi_ses_trauma_2 <- gam(
     trauma_c +
     s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_ses_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_trauma_2)
@@ -1640,7 +1745,7 @@ model_lgi_ses_trauma_3 <- gam(
   lgi ~ ses_c * trauma_c +
     s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_ses_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_trauma_3)
@@ -1653,10 +1758,26 @@ model_lgi_ses_trauma_4 <- gam(
     s(trauma, k = 7) +
     ti(ses, trauma, k = c(10, 7)),
   data = data_lgi_ses_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_ses_trauma_4)
+```
+
+```{r}
+#| label: lgi ses trauma selection
+aic_lgi_ses_trauma <-
+  AIC(
+    model_lgi_ses_trauma_1,
+    model_lgi_ses_trauma_2,
+    model_lgi_ses_trauma_3,
+    model_lgi_ses_trauma_4
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_ses_trauma
 ```
 
 ```{r}
@@ -1822,7 +1943,7 @@ t.test(
 model_lgi_sex_trauma_1 <- gam(
   lgi ~ sex + trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_sex_trauma_1)
@@ -1833,7 +1954,7 @@ summary(model_lgi_sex_trauma_1)
 model_lgi_sex_trauma_2 <- gam(
   lgi ~ sex * trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_sex_trauma_2)
@@ -1846,7 +1967,7 @@ model_lgi_sex_trauma_3 <- gam(
     s(trauma_c, k = 7, m = c(2, 0)) +
     s(trauma_c, k = 7, m = c(2, 0), by = sex_ord),
   data = data_lgi_sex_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_sex_trauma_3)
@@ -1857,7 +1978,7 @@ summary(model_lgi_sex_trauma_3)
 model_lgi_sex_trauma_4 <- gam(
   lgi ~ sex * trauma_c,
   data = data_lgi_sex_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_sex_trauma_4)
@@ -1868,10 +1989,27 @@ summary(model_lgi_sex_trauma_4)
 model_lgi_sex_trauma_5 <- gam(
   lgi ~ sex + trauma,
   data = data_lgi_sex_trauma,
-  method = "REML"
+  method = "ML"
 )
 
 summary(model_lgi_sex_trauma_5)
+```
+
+```{r}
+#| label: lgi sex trauma selection
+aic_lgi_sex_trauma <-
+  AIC(
+    model_lgi_sex_trauma_1,
+    model_lgi_sex_trauma_2,
+    model_lgi_sex_trauma_3,
+    model_lgi_sex_trauma_4,
+    model_lgi_sex_trauma_5
+  ) |>
+  clean_names() |>
+  mutate(delta_aic = aic - min(aic)) |>
+  arrange(delta_aic)
+
+aic_lgi_sex_trauma
 ```
 
 ```{r}
