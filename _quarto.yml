@@ -1,5 +1,5 @@
 project: 
-  output-dir: /data/secure/bit_repo/projects_repo/ExtraLong/results
+  output-dir: /data/secure/bit_repo/projects_repo/ExtraLong/reports
 
 profile: 
   default: scratch
