@@ -294,16 +294,16 @@ plot_lgi_etiv
 
 # Main Effects
 
-  - [There is a significant nonlinear effect of Age on Global LGI, where Global LGI declines with Age.](#main-age)
-  - [There is a significant decreasing trend in Global LGI across increasing levels of GOASSESS Psychosis Scores.](#main-psy)
-  - [There is a significant positive correlation between Socioeconomic Status and Global LGI.](#main-ses)
-  - [There is a significant difference in Global LGI between sexes, with Males having higher Global LGI than Females.](#main-sex)
-  - [There is a significant nonlinear effect of Trauma Exposure on Global LGI, where those with higher Trauma Exposure have lower Global LGI.](#main-trauma)
+  - Global LGI declined nonlinearly with age, with a modest departure from linearity. [`lgi ~ s(age)`](#main-age)
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#main-psy).
+  - Global LGI was positively and linearly associated with SES, with no evidence of significant nonlinearity. [`lgi ~ ses`](#main-ses)
+  - Global LGI was significantly higher in males than females (p < 0.001). [`lgi ~ sex`](#main-sex)
+  - Global LGI declined with increasing trauma exposure, with evidence of modest nonlinearity in the relationship. [`lgi ~ s(trauma, k = 7)`](#main-trauma)
 
 
 ## Global LGI ~ Age {#main-age}
 
-Global LGI is significantly negatively correlated with age. This effect is significantly nonlinear, though the nonlinearity is subtle.
+Global LGI was significantly negatively associated with age, with evidence that this relationship was nonlinear, although the nonlinearity was relatively subtle. The nonlinear age model was favored over the linear model based on AIC and the significance of the additional nonlinear component. In the final model, age was significantly associated with global LGI (edf = 3.232, p < 0.001), explaining approximately 31.5% of the deviance. Model diagnostics indicated satisfactory convergence and no evidence of an insufficient basis dimension (k-index = 1.01, p = 0.64). The final model was therefore lgi ~ s(age).
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -319,6 +319,10 @@ data_lgi_age <-
 
 ### Model Selection
 
+#### Model 1: Linear Age Effect
+
+This model tests whether age has a significant linear association with global LGI. Age was a significant predictor, with increasing age associated with lower global LGI. The model explained approximately 31.0% of the deviance.
+
 ```{r}
 #| label: lgi age 1
 model_lgi_age_1 <- gam(
@@ -330,6 +334,10 @@ model_lgi_age_1 <- gam(
 summary(model_lgi_age_1)
 ```
 
+#### Model 2: Linear and Nonlinear Age Effects
+
+This model tests whether age has significant linear and nonlinear associations with global LGI. Both the linear and nonlinear components of age were significant, with increasing age associated with lower global LGI. The nonlinear component was significant (p = 0.0115, edf = 1.559), suggesting that the relationship between age and LGI deviates modestly from linearity.
+
 ```{r}
 #| label: lgi age 2
 model_lgi_age_2 <- gam(
@@ -340,6 +348,10 @@ model_lgi_age_2 <- gam(
 
 summary(model_lgi_age_2)
 ```
+
+#### AIC
+
+Model 2 had a lower AIC than Model 1 (ΔAIC = 4.19), indicating greater support for a nonlinear age association. The significant nonlinear component in Model 2 further suggested that allowing curvature improved the representation of the age–LGI relationship. A nonlinear age specification was therefore selected and implemented as lgi ~ s(age) for the final model, which was refitted using REML.
 
 ```{r}
 #| label: lgi age selection
@@ -354,6 +366,8 @@ aic_lgi_age <-
 
 aic_lgi_age
 ```
+
+#### Check Final Model
 
 ```{r}
 #| label: lgi age final
@@ -430,7 +444,7 @@ plot_lgi_age
 
 ## Global LGI ~ Psychosis {#main-psy}
 
-Global LGI shows a significant decreasing trend across increasing levels of GOASSESS Psychosis Scores.
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -497,7 +511,7 @@ plot_lgi_psy
 
 ## Global LGI ~ SES {#main-ses}
 
-Global LGI is signitifantly positively correlated with socioeconomic status. This effect is not significantly nonlinear.
+Global LGI was significantly positively associated with SES, with higher SES associated with higher global LGI. There was insufficient evidence of a nonlinear association, as the nonlinear component was not statistically significant and was effectively penalized to zero. The linear model was selected based on AIC and parsimony. In the final model, SES was significantly associated with global LGI (β = 0.0314, p < 0.001), explaining approximately 4.26% of the deviance. Model diagnostics indicated satisfactory convergence. The final model was therefore lgi ~ ses.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -513,6 +527,10 @@ data_lgi_ses <-
 
 ### Model Selection
 
+#### Model 1: Linear SES Effect
+
+This model tests whether SES has a significant linear association with global LGI. SES was a significant predictor, with higher SES associated with higher global LGI. The model explained approximately 4.26% of the deviance.
+
 ```{r}
 #| label: lgi ses 1
 model_lgi_ses_1 <- gam(
@@ -524,6 +542,10 @@ model_lgi_ses_1 <- gam(
 summary(model_lgi_ses_1)
 ```
 
+#### Model 2: Linear and Nonlinear SES Effects
+
+This model tests whether SES has significant linear and nonlinear associations with global LGI. The linear component of SES was significant, with higher SES associated with higher global LGI. The nonlinear component was not significant (p = 0.222) and was effectively penalized to zero (edf = 0.0001), suggesting an approximately linear relationship between SES and LGI.
+
 ```{r}
 #| label: lgi ses 2
 model_lgi_ses_2 <- gam(
@@ -534,6 +556,10 @@ model_lgi_ses_2 <- gam(
 
 summary(model_lgi_ses_2)
 ```
+
+#### AIC
+
+Both models exhibited nearly identical AIC values (ΔAIC < 0.001), indicating comparable model support. Model 1 had the lowest AIC, while Model 2 had a nearly identical AIC, consistent with its nonlinear SES component being effectively penalized to zero. Model 1 was therefore selected on the basis of AIC and parsimony, retaining a linear effect of SES without an additional nonlinear component.
 
 ```{r}
 #| label: lgi ses selection
@@ -548,6 +574,8 @@ aic_lgi_ses <-
 
 aic_lgi_ses
 ```
+
+#### Check Final Model
 
 ```{r}
 #| label: lgi ses final
@@ -624,7 +652,7 @@ plot_lgi_ses
 
 ## Global LGI ~ Sex {#main-sex}
 
-There are significant differences in Global LGI between sexes, with Males having higher Global LGI than Females.
+Global LGI differed significantly between sexes, with males exhibiting higher global LGI than females (β = 0.1091, p < 0.001). Sex explained approximately 11.9% of the deviance in global LGI. Model diagnostics indicated satisfactory convergence. The final model was therefore `lgi ~ sex`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -729,7 +757,7 @@ plot_lgi_sex
 
 ## Global LGI ~ Trauma {#main-trauma}
 
-Global LGI is significantly negatively correlated with Trauma Exposure. This effect is significantly nonlinear.
+Global LGI was significantly negatively associated with trauma exposure, with evidence that this relationship was nonlinear. The nonlinear trauma model was favored over the linear model based on AIC and the significance of the additional nonlinear component, although the improvement in model fit was relatively small. In the final model, trauma exposure was significantly associated with global LGI (edf = 2.298, p < 0.001), explaining approximately 4.26% of the deviance. Model diagnostics indicated satisfactory convergence, although the low k-index (0.84, p < 0.001) suggested potential residual structure warranting further examination. The final model was therefore lgi ~ s(trauma, k = 7).
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -745,6 +773,10 @@ data_lgi_trauma <-
 
 ### Model Selection
 
+#### Model 1: Linear Trauma Effect
+
+This model tests whether trauma exposure has a significant linear association with global LGI. Trauma exposure was a significant predictor, with greater trauma exposure associated with lower global LGI. The model explained approximately 3.90% of the deviance.
+
 ```{r}
 #| label: lgi trauma 1
 model_lgi_trauma_1 <- gam(
@@ -756,6 +788,10 @@ model_lgi_trauma_1 <- gam(
 summary(model_lgi_trauma_1)
 ```
 
+#### Model 2: Linear and Nonlinear Trauma Effects
+
+This model tests whether trauma exposure has significant linear and nonlinear associations with global LGI. Both the linear and nonlinear components of trauma exposure were significant, with greater trauma exposure associated with lower global LGI. The nonlinear component was significant (p = 0.0304, edf = 0.640), suggesting that the relationship between trauma exposure and LGI deviates modestly from linearity.
+
 ```{r}
 #| label: lgi trauma 2
 model_lgi_trauma_2 <- gam(
@@ -766,6 +802,10 @@ model_lgi_trauma_2 <- gam(
 
 summary(model_lgi_trauma_2)
 ```
+
+#### AIC
+
+Model 2 had a lower AIC than Model 1 (ΔAIC = 1.73), indicating a slight preference for the nonlinear model, although both models exhibited comparable support (ΔAIC < 2). The significant nonlinear component in Model 2 provided additional evidence that allowing curvature improved the representation of the trauma–LGI relationship. A nonlinear trauma specification was therefore selected and implemented as lgi ~ s(trauma, k = 7) for the final model, which was refitted using REML.
 
 ```{r}
 #| label: lgi trauma selection
@@ -780,6 +820,8 @@ aic_lgi_trauma <-
 
 aic_lgi_trauma
 ```
+
+#### Check Final Model
 
 ```{r}
 #| label: lgi trauma final
@@ -861,18 +903,16 @@ plot_lgi_trauma
 
 # Two-Way Interactions
 
-  - [Global LGI was nonlinearly associated with both age and SES, with no evidence of either a linear or nonlinear age × SES interaction. `lgi ~ s(age) + s(ses)`](#two-age-ses)
-  - [Global LGI showed a significant nonlinear association with age and differed significantly by sex, but there was no evidence that the age–LGI relationship differed between females and males. `lgi ~ s(age) + sex`.](#two-age-sex)
-  - [Global LGI was nonlinearly associated with age and linearly associated with trauma exposure, with a significant linear age × trauma interaction but no evidence of a more complex nonlinear interaction. `lgi ~ s(age) + trauma + age:trauma`](#two-age-trauma)
-    - Significant linear interaction between age and trauma
-  - [Global LGI differed by sex and showed a significant nonlinear association with SES, with evidence that the shape of this SES–LGI relationship differed between females and males. `lgi ~ s(ses, by = sex) + sex`.](#two-ses-sex)
-    - Significant nonlinear interaction between ses and sex
-  - [Global LGI was positively associated with SES and nonlinearly associated with trauma exposure, with no evidence of either a linear or nonlinear SES × trauma interaction. `lgi ~ ses + s(trauma)`](#two-ses-trauma)
-  - [Greater trauma exposure was significantly associated with lower global LGI, and global LGI differed by sex, but there was no evidence that the trauma–LGI relationship differed between females and males. `lgi ~ sex + trauma`.](#two-sex-trauma)
+  - Global LGI was nonlinearly associated with age and positively associated with SES, with no evidence of either a linear or nonlinear age × SES interaction. [`lgi ~ s(age) + ses`](#two-age-ses)
+  - Global LGI declined nonlinearly with age and was significantly higher in males than females, with no evidence of either a linear or nonlinear age × sex interaction. [`lgi ~ s(age) + sex`](#two-age-sex)
+  - Global LGI was linearly associated with age and trauma exposure, with a significant linear age × trauma interaction but no evidence of additional nonlinearity. [`lgi ~ age * trauma`](#two-age-trauma)
+  - Global LGI was positively and linearly associated with SES and was significantly higher in males than females, with no evidence of either a linear or nonlinear SES × sex interaction. [`lgi ~ ses + sex`](#two-ses-sex)
+  - Global LGI was positively and linearly associated with SES and negatively and linearly associated with trauma exposure, with no evidence of either a linear or nonlinear SES × trauma interaction. [`lgi ~ ses + trauma`](#two-ses-trauma)
+  - Global LGI was negatively and linearly associated with trauma exposure and was significantly higher in males than females, with no evidence of either a linear or nonlinear sex × trauma interaction. [`lgi ~ sex + trauma`](#two-sex-trauma)
 
 ## Global LGI ~ Age x SES {#two-age-ses}
 
-Age and SES were not significantly correlated. When modeled together, both age and SES showed significant nonlinear associations with global LGI, indicating that each contributed independently to LGI in a nonlinear manner. There was no evidence of a significant linear age × SES interaction, and a more flexible tensor-product interaction was also not significant. The most complex model supported by the data was therefore `lgi ~ s(age) + s(ses)`.
+Age and SES were not significantly correlated. When modeled together, age showed a significant nonlinear association with global LGI, while SES showed a significant linear association, suggesting that both contributed independently to LGI. There was no evidence of a significant linear age × SES interaction, and a more flexible tensor-product interaction was also not significant. The most complex model supported by the data was therefore `lgi ~ s(age) + ses`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -905,13 +945,17 @@ test_age_ses
 
 ### Model Selection
 
+#### Model 1: Additive Linear and Nonlinear Effects
+
+This model tests whether age and SES have significant linear and nonlinear associations with global LGI. Both the linear and nonlinear components of age are significant, suggesting a nonlinear relationship between age and LGI. Only the linear component of SES is significant, suggesting a linear relationship between SES and LGI.
+
 ```{r}
 #| label: lgi age ses 1
 model_lgi_age_ses_1 <- gam(
-  lgi ~ age_c +
-    ses_c +
-    s(age_c, m = c(2, 0)) +
-    s(ses_c, k = 7, m = c(2, 0)),
+  lgi ~ age +
+    ses +
+    s(age, m = c(2, 0)) +
+    s(ses, m = c(2, 0)),
   data = data_lgi_age_ses,
   method = "ML"
 )
@@ -919,12 +963,16 @@ model_lgi_age_ses_1 <- gam(
 summary(model_lgi_age_ses_1)
 ```
 
+#### Model 2: Linear Interaction with Nonlinear Main Effects
+
+This model tests whether a linear interaction between age and SES is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The linear interaction was not significant, suggesting insufficient evidence of an interaction between age and SES. Both the linear and nonlinear components of age are significant, suggesting a nonlinear relationship between age and LGI. Only the linear component of SES is significant, suggesting a linear relationship between SES and LGI.
+
 ```{r}
 #| label: lgi age ses 2
 model_lgi_age_ses_2 <- gam(
   lgi ~ age_c * ses_c +
     s(age_c, m = c(2, 0)) +
-    s(ses_c, k = 7, m = c(2, 0)),
+    s(ses_c, m = c(2, 0)),
   data = data_lgi_age_ses,
   method = "ML"
 )
@@ -932,12 +980,16 @@ model_lgi_age_ses_2 <- gam(
 summary(model_lgi_age_ses_2)
 ```
 
+#### Model 3: Tensor Product Interaction with Nonlinear Main Effects
+
+This model tests whether a potentially nonlinear interaction between age and SES is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The interaction was not significant, suggesting insufficient evidence of an interaction between age and SES. The smooth effect of age was significant, suggesting a nonlinear relationship between age and LGI. The smooth effect of SES was significant (edf = 1.000), suggesting a linear relationship between SES and LGI.
+
 ```{r}
 #| label: lgi age ses 3
 model_lgi_age_ses_3 <- gam(
   lgi ~ s(age) +
-    s(ses, k = 7) +
-    ti(age, ses, k = c(10, 7)),
+    s(ses) +
+    ti(age, ses),
   data = data_lgi_age_ses,
   method = "ML"
 )
@@ -945,6 +997,26 @@ model_lgi_age_ses_3 <- gam(
 summary(model_lgi_age_ses_3)
 ```
 
+#### Model 4: Additive Nonlinear Age Effect and Linear SES Effect
+
+This model includes a nonlinear effect of age and a linear effect of SES on global LGI, without an interaction. Both the nonlinear age smooth and the linear SES term were statistically significant, suggesting that age has a nonlinear association with global LGI, whereas SES has a linear association.
+
+```{r}
+#| label: lgi age ses 4
+model_lgi_age_ses_4 <- gam(
+  lgi ~ age +
+    ses +
+    s(age, m = c(2, 0)),
+  data = data_lgi_age_ses,
+  method = "ML"
+)
+
+summary(model_lgi_age_ses_4)
+```
+
+#### AIC
+
+All four models exhibited similar AIC values (ΔAIC < 2), indicating comparable model support. Although Model 2 had the lowest AIC, neither the linear nor tensor product interaction was statistically significant. Models 1 and 4 exhibited nearly identical AIC values, consistent with the nonlinear SES component in Model 1 being penalized effectively to zero. Model 4 was selected on the basis of parsimony, retaining a nonlinear effect of age and a linear effect of SES without an interaction.
 
 ```{r}
 #| label: lgi age ses selection
@@ -952,7 +1024,8 @@ aic_lgi_age_ses <-
   AIC(
     model_lgi_age_ses_1,
     model_lgi_age_ses_2,
-    model_lgi_age_ses_3
+    model_lgi_age_ses_3,
+    model_lgi_age_ses_4
   ) |>
   clean_names() |>
   mutate(delta_aic = aic - min(aic)) |>
@@ -961,11 +1034,12 @@ aic_lgi_age_ses <-
 aic_lgi_age_ses
 ```
 
+#### Check Final Model
 
 ```{r}
 #| label: lgi age ses final
 model_lgi_age_ses_final <- gam(
-  lgi ~ s(age) + s(ses),
+  lgi ~ s(age) + ses,
   data = data_lgi_age_ses,
   method = "REML"
 )
@@ -1071,7 +1145,7 @@ plot_lgi_age_ses
 
 ## Global LGI ~ Age x Sex {#two-age-sex}
 
-Age differed significantly by sex, with females being slightly older than males on average. When age and sex were modeled together, global LGI showed a significant nonlinear association with age and a significant main effect of sex, with males having higher global LGI than females. There was no evidence that the age–LGI relationship differed by sex in either its linear or nonlinear component, indicating that the same nonlinear age-related pattern adequately described both sexes. The most complex model supported by the data was therefore `lgi ~ s(age) + sex`.
+Age differed significantly by sex, with females being slightly older than males on average. When modeled together, global LGI showed a significant nonlinear association with age and a significant main effect of sex, with males exhibiting higher global LGI than females after accounting for age. Neither the linear nor nonlinear age × sex interaction was statistically significant, suggesting insufficient evidence that the relationship between age and global LGI differs by sex. The most complex model supported by the data was therefore `lgi ~ s(age) + sex`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1119,7 +1193,9 @@ plot_age_sex
 
 ### Model Selection
 
-Sex contributes when accounting for age. Age contributes when accounting for sex, and this effect is significantly nonlinear.
+#### Model 1: Additive Sex Effect with Linear and Nonlinear Age Components
+
+This model tests whether age and sex are significantly associated with global LGI while allowing a nonlinear age effect. Both the linear and nonlinear components of age were significant, suggesting a nonlinear relationship between age and LGI after accounting for sex. Sex was also significant, with males exhibiting higher global LGI than females after accounting for age.
 
 ```{r}
 #| label: lgi age sex 1
@@ -1132,7 +1208,9 @@ model_lgi_age_sex_1 <- gam(
 summary(model_lgi_age_sex_1)
 ```
 
-Age and sex do not have a significant linear interaction.
+#### Model 2: Linear Interaction with Nonlinear Age Effect
+
+This model tests whether a linear interaction between age and sex is significantly associated with global LGI while allowing a nonlinear age effect. The linear interaction was not significant, suggesting insufficient evidence that the relationship between age and LGI differs by sex. Both the linear and nonlinear components of age were significant, suggesting a nonlinear relationship between age and LGI. Sex was also significant, with males exhibiting higher global LGI than females after accounting for age.
 
 ```{r}
 #| label: lgi age sex 2
@@ -1145,7 +1223,9 @@ model_lgi_age_sex_2 <- gam(
 summary(model_lgi_age_sex_2)
 ```
 
-Age and sex do not have a significant nonlinear interaction.
+#### Model 3: Linear and Nonlinear Interactions with Nonlinear Age Effect
+
+This model tests whether linear and nonlinear interactions between age and sex are significantly associated with global LGI while allowing a nonlinear age effect. Neither the linear nor nonlinear interaction was significant, suggesting insufficient evidence that the relationship between age and LGI differs by sex. Both the linear and nonlinear components of age were significant, suggesting a nonlinear relationship between age and LGI. Sex was also significant, with males exhibiting higher global LGI than females after accounting for age.
 
 ```{r}
 #| label: lgi age sex 3
@@ -1159,6 +1239,10 @@ model_lgi_age_sex_3 <- gam(
 
 summary(model_lgi_age_sex_3)
 ```
+
+#### AIC
+
+All three models exhibited similar AIC values (ΔAIC < 2), indicating comparable model support. Model 1 had the lowest AIC, while Models 2 and 3 had nearly identical AIC values. Neither the linear nor nonlinear age × sex interaction was statistically significant, and the nonlinear interaction in Model 3 was effectively penalized to zero. Model 1 was therefore selected on the basis of both AIC and parsimony, retaining a nonlinear effect of age and a main effect of sex without an interaction.
 
 ```{r}
 #| label: lgi age sex selection
@@ -1175,10 +1259,12 @@ aic_lgi_age_sex <-
 aic_lgi_age_sex
 ```
 
+#### Check Final Model
+
 ```{r}
 #| label: lgi age sex final
 model_lgi_age_sex_final <- gam(
-  lgi ~ sex + s(age),
+  lgi ~ s(age) + sex,
   data = data_lgi_age_sex,
   method = "REML"
 )
@@ -1255,7 +1341,7 @@ plot_lgi_age_sex
 
 ## Global LGI ~ Age x Trauma {#two-age-trauma}
 
-Age and trauma exposure were positively correlated. When modeled together, global LGI showed a significant nonlinear association with age and a significant linear association with trauma exposure. There was also a significant linear age × trauma interaction, indicating that the association between trauma exposure and global LGI varied with age. However, there was no evidence that this interaction required a more complex nonlinear surface. The most complex model supported by the data was therefore `lgi ~ s(age) + trauma + age:trauma`.
+Age and trauma exposure were significantly positively correlated. When modeled together, both age and trauma exposure showed significant linear associations with global LGI. There was also a significant linear age × trauma interaction, indicating that the association between trauma exposure and global LGI varied with age. Although an additive model suggested a nonlinear association with age, this nonlinear effect was no longer significant after accounting for the interaction. A more flexible tensor product interaction was also not significant. The most parsimonious model supported by the data was therefore `lgi ~ age * trauma`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1314,6 +1400,10 @@ plot_age_trauma
 
 ### Model Selection
 
+#### Model 1: Additive Linear and Nonlinear Effects
+
+This model tests whether age and trauma exposure have significant linear and nonlinear associations with global LGI. Both the linear and nonlinear components of age are significant, suggesting a nonlinear relationship between age and LGI. Only the linear component of trauma exposure is significant, suggesting a linear relationship between trauma exposure and LGI.
+
 ```{r}
 #| label: lgi age trauma 1
 model_lgi_age_trauma_1 <- gam(
@@ -1328,17 +1418,26 @@ model_lgi_age_trauma_1 <- gam(
 summary(model_lgi_age_trauma_1)
 ```
 
+#### Model 2: Linear Interaction with Nonlinear Main Effects
+
+This model tests whether a linear interaction between age and trauma exposure is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The linear interaction was significant, suggesting that the association between trauma exposure and LGI varies with age. The linear components of both age and trauma exposure were significant, whereas neither nonlinear component was significant, suggesting insufficient evidence of additional nonlinearity.
+
 ```{r}
 #| label: lgi age trauma 2
 model_lgi_age_trauma_2 <- gam(
   lgi ~ age_c * trauma_c +
-    s(age_c, m = c(2, 0)),
+    s(age_c, m = c(2, 0)) +
+    s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_age_trauma,
   method = "ML"
 )
 
 summary(model_lgi_age_trauma_2)
 ```
+
+#### Model 3: Tensor Product Interaction with Nonlinear Main Effects
+
+This model tests whether a potentially nonlinear interaction between age and trauma exposure is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The tensor product interaction was not statistically significant, suggesting insufficient evidence of a more flexible interaction. The smooth effects of both age and trauma exposure were significant, with each having an edf of 1.000, suggesting approximately linear main effects.
 
 ```{r}
 #| label: lgi age trauma 3
@@ -1353,13 +1452,31 @@ model_lgi_age_trauma_3 <- gam(
 summary(model_lgi_age_trauma_3)
 ```
 
+#### Model 4: Linear Main Effects with Linear Interaction
+This model tests whether a linear interaction between age and trauma exposure is significantly associated with global LGI without allowing nonlinear effects. The linear interaction was significant, suggesting that the association between trauma exposure and LGI varies with age. Both age and trauma exposure were also significant predictors, with their effects depending on the value of the other predictor.
+
+```{r}
+#| label: lgi age trauma 4
+model_lgi_age_trauma_4 <- gam(
+  lgi ~ age * trauma,
+  data = data_lgi_age_trauma,
+  method = "ML"
+)
+
+summary(model_lgi_age_trauma_4)
+```
+
+#### AIC
+All four models exhibited similar AIC values (ΔAIC < 2), indicating comparable model support. Models 2 and 4 had nearly identical AIC values and were preferred over the additive and tensor product interaction models. Both models supported a significant linear age × trauma interaction, while the nonlinear components in Model 2 were effectively penalized to zero. Model 4 was selected on the basis of parsimony, retaining linear effects of age and trauma exposure and their interaction without unnecessary nonlinear components.
+
 ```{r}
 #| label: lgi age trauma selection
 aic_lgi_age_trauma <-
   AIC(
     model_lgi_age_trauma_1,
     model_lgi_age_trauma_2,
-    model_lgi_age_trauma_3
+    model_lgi_age_trauma_3,
+    model_lgi_age_trauma_4
   ) |>
   clean_names() |>
   mutate(delta_aic = aic - min(aic)) |>
@@ -1368,10 +1485,12 @@ aic_lgi_age_trauma <-
 aic_lgi_age_trauma
 ```
 
+#### Check Final Model
+
 ```{r}
 #| label: lgi age trauma final
 model_lgi_age_trauma_final <- gam(
-  lgi ~ s(age) + trauma + age:trauma,
+  lgi ~ age * trauma,
   data = data_lgi_age_trauma,
   method = "REML"
 )
@@ -1455,7 +1574,7 @@ plot_lgi_age_trauma
 
 ## Global LGI ~ SES x Sex {#two-ses-sex}
 
-SES differed significantly by sex, with males having higher SES than females. Global LGI also differed significantly by sex after accounting for SES. The relationship between SES and global LGI was nonlinear, with evidence that the shape of this relationship differed by sex, although there was no evidence of a sex difference in the linear component of the SES association. The most complex model supported by the data therefore allowed the nonlinear association between SES and global LGI to vary by sex: `lgi ~ sex + s(ses, by = sex)`. In this final model, SES was significantly associated with global LGI in both females (edf = 2.32, p < .001) and males (edf = 3.08, p < .001).
+SES differed significantly by sex, with males having higher SES than females on average. When modeled together, both SES and sex showed significant associations with global LGI, with higher SES associated with higher global LGI and males exhibiting higher global LGI than females after accounting for SES. There was insufficient evidence of a significant linear or nonlinear SES × sex interaction. Although a model allowing sex-specific nonlinear SES associations had the lowest AIC, its improvement over the simpler additive models was negligible. The most parsimonious model supported by the data was therefore `lgi ~ ses + sex`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1505,6 +1624,10 @@ plot_ses_sex
 
 ### Model Selection
 
+#### Model 1: Additive Linear SES Effect and Sex Effect
+
+This model tests whether SES and sex are significantly associated with global LGI without an interaction. Both SES and sex were significant predictors, with higher SES associated with higher global LGI and males exhibiting higher global LGI than females after accounting for SES.
+
 ```{r}
 #| label: lgi ses sex 1
 model_lgi_ses_sex_1 <- gam(
@@ -1515,6 +1638,10 @@ model_lgi_ses_sex_1 <- gam(
 
 summary(model_lgi_ses_sex_1)
 ```
+
+#### Model 2: Linear SES × Sex Interaction
+
+This model tests whether a linear interaction between SES and sex is significantly associated with global LGI. The interaction was not significant, suggesting insufficient evidence that the relationship between SES and LGI differs by sex. Both SES and sex were significant predictors, with higher SES associated with higher global LGI and males exhibiting higher global LGI than females after accounting for SES.
 
 ```{r}
 #| label: lgi ses sex 2
@@ -1527,6 +1654,10 @@ model_lgi_ses_sex_2 <- gam(
 summary(model_lgi_ses_sex_2)
 ```
 
+#### Model 3: Additive Linear and Nonlinear SES Effects with Sex Effect
+
+This model tests whether SES and sex are significantly associated with global LGI while allowing a nonlinear SES effect. The nonlinear component of SES was not significant and was effectively penalized to zero, suggesting insufficient evidence of a nonlinear relationship between SES and LGI. Both the linear component of SES and sex were significant, with higher SES associated with higher global LGI and males exhibiting higher global LGI than females after accounting for SES.
+
 ```{r}
 #| label: lgi ses sex 3
 model_lgi_ses_sex_3 <- gam(
@@ -1537,6 +1668,10 @@ model_lgi_ses_sex_3 <- gam(
 
 summary(model_lgi_ses_sex_3)
 ```
+
+#### Model 4: Linear and Nonlinear Interactions with Nonlinear SES Effect
+
+This model tests whether linear and nonlinear interactions between SES and sex are significantly associated with global LGI while allowing a nonlinear SES effect. Neither the linear nor nonlinear interaction was significant, suggesting insufficient evidence that the relationship between SES and LGI differs by sex. The nonlinear component of SES was also not significant, suggesting a linear relationship between SES and LGI. Both the linear component of SES and sex were significant, with higher SES associated with higher global LGI and males exhibiting higher global LGI than females after accounting for SES.
 
 ```{r}
 #| label: lgi ses sex 4
@@ -1551,6 +1686,40 @@ model_lgi_ses_sex_4 <- gam(
 summary(model_lgi_ses_sex_4)
 ```
 
+#### Model 5: Sex-Specific Nonlinear SES Effects
+
+This model tests whether SES has potentially nonlinear associations with global LGI that differ by sex. Separate smooth functions are estimated for females and males. SES was significantly associated with global LGI in both sexes. The SES association exhibited some evidence of curvature in females (edf = 1.514), whereas the association in males was approximately linear (edf = 1.000). Sex was also significant, with males exhibiting higher global LGI after accounting for SES.
+
+```{r}
+#| label: lgi ses sex 5
+model_lgi_ses_sex_5 <- gam(
+  lgi ~ sex + s(ses, by = sex),
+  data = data_lgi_ses_sex,
+  method = "ML"
+)
+
+summary(model_lgi_ses_sex_5)
+```
+
+#### Model 6: Additive Nonlinear SES Effect and Sex Effect
+
+This model tests whether SES and sex are significantly associated with global LGI while allowing a nonlinear SES effect without an interaction. The smooth effect of SES was significant but had an edf of 1.000, suggesting a linear relationship between SES and LGI. Sex was also significant, with males exhibiting higher global LGI than females after accounting for SES.
+
+```{r}
+#| label: lgi ses sex 6
+model_lgi_ses_sex_6 <- gam(
+  lgi ~ s(ses) + sex,
+  data = data_lgi_ses_sex,
+  method = "ML"
+)
+
+summary(model_lgi_ses_sex_6)
+```
+
+#### AIC
+
+All six models exhibited similar AIC values (ΔAIC < 2), indicating comparable model support. Model 5 had the lowest AIC, although its improvement over Models 1, 3, and 6 was negligible (ΔAIC < 0.3). Models 3 and 6 supported a linear SES association, with their nonlinear components effectively penalized to zero. Neither the linear nor nonlinear SES × sex interaction was statistically significant in Model 4. Although Model 5 allowed sex-specific nonlinear SES associations, the additional complexity provided little improvement in model fit. Model 1 was therefore selected on the basis of parsimony and comparable AIC, retaining a linear effect of SES and a main effect of sex without an interaction.
+
 ```{r}
 #| label: lgi ses sex selection
 aic_lgi_ses_sex <-
@@ -1558,7 +1727,9 @@ aic_lgi_ses_sex <-
     model_lgi_ses_sex_1,
     model_lgi_ses_sex_2,
     model_lgi_ses_sex_3,
-    model_lgi_ses_sex_4
+    model_lgi_ses_sex_4,
+    model_lgi_ses_sex_5,
+    model_lgi_ses_sex_6
   ) |>
   clean_names() |>
   mutate(delta_aic = aic - min(aic)) |>
@@ -1567,10 +1738,12 @@ aic_lgi_ses_sex <-
 aic_lgi_ses_sex
 ```
 
+#### Check Final Model
+
 ```{r}
 #| label: lgi ses sex final
 model_lgi_ses_sex_final <- gam(
-  lgi ~ s(ses, by = sex) + sex,
+  lgi ~ ses + sex,
   data = data_lgi_ses_sex,
   method = "REML"
 )
@@ -1647,7 +1820,7 @@ plot_lgi_ses_sex
 
 ## Global LGI ~ SES x Trauma {#two-ses-trauma}
 
-SES and trauma exposure were significantly negatively correlated. When modeled together, higher SES was significantly associated with higher global LGI, while trauma exposure showed a significant nonlinear association with global LGI. There was no evidence of a significant linear SES × trauma interaction, and a more flexible nonlinear interaction was also unsupported. The most complex model supported by the data was therefore `lgi ~ ses + s(trauma)`.
+SES and trauma exposure were significantly negatively correlated. When modeled together, higher SES was significantly associated with higher global LGI, while greater trauma exposure was significantly associated with lower global LGI. There was insufficient evidence of significant linear or nonlinear SES × trauma interactions. Although the most complex model suggested some nonlinearity in the trauma association, the improvement in model fit was small, and the nonlinear components in the other models were effectively penalized to zero. The most parsimonious model supported by the data was therefore `lgi ~ ses + trauma`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1708,9 +1881,28 @@ plot_ses_trauma
 
 ### Model Selection
 
+#### Model 1: Additive Linear SES and Trauma Effects
+
+This model tests whether SES and trauma exposure have significant linear associations with global LGI without allowing nonlinear effects or interactions. Both SES and trauma exposure were significant predictors, with higher SES associated with higher global LGI and greater trauma exposure associated with lower global LGI.
+
 ```{r}
 #| label: lgi ses trauma 1
 model_lgi_ses_trauma_1 <- gam(
+  lgi ~ ses + trauma,
+  data = data_lgi_ses_trauma,
+  method = "ML"
+)
+
+summary(model_lgi_ses_trauma_1)
+```
+
+#### Model 2: Additive Linear and Nonlinear SES and Trauma Effects
+
+This model tests whether SES and trauma exposure have significant linear and nonlinear associations with global LGI. The linear components of both SES and trauma exposure were significant, with higher SES associated with higher global LGI and greater trauma exposure associated with lower global LGI. Neither nonlinear component contributed appreciably to the fitted model, suggesting approximately linear relationships between both predictors and LGI.
+
+```{r}
+#| label: lgi ses trauma 2
+model_lgi_ses_trauma_2 <- gam(
   lgi ~ ses_c +
     trauma_c +
     s(ses_c, m = c(2, 0)) +
@@ -1719,26 +1911,18 @@ model_lgi_ses_trauma_1 <- gam(
   method = "ML"
 )
 
-summary(model_lgi_ses_trauma_1)
-```
-
-```{r}
-#| label: lgi ses trauma 2
-model_lgi_ses_trauma_2 <- gam(
-  lgi ~ ses_c +
-    trauma_c +
-    s(trauma_c, k = 7, m = c(2, 0)),
-  data = data_lgi_ses_trauma,
-  method = "ML"
-)
-
 summary(model_lgi_ses_trauma_2)
 ```
+
+#### Model 3: Linear SES × Trauma Interaction with Nonlinear Main Effects
+
+This model tests whether a linear interaction between SES and trauma exposure is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The linear interaction was not significant, suggesting insufficient evidence that the relationship between trauma exposure and LGI varies with SES. The linear components of both SES and trauma exposure were significant, with higher SES associated with higher global LGI and greater trauma exposure associated with lower global LGI. Both nonlinear components were effectively penalized to zero, suggesting negligible contributions to the fitted model, despite the nominally significant nonlinear trauma term (p = 0.0413).
 
 ```{r}
 #| label: lgi ses trauma 3
 model_lgi_ses_trauma_3 <- gam(
   lgi ~ ses_c * trauma_c +
+    s(ses_c, m = c(2, 0)) +
     s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_ses_trauma,
   method = "ML"
@@ -1746,6 +1930,10 @@ model_lgi_ses_trauma_3 <- gam(
 
 summary(model_lgi_ses_trauma_3)
 ```
+
+#### Model 4: Tensor Product Interaction with Nonlinear Main Effects
+
+This model tests whether a potentially nonlinear interaction between SES and trauma exposure is significantly associated with global LGI while allowing nonlinear main effects of both predictors. The tensor product interaction was not significant, suggesting insufficient evidence that the relationship between trauma exposure and LGI varies with SES. The smooth effect of SES was significant (edf = 1.000), suggesting a linear relationship between SES and LGI. The smooth effect of trauma exposure was also significant (edf = 1.834), suggesting some nonlinearity in the relationship between trauma exposure and LGI.
 
 ```{r}
 #| label: lgi ses trauma 4
@@ -1759,6 +1947,10 @@ model_lgi_ses_trauma_4 <- gam(
 
 summary(model_lgi_ses_trauma_4)
 ```
+
+#### AIC
+
+All four models exhibited relatively similar AIC values, with Models 1, 2, and 4 having ΔAIC < 2. Model 4 had the lowest AIC, although its improvement over Models 1 and 2 was small (ΔAIC < 0.65). Neither the linear nor nonlinear SES × trauma interaction was statistically significant. The nonlinear components in Models 2 and 3 were effectively penalized to zero, suggesting insufficient evidence of meaningful additional nonlinearity. Although Model 4 suggested some curvature in the trauma association (edf = 1.834), its additional complexity provided little improvement in model fit. Model 1 was therefore selected on the basis of parsimony and comparable AIC, retaining linear effects of SES and trauma exposure without an interaction.
 
 ```{r}
 #| label: lgi ses trauma selection
@@ -1776,10 +1968,12 @@ aic_lgi_ses_trauma <-
 aic_lgi_ses_trauma
 ```
 
+#### Check Final Model
+
 ```{r}
 #| label: lgi ses trauma final
 model_lgi_ses_trauma_final <- gam(
-  lgi ~ ses + s(trauma, k = 7),
+  lgi ~ ses + trauma,
   data = data_lgi_ses_trauma,
   method = "REML"
 )
@@ -1892,7 +2086,7 @@ plot_lgi_ses_trauma
 
 ## Global LGI ~ Sex x Trauma {#two-sex-trauma}
 
-Trauma exposure did not differ significantly between females and males. When trauma exposure and sex were modeled together, greater trauma exposure was significantly associated with lower global LGI, and males had significantly higher global LGI than females. There was no significant evidence that the trauma–LGI relationship was nonlinear, nor was there evidence that either the linear or nonlinear association between trauma exposure and global LGI differed by sex. The most complex model supported by the data was therefore `lgi ~ trauma + sex`.
+Trauma exposure did not differ significantly between females and males. When modeled together, greater trauma exposure was significantly associated with lower global LGI, while males exhibited significantly higher global LGI than females after accounting for trauma exposure. There was insufficient evidence of a nonlinear association between trauma exposure and global LGI, or of significant linear or nonlinear sex × trauma interactions. The most parsimonious model supported by the data was therefore `lgi ~ sex + trauma`.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1929,10 +2123,14 @@ t.test(
 
 ### Model Selection
 
+#### Model 1: Additive Linear Sex and Trauma Effects
+
+This model tests whether sex and trauma exposure are significantly associated with global LGI without allowing nonlinear effects or interactions. Both sex and trauma exposure were significant predictors, with males exhibiting higher global LGI than females after accounting for trauma exposure and greater trauma exposure associated with lower global LGI after accounting for sex.
+
 ```{r}
 #| label: lgi sex trauma 1
 model_lgi_sex_trauma_1 <- gam(
-  lgi ~ sex + trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
+  lgi ~ sex + trauma,
   data = data_lgi_sex_trauma,
   method = "ML"
 )
@@ -1940,10 +2138,14 @@ model_lgi_sex_trauma_1 <- gam(
 summary(model_lgi_sex_trauma_1)
 ```
 
+#### Model 2: Additive Linear and Nonlinear Trauma Effects with Sex Effect
+
+This model tests whether trauma exposure and sex are significantly associated with global LGI while allowing a nonlinear trauma effect without an interaction. The linear component of trauma exposure and sex were significant, with greater trauma exposure associated with lower global LGI and males exhibiting higher global LGI than females after accounting for trauma exposure. The nonlinear trauma component was not significant (p = 0.0613) and was effectively penalized to zero (edf = 0.0002), suggesting an approximately linear relationship between trauma exposure and LGI.
+
 ```{r}
 #| label: lgi sex trauma 2
 model_lgi_sex_trauma_2 <- gam(
-  lgi ~ sex * trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
+  lgi ~ sex + trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
   method = "ML"
 )
@@ -1951,12 +2153,14 @@ model_lgi_sex_trauma_2 <- gam(
 summary(model_lgi_sex_trauma_2)
 ```
 
+#### Model 3: Linear Sex × Trauma Interaction with Nonlinear Trauma Effect
+
+This model tests whether a linear interaction between sex and trauma exposure is significantly associated with global LGI while allowing a nonlinear trauma effect. The linear interaction was not significant (p = 0.326), suggesting insufficient evidence that the relationship between trauma exposure and LGI differs by sex. The linear component of trauma exposure and sex were significant, with greater trauma exposure associated with lower global LGI and males exhibiting higher global LGI than females after accounting for trauma exposure. The nonlinear trauma component was not significant (p = 0.0578) and was effectively penalized to zero (edf = 0.0002), suggesting an approximately linear relationship between trauma exposure and LGI.
+
 ```{r}
 #| label: lgi sex trauma 3
 model_lgi_sex_trauma_3 <- gam(
-  lgi ~ sex * trauma_c +
-    s(trauma_c, k = 7, m = c(2, 0)) +
-    s(trauma_c, k = 7, m = c(2, 0), by = sex_ord),
+  lgi ~ sex * trauma_c + s(trauma_c, k = 7, m = c(2, 0)),
   data = data_lgi_sex_trauma,
   method = "ML"
 )
@@ -1964,10 +2168,16 @@ model_lgi_sex_trauma_3 <- gam(
 summary(model_lgi_sex_trauma_3)
 ```
 
+#### Model 4: Linear and Nonlinear Sex × Trauma Interactions with Nonlinear Trauma Effect
+
+This model tests whether linear and nonlinear interactions between sex and trauma exposure are significantly associated with global LGI while allowing a nonlinear trauma effect. Neither the linear (p = 0.326) nor nonlinear (p = 0.4285) interaction was significant, suggesting insufficient evidence that the relationship between trauma exposure and LGI differs by sex. The linear component of trauma exposure and sex were significant, with greater trauma exposure associated with lower global LGI and males exhibiting higher global LGI than females after accounting for trauma exposure. The nonlinear trauma component was also not significant (p = 0.0578), and both nonlinear smooths were effectively penalized to zero (edf < 0.001), suggesting approximately linear relationships between trauma exposure and LGI in both sexes.
+
 ```{r}
 #| label: lgi sex trauma 4
 model_lgi_sex_trauma_4 <- gam(
-  lgi ~ sex * trauma_c,
+  lgi ~ sex * trauma_c +
+    s(trauma_c, k = 7, m = c(2, 0)) +
+    s(trauma_c, k = 7, m = c(2, 0), by = sex_ord),
   data = data_lgi_sex_trauma,
   method = "ML"
 )
@@ -1975,16 +2185,24 @@ model_lgi_sex_trauma_4 <- gam(
 summary(model_lgi_sex_trauma_4)
 ```
 
+#### Model 5: Linear Sex × Trauma Interaction
+
+This model tests whether a linear interaction between sex and trauma exposure is significantly associated with global LGI. The interaction was not significant (p = 0.326), suggesting insufficient evidence that the relationship between trauma exposure and LGI differs by sex. Both trauma exposure and sex were significant predictors, with greater trauma exposure associated with lower global LGI and males exhibiting higher global LGI than females after accounting for trauma exposure.
+
 ```{r}
 #| label: lgi sex trauma 5
 model_lgi_sex_trauma_5 <- gam(
-  lgi ~ sex + trauma,
+  lgi ~ sex * trauma_c,
   data = data_lgi_sex_trauma,
   method = "ML"
 )
 
 summary(model_lgi_sex_trauma_5)
 ```
+
+#### AIC
+
+All five models exhibited similar AIC values (ΔAIC < 2), indicating comparable model support. Model 2 had the lowest AIC, although its improvement over Model 1 was negligible (ΔAIC < 0.001), consistent with its nonlinear trauma component being effectively penalized to zero. Models 3, 4, and 5 also exhibited nearly identical AIC values (ΔAIC ≈ 1.03), but neither the linear nor nonlinear sex × trauma interaction was statistically significant. Model 1 was therefore selected on the basis of parsimony and comparable AIC, retaining a linear effect of trauma exposure and a main effect of sex without an interaction.
 
 ```{r}
 #| label: lgi sex trauma selection
@@ -2002,6 +2220,8 @@ aic_lgi_sex_trauma <-
 
 aic_lgi_sex_trauma
 ```
+
+#### Check Final Model
 
 ```{r}
 #| label: lgi sex trauma final
