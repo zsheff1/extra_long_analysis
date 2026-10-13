@@ -255,6 +255,8 @@ plot_comorbid
 
 ## LGI vs eTIV
 
+*Note, this is the correlation of estimated Globally Averaged LGI with estimated Total Intracranial Volume. Previous analysis in the Evolution sample has shown the correlaiton between LGI and Volume at the region level to be $r \approx 0.1$. It is unclear to me what causes this discrepancy.
+
 ```{r}
 #| label: lgi etiv
 data_etiv <- raw_imaging |>
