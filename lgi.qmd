@@ -420,16 +420,16 @@ prediction_lgi_age <- prediction_lgi_age |>
 plot_lgi_age <-
   ggplot(mapping = aes(x = age, y = lgi)) +
   geom_point(data = data_lgi_age, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_age,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   labs(
     title = "LGI Developmental Trajectory",
@@ -456,9 +456,9 @@ data_lgi_psy <-
   inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
   rename(psy = smry_psy_cat) |>
   select(lgi, psy) |>
+  drop_na() |>
   filter(psy %in% c(0, 1, 2, 3, 4)) |>
-  mutate(psy = ordered(psy)) |>
-  drop_na()
+  mutate(psy = ordered(psy))
 ```
 
 :::
@@ -628,16 +628,16 @@ prediction_lgi_ses <- prediction_lgi_ses |>
 plot_lgi_ses <-
   ggplot(mapping = aes(x = ses, y = lgi)) +
   geom_point(data = data_lgi_ses, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_ses,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_ses,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_ses,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   labs(
     title = "LGI SES Relationship",
@@ -879,24 +879,29 @@ plot_lgi_trauma <-
     alpha = 0.25,
     size = 1
   ) +
-  geom_line(
-    data = prediction_lgi_trauma,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_trauma,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
   ) +
+  geom_line(
+    data = prediction_lgi_trauma,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
   labs(
     title = "LGI Trauma Relationship",
-    x = "Trauma",
-    y = "LGI (global)"
+    x = "Trauma*",
+    y = "LGI (global)",
+    caption = str_c(
+      "*Trauma exposure is a discrete variable (0–9).",
+      "Jitter is applied solely for visualization.",
+      sep = " "
+    )
   ) +
   theme_linedraw() +
-  theme(legend.position = "none")
+  theme(legend.position = "none", plot.caption = element_text(hjust = 0))
 
 plot_lgi_trauma
 ```
@@ -924,9 +929,9 @@ data_lgi_age_ses <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  mutate(age_c = age - mean(age), ses_c = ses - mean(ses)) |>
-  select(lgi, age, age_c, ses, ses_c) |>
-  drop_na()
+  select(lgi, age, ses) |>
+  drop_na() |>
+  mutate(age_c = age - mean(age), ses_c = ses - mean(ses))
 ```
 
 :::
@@ -1109,16 +1114,16 @@ plot_lgi_age_ses_1 <-
     )
   ) +
   geom_point(data = data_lgi_age_ses, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_age_ses_1,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age_ses_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age_ses_1,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(
     limits = c(ses_0, ses_100),
@@ -1197,16 +1202,16 @@ plot_lgi_age_ses_2 <-
     )
   ) +
   geom_point(data = data_lgi_age_ses, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_age_ses_2,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age_ses_2,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age_ses_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(
     limits = c(age_0, age_100),
@@ -1246,12 +1251,12 @@ Age differed significantly by sex, with females being slightly older than males 
 #| label: lgi age sex data
 data_lgi_age_sex <-
   inner_join(global_lgi, demo, by = c("bblid")) |>
+  select(lgi, age, sex) |>
+  drop_na() |>
   mutate(
     sex_ord = ordered(sex, levels = c("Female", "Male")),
     age_c = age - mean(age)
-  ) |>
-  select(lgi, age, age_c, sex, sex_ord) |>
-  drop_na()
+  )
 ```
 
 :::
@@ -1404,16 +1409,16 @@ prediction_lgi_age_sex <- prediction_lgi_age_sex |>
 plot_lgi_age_sex <-
   ggplot(mapping = aes(x = age, y = lgi, color = sex, fill = sex)) +
   geom_point(data = data_lgi_age_sex, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_age_sex,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age_sex,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age_sex,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   color_scale_sex +
   fill_scale_sex +
@@ -1444,9 +1449,9 @@ data_lgi_age_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
-  mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma)) |>
-  select(lgi, age, age_c, trauma, trauma_c) |>
-  drop_na()
+  select(lgi, age, trauma) |>
+  drop_na() |>
+  mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma))
 ```
 
 :::
@@ -1480,9 +1485,15 @@ plot_age_trauma <-
     title = "Correlation of Age and Trauma",
     subtitle = report_correlation(test_age_trauma),
     x = "Age",
-    y = "Trauma"
+    y = "Trauma*",
+    caption = str_c(
+      "*Trauma exposure is a discrete variable (0–9).",
+      "Jitter is applied solely for visualization.",
+      sep = " "
+    )
   ) +
-  theme_linedraw()
+  theme_linedraw() +
+  theme(plot.caption = element_text(hjust = 0))
 
 plot_age_trauma
 ```
@@ -1637,16 +1648,16 @@ plot_lgi_age_trauma_1 <-
     )
   ) +
   geom_point(data = data_lgi_age_trauma, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_age_trauma_1,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age_trauma_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age_trauma_1,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(limits = c(0, 7), breaks = c(0, 3, 6)) +
   scale_fill_viridis_c(limits = c(0, 7), breaks = c(0, 3, 6)) +
@@ -1725,16 +1736,16 @@ plot_lgi_age_trauma_2 <-
     alpha = 0.25,
     size = 1
   ) +
-  geom_line(
-    data = prediction_lgi_age_trauma_2,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_age_trauma_2,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_age_trauma_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(
     limits = c(age_0, age_100),
@@ -1751,12 +1762,18 @@ plot_lgi_age_trauma_2 <-
     subtitle = model_lgi_age_trauma_final |>
       pluck(formula) |>
       deparse1(),
-    x = "Trauma",
+    x = "Trauma*",
     y = "LGI (global)",
     color = "Age",
-    fill = "Age"
+    fill = "Age",
+    caption = str_c(
+      "*Trauma exposure is a discrete variable (0–9).",
+      "Jitter is applied solely for visualization.",
+      sep = " "
+    )
   ) +
-  theme_linedraw()
+  theme_linedraw() +
+  theme(plot.caption = element_text(hjust = 0))
 
 plot_lgi_age_trauma_2
 ```
@@ -1776,11 +1793,11 @@ data_lgi_ses_sex <-
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
   select(lgi, sex, ses) |>
+  drop_na() |>
   mutate(
     sex_ord = ordered(sex, levels = c("Female", "Male")),
     ses_c = ses - mean(ses)
-  ) |>
-  drop_na()
+  )
 ```
 
 :::
@@ -1981,16 +1998,16 @@ prediction_lgi_ses_sex <- prediction_lgi_ses_sex |>
 plot_lgi_ses_sex <-
   ggplot(mapping = aes(x = ses, y = lgi, color = sex, fill = sex)) +
   geom_point(data = data_lgi_ses_sex, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_ses_sex,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_ses_sex,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_ses_sex,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   color_scale_sex +
   fill_scale_sex +
@@ -2020,12 +2037,12 @@ SES and trauma exposure were significantly negatively correlated. When modeled t
 data_lgi_ses_trauma <-
   global_lgi |>
   inner_join(env, by = "bblid") |>
+  select(lgi, ses, trauma) |>
+  drop_na() |>
   mutate(
     ses_c = ses - mean(ses),
     trauma_c = trauma - mean(trauma)
-  ) |>
-  select(lgi, ses, ses_c, trauma, trauma_c) |>
-  drop_na()
+  )
 ```
 
 :::
@@ -2055,13 +2072,19 @@ plot_ses_trauma <-
     linewidth = 0.75,
     alpha = 0.5
   ) +
-  theme_linedraw() +
   labs(
     title = "Correlation of SES and Trauma",
     subtitle = report_correlation(test_ses_trauma),
     x = "SES",
-    y = "Trauma"
-  )
+    y = "Trauma*",
+    caption = str_c(
+      "*Trauma exposure is a discrete variable (0–9).",
+      "Jitter is applied solely for visualization.",
+      sep = " "
+    )
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none", plot.caption = element_text(hjust = 0))
 
 plot_ses_trauma
 ```
@@ -2239,16 +2262,16 @@ plot_lgi_ses_trauma_1 <-
     alpha = 0.25,
     size = 1
   ) +
-  geom_line(
-    data = prediction_lgi_ses_trauma_1,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_ses_trauma_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_ses_trauma_1,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(
     limits = c(ses_0, ses_100),
@@ -2265,12 +2288,18 @@ plot_lgi_ses_trauma_1 <-
     subtitle = model_lgi_ses_trauma_final |>
       pluck(formula) |>
       deparse1(),
-    x = "Trauma",
+    x = "Trauma*",
     y = "LGI (global)",
     color = "SES",
-    fill = "SES"
+    fill = "SES",
+    caption = str_c(
+      "*Trauma exposure is a discrete variable (0–9).",
+      "Jitter is applied solely for visualization.",
+      sep = " "
+    )
   ) +
-  theme_linedraw()
+  theme_linedraw() +
+  theme(plot.caption = element_text(hjust = 0))
 
 plot_lgi_ses_trauma_1
 
@@ -2314,16 +2343,16 @@ plot_lgi_ses_trauma_2 <-
     )
   ) +
   geom_point(data = data_lgi_ses_trauma, alpha = 0.25, size = 1) +
-  geom_line(
-    data = prediction_lgi_ses_trauma_2,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_ses_trauma_2,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_ses_trauma_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   scale_color_viridis_c(
     limits = c(0, 7),
@@ -2365,12 +2394,12 @@ data_lgi_sex_trauma <-
   global_lgi |>
   inner_join(demo, by = "bblid") |>
   inner_join(env, by = "bblid") |>
+  select(lgi, sex, trauma) |>
+  drop_na() |>
   mutate(
     sex_ord = ordered(sex, levels = c("Female", "Male")),
     trauma_c = trauma - mean(trauma)
-  ) |>
-  select(lgi, sex, sex_ord, trauma, trauma_c) |>
-  drop_na()
+  )
 ```
 
 :::
@@ -2550,16 +2579,16 @@ plot_lgi_sex_trauma <-
     alpha = 0.25,
     size = 1
   ) +
-  geom_line(
-    data = prediction_lgi_sex_trauma,
-    mapping = aes(y = fit),
-    linewidth = 0.75
-  ) +
   geom_ribbon(
     data = prediction_lgi_sex_trauma,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
+  ) +
+  geom_line(
+    data = prediction_lgi_sex_trauma,
+    mapping = aes(y = fit),
+    linewidth = 0.75
   ) +
   color_scale_sex +
   fill_scale_sex +
