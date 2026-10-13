@@ -1055,6 +1055,8 @@ gam.check(model_lgi_age_ses_final)
 #| label: lgi age ses results
 summary(model_lgi_age_ses_final)
 
+# LGI-Age by SES plot
+
 ses_0 <- min(data_lgi_age_ses$ses, na.rm = TRUE)
 ses_16 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 6))
 ses_33 <- unname(quantile(data_lgi_age_ses$ses, probs = 1 / 3))
@@ -1063,7 +1065,7 @@ ses_66 <- unname(quantile(data_lgi_age_ses$ses, probs = 2 / 3))
 ses_83 <- unname(quantile(data_lgi_age_ses$ses, probs = 5 / 6))
 ses_100 <- max(data_lgi_age_ses$ses, na.rm = TRUE)
 
-prediction_lgi_age_ses <- data_lgi_age_ses |>
+prediction_lgi_age_ses_1 <- data_lgi_age_ses |>
   mutate(
     ses = case_when(
       ses <= ses_33 ~ ses_16,
@@ -1084,10 +1086,10 @@ prediction_lgi_age_ses <- data_lgi_age_ses |>
   ) |>
   unnest(age)
 
-fit_lgi_age_ses <-
+fit_lgi_age_ses_1 <-
   predict(
     model_lgi_age_ses_final,
-    newdata = prediction_lgi_age_ses,
+    newdata = prediction_lgi_age_ses_1,
     type = "response",
     se.fit = TRUE
   ) |>
@@ -1097,10 +1099,10 @@ fit_lgi_age_ses <-
   mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
   select(fit, lower, upper)
 
-prediction_lgi_age_ses <- prediction_lgi_age_ses |>
-  bind_cols(fit_lgi_age_ses)
+prediction_lgi_age_ses_1 <- prediction_lgi_age_ses_1 |>
+  bind_cols(fit_lgi_age_ses_1)
 
-plot_lgi_age_ses <-
+plot_lgi_age_ses_1 <-
   ggplot(
     mapping = aes(
       x = age, y = lgi, group = ses, color = ses, fill = ses
@@ -1108,12 +1110,12 @@ plot_lgi_age_ses <-
   ) +
   geom_point(data = data_lgi_age_ses, alpha = 0.25, size = 1) +
   geom_line(
-    data = prediction_lgi_age_ses,
+    data = prediction_lgi_age_ses_1,
     mapping = aes(y = fit),
     linewidth = 0.75
   ) +
   geom_ribbon(
-    data = prediction_lgi_age_ses,
+    data = prediction_lgi_age_ses_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
@@ -1140,8 +1142,97 @@ plot_lgi_age_ses <-
   ) +
   theme_linedraw()
 
-plot_lgi_age_ses
+plot_lgi_age_ses_1
+
+# LGI-SES by Age plot
+age_0 <- min(data_lgi_age_ses$age, na.rm = TRUE)
+age_16 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 6))
+age_33 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 3))
+age_50 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 2))
+age_66 <- unname(quantile(data_lgi_age_ses$age, probs = 2 / 3))
+age_83 <- unname(quantile(data_lgi_age_ses$age, probs = 5 / 6))
+age_100 <- max(data_lgi_age_ses$age, na.rm = TRUE)
+
+prediction_lgi_age_ses_2 <- data_lgi_age_ses |>
+  mutate(
+    age = case_when(
+      age <= age_33 ~ age_16,
+      age > age_33 & age <= age_66 ~ age_50,
+      age > age_66 ~ age_83
+    )
+  ) |>
+  group_by(age) |>
+  summarise(
+    ses = list(
+      seq(
+        min(ses, na.rm = TRUE),
+        max(ses, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(ses)
+
+fit_lgi_age_ses_2 <-
+  predict(
+    model_lgi_age_ses_final,
+    newdata = prediction_lgi_age_ses_2,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_age_ses_2 <- prediction_lgi_age_ses_2 |>
+  bind_cols(fit_lgi_age_ses_2)
+
+plot_lgi_age_ses_2 <-
+  ggplot(
+    mapping = aes(
+      x = ses, y = lgi, group = age, color = age, fill = age
+    )
+  ) +
+  geom_point(data = data_lgi_age_ses, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_age_ses_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_age_ses_2,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  scale_color_viridis_c(
+    limits = c(age_0, age_100),
+    breaks = c(age_16, age_50, age_83),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  scale_fill_viridis_c(
+    limits = c(age_0, age_100),
+    breaks = c(age_16, age_50, age_83),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  labs(
+    title = "LGI-SES Relationship by Age",
+    subtitle = model_lgi_age_ses_final |>
+      pluck(formula) |>
+      deparse1(),
+    x = "SES",
+    y = "LGI (global)",
+    color = "Age",
+    fill = "Age"
+  ) +
+  theme_linedraw()
+
+plot_lgi_age_ses_2
 ```
+
 
 ## Global LGI ~ Age x Sex {#two-age-sex}
 
@@ -1506,7 +1597,9 @@ gam.check(model_lgi_age_trauma_final)
 #| label: lgi age trauma results
 summary(model_lgi_age_trauma_final)
 
-prediction_lgi_age_trauma <- data_lgi_age_trauma |>
+# LGI-Age by Trauma plot
+
+prediction_lgi_age_trauma_1 <- data_lgi_age_trauma |>
   filter(trauma %in% c(0, 3, 6)) |>
   group_by(trauma) |>
   summarise(
@@ -1521,10 +1614,10 @@ prediction_lgi_age_trauma <- data_lgi_age_trauma |>
   ) |>
   unnest(age)
 
-fit_lgi_age_trauma <-
+fit_lgi_age_trauma_1 <-
   predict(
     model_lgi_age_trauma_final,
-    newdata = prediction_lgi_age_trauma,
+    newdata = prediction_lgi_age_trauma_1,
     type = "response",
     se.fit = TRUE
   ) |>
@@ -1534,10 +1627,10 @@ fit_lgi_age_trauma <-
   mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
   select(fit, lower, upper)
 
-prediction_lgi_age_trauma <- prediction_lgi_age_trauma |>
-  bind_cols(fit_lgi_age_trauma)
+prediction_lgi_age_trauma_1 <- prediction_lgi_age_trauma_1 |>
+  bind_cols(fit_lgi_age_trauma_1)
 
-plot_lgi_age_trauma <-
+plot_lgi_age_trauma_1 <-
   ggplot(
     mapping = aes(
       x = age, y = lgi, group = trauma, color = trauma, fill = trauma
@@ -1545,12 +1638,12 @@ plot_lgi_age_trauma <-
   ) +
   geom_point(data = data_lgi_age_trauma, alpha = 0.25, size = 1) +
   geom_line(
-    data = prediction_lgi_age_trauma,
+    data = prediction_lgi_age_trauma_1,
     mapping = aes(y = fit),
     linewidth = 0.75
   ) +
   geom_ribbon(
-    data = prediction_lgi_age_trauma,
+    data = prediction_lgi_age_trauma_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
@@ -1569,7 +1662,103 @@ plot_lgi_age_trauma <-
   ) +
   theme_linedraw()
 
-plot_lgi_age_trauma
+plot_lgi_age_trauma_1
+
+# LGI-Trauma by Age plot
+
+age_0 <- min(data_lgi_age_ses$age, na.rm = TRUE)
+age_16 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 6))
+age_33 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 3))
+age_50 <- unname(quantile(data_lgi_age_ses$age, probs = 1 / 2))
+age_66 <- unname(quantile(data_lgi_age_ses$age, probs = 2 / 3))
+age_83 <- unname(quantile(data_lgi_age_ses$age, probs = 5 / 6))
+age_100 <- max(data_lgi_age_ses$age, na.rm = TRUE)
+
+prediction_lgi_age_trauma_2 <- data_lgi_age_trauma |>
+  mutate(
+    age = case_when(
+      age <= age_33 ~ age_16,
+      age > age_33 & age <= age_66 ~ age_50,
+      age > age_66 ~ age_83
+    )
+  ) |>
+  group_by(age) |>
+  summarise(
+    trauma = list(
+      seq(
+        min(trauma, na.rm = TRUE),
+        max(trauma, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(trauma)
+
+fit_lgi_age_trauma_2 <-
+  predict(
+    model_lgi_age_trauma_final,
+    newdata = prediction_lgi_age_trauma_2,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_age_trauma_2 <- prediction_lgi_age_trauma_2 |>
+  bind_cols(fit_lgi_age_trauma_2)
+
+plot_lgi_age_trauma_2 <-
+  ggplot(
+    mapping = aes(
+      x = trauma, y = lgi, group = age, color = age, fill = age
+    )
+  ) +
+  geom_point(
+    data = data_lgi_age_trauma,
+    mapping = aes(
+      x = trauma + scales::rescale(age, to = c(-0.25, 0.25))
+    ),
+    alpha = 0.25,
+    size = 1
+  ) +
+  geom_line(
+    data = prediction_lgi_age_trauma_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_age_trauma_2,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  scale_color_viridis_c(
+    limits = c(age_0, age_100),
+    breaks = c(age_16, age_50, age_83),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  scale_fill_viridis_c(
+    limits = c(age_0, age_100),
+    breaks = c(age_16, age_50, age_83),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  labs(
+    title = "LGI-Trauma Relationship by Age",
+    subtitle = model_lgi_age_trauma_final |>
+      pluck(formula) |>
+      deparse1(),
+    x = "Trauma",
+    y = "LGI (global)",
+    color = "Age",
+    fill = "Age"
+  ) +
+  theme_linedraw()
+
+plot_lgi_age_trauma_2
 ```
 
 ## Global LGI ~ SES x Sex {#two-ses-sex}
@@ -1989,6 +2178,8 @@ gam.check(model_lgi_ses_trauma_final)
 #| label: lgi ses trauma results
 summary(model_lgi_ses_trauma_final)
 
+# LGI-Trauma by SES plot
+
 ses_0 <- min(data_lgi_ses_trauma$ses, na.rm = TRUE)
 ses_16 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 1 / 6))
 ses_33 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 1 / 3))
@@ -1997,7 +2188,7 @@ ses_66 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 2 / 3))
 ses_83 <- unname(quantile(data_lgi_ses_trauma$ses, probs = 5 / 6))
 ses_100 <- max(data_lgi_ses_trauma$ses, na.rm = TRUE)
 
-prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
+prediction_lgi_ses_trauma_1 <- data_lgi_ses_trauma |>
   mutate(
     ses = case_when(
       ses <= ses_33 ~ ses_16,
@@ -2018,10 +2209,10 @@ prediction_lgi_ses_trauma <- data_lgi_ses_trauma |>
   ) |>
   unnest(trauma)
 
-fit_lgi_ses_trauma <-
+fit_lgi_ses_trauma_1 <-
   predict(
     model_lgi_ses_trauma_final,
-    newdata = prediction_lgi_ses_trauma,
+    newdata = prediction_lgi_ses_trauma_1,
     type = "response",
     se.fit = TRUE
   ) |>
@@ -2031,10 +2222,10 @@ fit_lgi_ses_trauma <-
   mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
   select(fit, lower, upper)
 
-prediction_lgi_ses_trauma <- prediction_lgi_ses_trauma |>
-  bind_cols(fit_lgi_ses_trauma)
+prediction_lgi_ses_trauma_1 <- prediction_lgi_ses_trauma_1 |>
+  bind_cols(fit_lgi_ses_trauma_1)
 
-plot_lgi_ses_trauma <-
+plot_lgi_ses_trauma_1 <-
   ggplot(
     mapping = aes(
       x = trauma, y = lgi, group = ses, color = ses, fill = ses
@@ -2049,12 +2240,12 @@ plot_lgi_ses_trauma <-
     size = 1
   ) +
   geom_line(
-    data = prediction_lgi_ses_trauma,
+    data = prediction_lgi_ses_trauma_1,
     mapping = aes(y = fit),
     linewidth = 0.75
   ) +
   geom_ribbon(
-    data = prediction_lgi_ses_trauma,
+    data = prediction_lgi_ses_trauma_1,
     mapping = aes(y = fit, ymin = lower, ymax = upper),
     alpha = 0.5,
     color = NA
@@ -2081,8 +2272,84 @@ plot_lgi_ses_trauma <-
   ) +
   theme_linedraw()
 
-plot_lgi_ses_trauma
+plot_lgi_ses_trauma_1
+
+# LGI-SES by Trauma plot
+
+prediction_lgi_ses_trauma_2 <- data_lgi_ses_trauma |>
+  filter(trauma %in% c(0, 3, 6)) |>
+  group_by(trauma) |>
+  summarise(
+    ses = list(
+      seq(
+        min(ses, na.rm = TRUE),
+        max(ses, na.rm = TRUE),
+        length.out = 250
+      )
+    ),
+    .groups = "drop"
+  ) |>
+  unnest(ses)
+
+fit_lgi_ses_trauma_2 <-
+  predict(
+    model_lgi_ses_trauma_final,
+    newdata = prediction_lgi_ses_trauma_2,
+    type = "response",
+    se.fit = TRUE
+  ) |>
+  map(as.vector) |>
+  as_tibble() |>
+  clean_names() |>
+  mutate(lower = fit - 1.96 * se_fit, upper = fit + 1.96 * se_fit) |>
+  select(fit, lower, upper)
+
+prediction_lgi_ses_trauma_2 <- prediction_lgi_ses_trauma_2 |>
+  bind_cols(fit_lgi_ses_trauma_2)
+
+plot_lgi_ses_trauma_2 <-
+  ggplot(
+    mapping = aes(
+      x = ses, y = lgi, group = trauma, color = trauma, fill = trauma
+    )
+  ) +
+  geom_point(data = data_lgi_ses_trauma, alpha = 0.25, size = 1) +
+  geom_line(
+    data = prediction_lgi_ses_trauma_2,
+    mapping = aes(y = fit),
+    linewidth = 0.75
+  ) +
+  geom_ribbon(
+    data = prediction_lgi_ses_trauma_2,
+    mapping = aes(y = fit, ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
+  ) +
+  scale_color_viridis_c(
+    limits = c(0, 7),
+    breaks = c(0, 3, 6),
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  scale_fill_viridis_c(
+    limits = c(0, 7),
+    breaks = c(0, 3, 6),
+    labels = scales::label_number(accuracy = 0.1)
+  ) +
+  labs(
+    title = "LGI SES Relationship by Trauma",
+    subtitle = model_lgi_ses_trauma_final |>
+      pluck(formula) |>
+      deparse1(),
+    x = "SES",
+    y = "LGI (global)",
+    color = "Trauma",
+    fill = "Trauma"
+  ) +
+  theme_linedraw()
+
+plot_lgi_ses_trauma_2
 ```
+
 
 ## Global LGI ~ Sex x Trauma {#two-sex-trauma}
 
