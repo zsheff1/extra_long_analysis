@@ -296,22 +296,22 @@ plot_lgi_etiv
 
 # Psychopathology
 
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety severity [(Jonckheere–Terpstra test, p = 0.031)](#main-anx).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior severity [(Jonckheere–Terpstra test, p = 0.001)](#main-beh).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating severity [(Jonckheere–Terpstra test, p < 0.001)](#main-beh).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood severity [(Jonckheere–Terpstra test, p < 0.001)](#main-mood).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#main-psy).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety severity [(Jonckheere–Terpstra test, p = 0.031)](#goa-anx).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior severity [(Jonckheere–Terpstra test, p = 0.001)](#goa-beh).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-eat).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-mood).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-psy).
 
-## Global LGI ~ Anxiety {#main-anx}
+## Global LGI ~ Anxiety {#goa-anx}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between anxiety severity and global LGI (JT = 329174, p = 0.031), indicating that higher anxiety categories were associated with lower global LGI.
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between anxiety severity and global LGI (JT = 329174, p = 0.031), indicating that higher anxiety categories were associated with lower global LGI. Significant decreasing trends were also observed for six of the eight individual anxiety disorders: agoraphobia, generalized anxiety, OCD, panic disorder, PTSD, and social anxiety. Separation anxiety and specific phobias did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
 ### Sample
 
 ```{r}
-#| label: lgi anx
+#| label: lgi anx sample
 data_lgi_anx <-
   inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
   rename(anx = smry_anx_cat) |>
@@ -369,9 +369,138 @@ plot_lgi_anx <-
 plot_lgi_anx
 ```
 
-## Global LGI ~ Behavior {#main-beh}
+::: {.content-visible when-profile="scratch"}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between behavior severity and global LGI (JT = 394546, p = 0.001), indicating that higher behavior categories were associated with lower global LGI.
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi anx individual sample
+data_lgi_anx_sub <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(
+    bblid,
+    lgi,
+    smry_gad,
+    smry_sep,
+    smry_phb,
+    smry_soc,
+    smry_pan,
+    smry_agr,
+    smry_ocd,
+    smry_ptd
+  ) |>
+  pivot_longer(
+    cols = starts_with("smry_"),
+    names_to = "disorder",
+    values_to = "score"
+  ) |>
+  mutate(
+    disorder = str_replace_all(disorder, c(
+      "smry_agr" = "Agoraphobia",
+      "smry_gad" = "Generalized Anxiety",
+      "smry_ocd" = "OCD",
+      "smry_pan" = "Panic Disorder",
+      "smry_phb" = "Specific Phobias",
+      "smry_ptd" = "PTSD",
+      "smry_sep" = "Separation Anxiety",
+      "smry_soc" = "Social Anxiety"
+    )),
+    score = ordered(case_when(score %in% 0:4 ~ score))
+  ) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi anx individual test
+test_lgi_anx_sub <-
+  data_lgi_anx_sub |>
+  group_by(disorder) |>
+  summarise(
+    test = list(clinfun::jonckheere.test(
+      x = lgi,
+      g = score,
+      alternative = "decreasing"
+    )),
+    .groups = "drop"
+  ) |>
+  mutate(
+    jt = map_dbl(test, "statistic"),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+test_lgi_anx_sub
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi anx individual results
+category_labels <- c(
+  "0" = "Not Endorsed",
+  "1" = "Endorsed",
+  "2" = "Subthreshold",
+  "3" = "Threshold",
+  "4" = "Significant"
+)
+
+facet_labels_lgi_anx_sub <-
+  test_lgi_anx_sub |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  tibble::deframe()
+
+plot_lgi_anx_sub <-
+  ggplot(
+    data = data_lgi_anx_sub,
+    mapping = aes(
+      x = score,
+      y = lgi,
+      group = score,
+      color = score,
+      fill = score
+    )
+  ) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(
+    ~ disorder,
+    ncol = 4,
+    nrow = 2,
+    labeller = as_labeller(facet_labels_lgi_anx_sub)
+  ) +
+  scale_color_viridis_d(name = NULL, labels = category_labels) +
+  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  labs(
+    title = "Global LGI Across Anxiety Disorders",
+    y = "LGI (global)",
+    x = NULL,
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+
+plot_lgi_anx_sub
+```
+
+## Global LGI ~ Behavior {#goa-beh}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between behavior severity and global LGI (JT = 394546, p = 0.001), indicating that higher behavior categories were associated with lower global LGI. Significant decreasing trends were also observed for two of the three individual behavioral disorders: conduct disorder, and oppositional defiance disorder. Attention deficit disorder did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -436,9 +565,122 @@ plot_lgi_beh <-
 plot_lgi_beh
 ```
 
-## Global LGI ~ Eating {#main-eat}
+::: {.content-visible when-profile="scratch"}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between eating severity and global LGI (JT = 183415, p < 0.001), indicating that higher eating categories were associated with lower global LGI.
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi beh individual sample
+data_lgi_beh_sub <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(bblid, lgi, smry_add, smry_odd, smry_con) |>
+  pivot_longer(
+    cols = starts_with("smry_"),
+    names_to = "disorder",
+    values_to = "score"
+  ) |>
+  mutate(
+    disorder = str_replace_all(disorder, c(
+      "smry_add" = "Attention Deficit Disorder",
+      "smry_odd" = "Oppositional Defiance Disorder",
+      "smry_con" = "Conduct Disorder"
+    )),
+    score = ordered(case_when(score %in% 0:4 ~ score))
+  ) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi beh individual test
+test_lgi_beh_sub <-
+  data_lgi_beh_sub |>
+  group_by(disorder) |>
+  summarise(
+    test = list(clinfun::jonckheere.test(
+      x = lgi,
+      g = score,
+      alternative = "decreasing"
+    )),
+    .groups = "drop"
+  ) |>
+  mutate(
+    jt = map_dbl(test, "statistic"),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+test_lgi_beh_sub
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi beh individual results
+category_labels <- c(
+  "0" = "Not Endorsed",
+  "1" = "Endorsed",
+  "2" = "Subthreshold",
+  "3" = "Threshold",
+  "4" = "Significant"
+)
+
+facet_labels_lgi_beh_sub <-
+  test_lgi_beh_sub |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  tibble::deframe()
+
+plot_lgi_beh_sub <-
+  ggplot(
+    data = data_lgi_beh_sub,
+    mapping = aes(
+      x = score,
+      y = lgi,
+      group = score,
+      color = score,
+      fill = score
+    )
+  ) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(
+    ~ disorder,
+    ncol = 3,
+    nrow = 1,
+    labeller = as_labeller(facet_labels_lgi_beh_sub)
+  ) +
+  scale_color_viridis_d(name = NULL, labels = category_labels) +
+  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  labs(
+    title = "Global LGI Across Behavioral Disorders",
+    y = "LGI (global)",
+    x = NULL,
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+
+plot_lgi_beh_sub
+```
+
+## Global LGI ~ Eating {#goa-eat}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between eating severity and global LGI (JT = 183415, p < 0.001), indicating that higher eating categories were associated with lower global LGI. Significant decreasing trends were also observed for both individual eating disorders: anorexia and bulimia.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -503,9 +745,121 @@ plot_lgi_eat <-
 plot_lgi_eat
 ```
 
-## Global LGI ~ Mood {#main-mood}
+::: {.content-visible when-profile="scratch"}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between mood severity and global LGI (JT = 331493, p < 0.001), indicating that higher mood categories were associated with lower global LGI.
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi eat individual sample
+data_lgi_eat_sub <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(bblid, lgi, smry_ano, smry_bul) |>
+  pivot_longer(
+    cols = starts_with("smry_"),
+    names_to = "disorder",
+    values_to = "score"
+  ) |>
+  mutate(
+    disorder = str_replace_all(disorder, c(
+      "smry_ano" = "Anorexia",
+      "smry_bul" = "Bulimia"
+    )),
+    score = ordered(case_when(score %in% 0:4 ~ score))
+  ) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi eat individual test
+test_lgi_eat_sub <-
+  data_lgi_eat_sub |>
+  group_by(disorder) |>
+  summarise(
+    test = list(clinfun::jonckheere.test(
+      x = lgi,
+      g = score,
+      alternative = "decreasing"
+    )),
+    .groups = "drop"
+  ) |>
+  mutate(
+    jt = map_dbl(test, "statistic"),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+test_lgi_eat_sub
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi eat individual results
+category_labels <- c(
+  "0" = "Not Endorsed",
+  "1" = "Endorsed",
+  "2" = "Subthreshold",
+  "3" = "Threshold",
+  "4" = "Significant"
+)
+
+facet_labels_lgi_eat_sub <-
+  test_lgi_eat_sub |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  tibble::deframe()
+
+plot_lgi_beh_sub <-
+  ggplot(
+    data = data_lgi_eat_sub,
+    mapping = aes(
+      x = score,
+      y = lgi,
+      group = score,
+      color = score,
+      fill = score
+    )
+  ) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(
+    ~ disorder,
+    ncol = 2,
+    nrow = 1,
+    labeller = as_labeller(facet_labels_lgi_eat_sub)
+  ) +
+  scale_color_viridis_d(name = NULL, labels = category_labels) +
+  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  labs(
+    title = "Global LGI Across Eating Disorders",
+    y = "LGI (global)",
+    x = NULL,
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+
+plot_lgi_beh_sub
+```
+
+## Global LGI ~ Mood {#goa-mood}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between mood severity and global LGI (JT = 331493, p < 0.001), indicating that higher mood categories were associated with lower global LGI. Significant decreasing trends were also observed for both mood categories: depression and mania.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -570,9 +924,121 @@ plot_lgi_mood <-
 plot_lgi_mood
 ```
 
-## Global LGI ~ Psychosis {#main-psy}
+::: {.content-visible when-profile="scratch"}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI.
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi mood individual sample
+data_lgi_mood_sub <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(bblid, lgi, smry_dep, smry_man) |>
+  pivot_longer(
+    cols = starts_with("smry_"),
+    names_to = "disorder",
+    values_to = "score"
+  ) |>
+  mutate(
+    disorder = str_replace_all(disorder, c(
+      "smry_dep" = "Depression",
+      "smry_man" = "Mania"
+    )),
+    score = ordered(case_when(score %in% 0:4 ~ score))
+  ) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi mood individual test
+test_lgi_mood_sub <-
+  data_lgi_mood_sub |>
+  group_by(disorder) |>
+  summarise(
+    test = list(clinfun::jonckheere.test(
+      x = lgi,
+      g = score,
+      alternative = "decreasing"
+    )),
+    .groups = "drop"
+  ) |>
+  mutate(
+    jt = map_dbl(test, "statistic"),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+test_lgi_mood_sub
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi mood individual results
+category_labels <- c(
+  "0" = "Not Endorsed",
+  "1" = "Endorsed",
+  "2" = "Subthreshold",
+  "3" = "Threshold",
+  "4" = "Significant"
+)
+
+facet_labels_lgi_mood_sub <-
+  test_lgi_mood_sub |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  tibble::deframe()
+
+plot_lgi_mood_sub <-
+  ggplot(
+    data = data_lgi_mood_sub,
+    mapping = aes(
+      x = score,
+      y = lgi,
+      group = score,
+      color = score,
+      fill = score
+    )
+  ) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(
+    ~ disorder,
+    ncol = 2,
+    nrow = 1,
+    labeller = as_labeller(facet_labels_lgi_mood_sub)
+  ) +
+  scale_color_viridis_d(name = NULL, labels = category_labels) +
+  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  labs(
+    title = "Global LGI Across Mood Disorders",
+    y = "LGI (global)",
+    x = NULL,
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+
+plot_lgi_mood_sub
+```
+
+## Global LGI ~ Psychosis {#goa-psy}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI. Significant decreasing trends were also observed for five of the seven individual psychosis symptoms: hallucinations (general), auditory hallucinations (voices), auditory hallucinations (other), tactile hallucinations and visual hallucinations. Delusions and olfactory hallucinations did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -635,6 +1101,133 @@ plot_lgi_psy <-
   theme(legend.position = "none")
 
 plot_lgi_psy
+```
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi psy individual sample
+data_lgi_psy_sub <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  select(
+    bblid,
+    lgi,
+    smry_del,
+    smry_hal,
+    smry_hal_av,
+    smry_hal_as,
+    smry_hal_vh,
+    smry_hal_oh,
+    smry_hal_th
+  ) |>
+  pivot_longer(
+    cols = starts_with("smry_"),
+    names_to = "disorder",
+    values_to = "score"
+  ) |>
+  mutate(
+    disorder = str_replace_all(disorder, c(
+      "smry_del" = "Delusions",
+      "smry_hal_av" = "Auditory Hallucinations (Verbal)",
+      "smry_hal_as" = "Auditory Hallucinations (Other)",
+      "smry_hal_vh" = "Visual Hallucinations",
+      "smry_hal_oh" = "Olfactory Hallucinations",
+      "smry_hal_th" = "Tactile Hallucinations",
+      "smry_hal" = "Hallucinations"
+    )),
+    score = ordered(case_when(score %in% 0:4 ~ score))
+  ) |>
+  drop_na()
+```
+
+:::
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi psy individual test
+test_lgi_psy_sub <-
+  data_lgi_psy_sub |>
+  group_by(disorder) |>
+  summarise(
+    test = list(clinfun::jonckheere.test(
+      x = lgi,
+      g = score,
+      alternative = "decreasing"
+    )),
+    .groups = "drop"
+  ) |>
+  mutate(
+    jt = map_dbl(test, "statistic"),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+test_lgi_psy_sub
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi psy individual results
+category_labels <- c(
+  "0" = "Not Endorsed",
+  "1" = "Endorsed",
+  "2" = "Subthreshold",
+  "3" = "Threshold",
+  "4" = "Significant"
+)
+
+facet_labels_lgi_psy_sub <-
+  test_lgi_psy_sub |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  tibble::deframe()
+
+plot_lgi_psy_sub <-
+  ggplot(
+    data = data_lgi_psy_sub,
+    mapping = aes(
+      x = score,
+      y = lgi,
+      group = score,
+      color = score,
+      fill = score
+    )
+  ) +
+  geom_boxplot(alpha = 0.5) +
+  facet_wrap(
+    ~ disorder,
+    ncol = 3,
+    nrow = 3,
+    labeller = as_labeller(facet_labels_lgi_psy_sub)
+  ) +
+  scale_color_viridis_d(name = NULL, limits = as.character(0:4), breaks = as.character(0:3), labels = category_labels[0:4]) +
+  scale_fill_viridis_d(name = NULL, limits = as.character(0:4), breaks = as.character(0:3), labels = category_labels[0:4]) +
+  labs(
+    title = "Global LGI Across Anxiety Disorders",
+    y = "LGI (global)",
+    x = NULL,
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+
+plot_lgi_psy_sub
 ```
 
 # Main Effects
