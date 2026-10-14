@@ -294,14 +294,355 @@ plot_lgi_etiv <-
 plot_lgi_etiv
 ```
 
+# Psychopathology
+
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety severity [(Jonckheere–Terpstra test, p = 0.031)](#main-anx).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior severity [(Jonckheere–Terpstra test, p = 0.001)](#main-beh).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating severity [(Jonckheere–Terpstra test, p < 0.001)](#main-beh).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood severity [(Jonckheere–Terpstra test, p < 0.001)](#main-mood).
+  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#main-psy).
+
+## Global LGI ~ Anxiety {#main-anx}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between anxiety severity and global LGI (JT = 329174, p = 0.031), indicating that higher anxiety categories were associated with lower global LGI.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi anx
+data_lgi_anx <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(anx = smry_anx_cat) |>
+  select(lgi, anx) |>
+  drop_na() |>
+  filter(anx %in% c(0, 1, 2, 3, 4)) |>
+  mutate(anx = ordered(anx))
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi anx test
+test_lgi_anx <-
+  clinfun::jonckheere.test(
+    x = data_lgi_anx$lgi,
+    g = data_lgi_anx$anx,
+    alternative = "decreasing"
+  )
+
+test_lgi_anx
+```
+
+### Results
+
+```{r}
+#| label: lgi anx final
+plot_lgi_anx <-
+  ggplot(
+    data = data_lgi_anx,
+    aes(x = anx, y = lgi, color = anx, fill = anx)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Anxiety Levels",
+    subtitle = report_jt(test_lgi_anx),
+    x = "Anxiety (GOASSESS Category)",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_anx
+```
+
+## Global LGI ~ Behavior {#main-beh}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between behavior severity and global LGI (JT = 394546, p = 0.001), indicating that higher behavior categories were associated with lower global LGI.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi beh
+data_lgi_beh <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(beh = smry_beh_cat) |>
+  select(lgi, beh) |>
+  drop_na() |>
+  filter(beh %in% c(0, 1, 2, 3, 4)) |>
+  mutate(beh = ordered(beh))
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi beh test
+test_lgi_beh <-
+  clinfun::jonckheere.test(
+    x = data_lgi_beh$lgi,
+    g = data_lgi_beh$beh,
+    alternative = "decreasing"
+  )
+
+test_lgi_beh
+```
+
+### Results
+
+```{r}
+#| label: lgi beh final
+plot_lgi_beh <-
+  ggplot(
+    data = data_lgi_beh,
+    aes(x = beh, y = lgi, color = beh, fill = beh)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Behavior Levels",
+    subtitle = report_jt(test_lgi_beh),
+    x = "Behavior (GOASSESS Category)",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_beh
+```
+
+## Global LGI ~ Eating {#main-eat}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between eating severity and global LGI (JT = 183415, p < 0.001), indicating that higher eating categories were associated with lower global LGI.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi eat
+data_lgi_eat <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(eat = smry_eat_cat) |>
+  select(lgi, eat) |>
+  drop_na() |>
+  filter(eat %in% c(0, 1, 2, 3, 4)) |>
+  mutate(eat = ordered(eat))
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi eat test
+test_lgi_eat <-
+  clinfun::jonckheere.test(
+    x = data_lgi_eat$lgi,
+    g = data_lgi_eat$eat,
+    alternative = "decreasing"
+  )
+
+test_lgi_eat
+```
+
+### Results
+
+```{r}
+#| label: lgi eat final
+plot_lgi_eat <-
+  ggplot(
+    data = data_lgi_eat,
+    aes(x = eat, y = lgi, color = eat, fill = eat)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Eating Levels",
+    subtitle = report_jt(test_lgi_eat),
+    x = "Eating (GOASSESS Category)",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_eat
+```
+
+## Global LGI ~ Mood {#main-mood}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between mood severity and global LGI (JT = 331493, p < 0.001), indicating that higher mood categories were associated with lower global LGI.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi mood
+data_lgi_mood <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(mood = smry_mood_cat) |>
+  select(lgi, mood) |>
+  drop_na() |>
+  filter(mood %in% c(0, 1, 2, 3, 4)) |>
+  mutate(mood = ordered(mood))
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi mood test
+test_lgi_mood <-
+  clinfun::jonckheere.test(
+    x = data_lgi_mood$lgi,
+    g = data_lgi_mood$mood,
+    alternative = "decreasing"
+  )
+
+test_lgi_mood
+```
+
+### Results
+
+```{r}
+#| label: lgi mood final
+plot_lgi_mood <-
+  ggplot(
+    data = data_lgi_mood,
+    aes(x = mood, y = lgi, color = mood, fill = mood)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Mood Levels",
+    subtitle = report_jt(test_lgi_mood),
+    x = "Mood (GOASSESS Category)",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_mood
+```
+
+## Global LGI ~ Psychosis {#main-psy}
+
+Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI.
+
+::: {.content-visible when-profile="scratch"}
+
+### Sample
+
+```{r}
+#| label: lgi psy
+data_lgi_psy <-
+  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  rename(psy = smry_psy_cat) |>
+  select(lgi, psy) |>
+  drop_na() |>
+  filter(psy %in% c(0, 1, 2, 3, 4)) |>
+  mutate(psy = ordered(psy))
+```
+
+:::
+
+### Hypothesis Test
+
+```{r}
+#| label: lgi psy test
+test_lgi_psy <-
+  clinfun::jonckheere.test(
+    x = data_lgi_psy$lgi,
+    g = data_lgi_psy$psy,
+    alternative = "decreasing"
+  )
+
+test_lgi_psy
+```
+
+### Results
+
+```{r}
+#| label: lgi psy final
+plot_lgi_psy <-
+  ggplot(
+    data = data_lgi_psy,
+    aes(x = psy, y = lgi, color = psy, fill = psy)
+  ) +
+  geom_jitter(alpha = 0.25) +
+  geom_violin(alpha = 0.5) +
+  scale_x_discrete(
+    labels = c(
+      "0" = "Not Endorsed",
+      "1" = "Endorsed",
+      "2" = "Subthreshold",
+      "3" = "Threshold",
+      "4" = "Significant"
+    )
+  ) +
+  labs(
+    title = "Differences in Global LGI between Psychosis Levels",
+    subtitle = report_jt(test_lgi_psy),
+    x = "Psychosis (GOASSESS Category)",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_psy
+```
+
 # Main Effects
 
   - Global LGI declined nonlinearly with age, with a modest departure from linearity. [`lgi ~ s(age)`](#main-age)
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#main-psy).
   - Global LGI was positively and linearly associated with SES, with no evidence of significant nonlinearity. [`lgi ~ ses`](#main-ses)
   - Global LGI was significantly higher in males than females (p < 0.001). [`lgi ~ sex`](#main-sex)
   - Global LGI declined with increasing trauma exposure, with evidence of modest nonlinearity in the relationship. [`lgi ~ s(trauma, k = 7)`](#main-trauma)
-
 
 ## Global LGI ~ Age {#main-age}
 
@@ -442,73 +783,6 @@ plot_lgi_age <-
   theme(legend.position = "none")
 
 plot_lgi_age
-```
-
-## Global LGI ~ Psychosis {#main-psy}
-
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI.
-
-::: {.content-visible when-profile="scratch"}
-
-### Sample
-
-```{r}
-#| label: lgi psy
-data_lgi_psy <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
-  rename(psy = smry_psy_cat) |>
-  select(lgi, psy) |>
-  drop_na() |>
-  filter(psy %in% c(0, 1, 2, 3, 4)) |>
-  mutate(psy = ordered(psy))
-```
-
-:::
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi psy test
-test_lgi_psy <-
-  clinfun::jonckheere.test(
-    x = data_lgi_psy$lgi,
-    g = data_lgi_psy$psy,
-    alternative = "decreasing"
-  )
-
-test_lgi_psy
-```
-
-### Results
-
-```{r}
-#| label: lgi psy final
-plot_lgi_psy <-
-  ggplot(
-    data = data_lgi_psy,
-    aes(x = psy, y = lgi, color = psy, fill = psy)
-  ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  theme_linedraw() +
-  theme(legend.position = "none") +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
-  ) +
-  labs(
-    title = "Differences in Global LGI between Psychosis Levels",
-    subtitle = report_jt(test_lgi_psy),
-    x = "Psychosis (GOASSESS Category)",
-    y = "LGI (global)"
-  )
-
-plot_lgi_psy
 ```
 
 ## Global LGI ~ SES {#main-ses}
