@@ -122,6 +122,8 @@ goassess <-
 
 # Sample Description
 
+The following analyses use the PNC cross sectional sample.
+
 ## Demographics
 
 ```{r}
@@ -253,9 +255,11 @@ plot_comorbid
 
 # Local Gyrification Index
 
-## LGI vs eTIV
+Local Gyrification Index (LGI) is a measure of cortical gyrification. Prior to calculating LGI, the FreeSurfer pipeline has already reconstructed the pial surface. To calculate LGI FreeSurfer performs morphological closing, which is analogous to wrapping the cortical surface tightly in cellophane. LGI is then the ratio between the surface area of the pial surface and this abstract outer surface, calculated locally at many points across the cortex.
 
-*Note, this is the correlation of estimated Globally Averaged LGI with estimated Total Intracranial Volume. Previous analysis in the Evolution sample has shown the correlaiton between LGI and Volume at the region level to be $r \approx 0.1$. It is unclear to me what causes this discrepancy.
+## Global LGI vs eTIV
+
+There is a moderate, statistically significant positive correlation between Global LGI and estimated total intracranial volume (eTIV) $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
 
 ```{r}
 #| label: lgi etiv
@@ -292,6 +296,111 @@ plot_lgi_etiv <-
   theme_linedraw()
 
 plot_lgi_etiv
+```
+
+## Regional LGI vs Volume
+
+LGI was significantly correlated with volume in all cortical brain regions except the left temporal pole. The strength of the correlation varied widely, from very weak ($r = 0.0832$) in the right temporal pole to very strong ($r = 0.667$) in the right rostral middle frontal area.
+
+```{r}
+#| label: lgi volume
+data_lgi_volume <- raw_imaging |>
+  filter(metric %in% c("area", "lgi", "volume"), atlas == "desikan_killiany") |>
+  pivot_wider(values_from = value, names_from = metric) |>
+  mutate(region = str_c(laterality, region, sep = "_")) |>
+  select(bblid, region, area, lgi, volume) |>
+  drop_na()
+
+cor_lgi_volume <- data_lgi_volume |>
+  group_by(region) |>
+  summarise(
+    r = cor(lgi, volume),
+    p = cor.test(lgi, volume)$p.value,
+    .groups = "drop"
+  ) |>
+  mutate(p_fdr = p.adjust(p, method = "fdr")) |>
+  arrange(desc(r))
+
+print(cor_lgi_volume, n=68)
+
+cor_lgi_volume |>
+  mutate(across(c(r, p, p_fdr), \(x) signif(x, 3)), across(everything(), as.character)) |>
+  (\(x) bind_rows(
+    head(x, 5),
+    as_tibble_row(setNames(rep("...", ncol(x)), names(x))),
+    tail(x, 5)
+  ))() |>
+  knitr::kable()
+
+model_lgi_volume <- lmerTest::lmer(
+  lgi ~ volume + region + (1 | bblid),
+  data = data_lgi_volume,
+  REML = TRUE
+)
+
+result_lgi_volume <-
+  coef(summary(model_lgi_volume)) |>
+  as.data.frame() |>
+  tibble::rownames_to_column("term") |>
+  filter(term == "volume") |>
+  transmute(
+    beta = Estimate * 1000,
+    se = `Std. Error` * 1000,
+    df = df,
+    t = `t value`,
+    p = `Pr(>|t|)`
+  )
+
+report_lgi_volume <-
+  result_lgi_volume |>
+  mutate(
+    report = sprintf(
+      "β = %.5f, SE = %.5f, t(%.0f) = %.2f, p %s",
+      beta,
+      se,
+      df,
+      t,
+      if_else(p < 0.001, "< 0.001", sprintf("= %.3f", p))
+    )
+  ) |>
+  pull(report)
+
+beta_volume <- lme4::fixef(model_lgi_volume)[["volume"]]
+
+data_lgi_volume_plot <-
+  model.frame(model_lgi_volume) |>
+  group_by(region) |>
+  mutate(volume_c = volume - mean(volume)) |>
+  ungroup() |>
+  mutate(
+    volume_c = volume_c / 1000,
+    lgi_adjusted = lgi -
+      as.numeric(predict(model_lgi_volume)) +
+      mean(lgi) +
+      beta_volume * volume_c * 1000
+  )
+
+plot_lgi_volume <-
+  ggplot(
+    data = data_lgi_volume_plot,
+    mapping = aes(x = volume_c, y = lgi_adjusted)
+  ) +
+  geom_point(alpha = 0.1, size = 0.5) +
+  geom_abline(
+    intercept = mean(data_lgi_volume_plot$lgi),
+    slope = beta_volume * 1000,
+    color = "black",
+    linewidth = 0.75
+  ) +
+  labs(
+    title = "Relationship Between Regional LGI and Volume",
+    subtitle = report_lgi_volume,
+    x = "Regional Volume (Centered, 1,000 mm³)",
+    y = "LGI (Adjusted)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_volume
 ```
 
 # Psychopathology
