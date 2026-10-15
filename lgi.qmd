@@ -321,8 +321,6 @@ cor_lgi_volume <- data_lgi_volume |>
   mutate(p_fdr = p.adjust(p, method = "fdr")) |>
   arrange(desc(r))
 
-print(cor_lgi_volume, n=68)
-
 cor_lgi_volume |>
   mutate(across(c(r, p, p_fdr), \(x) signif(x, 3)), across(everything(), as.character)) |>
   (\(x) bind_rows(
