@@ -212,34 +212,34 @@ demo_summarize <- function(raw) {
   raw |>
     dplyr::summarize(
       n = dplyr::n(),
-    age_mean = mean(age, na.rm = TRUE),
-    age_sd = sd(age, na.rm = TRUE),
-    male_n = sum(sex == "Male"),
-    female_n = sum(sex == "Female"),
-    dx_td_n = sum(dx == "td", na.rm = TRUE),
-    dx_ps_n = sum(dx == "ps", na.rm = TRUE),
+      age_mean = mean(age, na.rm = TRUE),
+      age_sd = sd(age, na.rm = TRUE),
+      male_n = sum(sex == "Male"),
+      female_n = sum(sex == "Female"),
+      dx_td_n = sum(dx == "td", na.rm = TRUE),
+      dx_ps_n = sum(dx == "ps", na.rm = TRUE),
       dx_op_n = sum(dx == "op", na.rm = TRUE),
       trauma_mean = mean(trauma, na.rm = TRUE),
       trauma_sd = sd(trauma, na.rm = TRUE),
       ses_mean = mean(ses, na.rm = TRUE),
       ses_sd = sd(ses, na.rm = TRUE)
-  ) |>
+    ) |>
     dplyr::mutate(
-    age = sprintf("%.2f (%.2f)", age_mean, age_sd),
-    male = sprintf("%d (%.2f%%)", male_n, (male_n * 100 / n)),
-    female = sprintf("%d (%.2f%%)", female_n, (female_n * 100 / n)),
-    td = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
-    ps = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
+      age = sprintf("%.2f (%.2f)", age_mean, age_sd),
+      male = sprintf("%d (%.2f%%)", male_n, (male_n * 100 / n)),
+      female = sprintf("%d (%.2f%%)", female_n, (female_n * 100 / n)),
+      td = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
+      ps = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
       op = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n)),
       trauma = sprintf("%.2f (%.2f)", trauma_mean, trauma_sd),
       ses = sprintf("%.2f (%.2f)", ses_mean, ses_sd)
-  ) |>
+    ) |>
     dplyr::mutate(n = as.character(n)) |>
     dplyr::select(n, age, male, female, td, ps, op, trauma, ses) |>
     tidyr::pivot_longer(
       cols = tidyselect::everything(),
-    names_to = "Characteristic",
-    values_to = "Value"
+      names_to = "Characteristic",
+      values_to = "Value"
     )
 }
 
@@ -399,6 +399,7 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 
 ```{r}
 #| label: lgi volume
+#| eval: false
 data_lgi_volume <- raw_imaging |>
   filter(metric %in% c("area", "lgi", "volume"), atlas == "desikan_killiany") |>
   pivot_wider(values_from = value, names_from = metric) |>
@@ -423,8 +424,8 @@ cor_lgi_volume |>
   ) |>
   (\(x) {
     bind_rows(
-    head(x, 5),
-    as_tibble_row(setNames(rep("...", ncol(x)), names(x))),
+      head(x, 5),
+      as_tibble_row(setNames(rep("...", ncol(x)), names(x))),
       tail(x, 5)
     )
   })() |>
@@ -499,6 +500,222 @@ plot_lgi_volume <-
   theme_linedraw()
 
 plot_lgi_volume
+```
+
+# Clinical Factors
+
+[General Psychopathology](#factor-general-p), [Depression](#factor-depression), [Psychosis Positive](#factor-psy-pos), and [Psychosis Negative](#factor-psy-neg) all showed a significant negative correlation with Global LGI. No such relationship was observed for [ADHD](#factor-adhd) or [Mania](#factor-mania).
+
+::: {.content-visible when-profile="scratch"}
+
+```{r}
+#| label: clinical factors sample
+data_lgi_clinical <-
+  inner_join(clinical, global_lgi, by = "bblid") |>
+  filter(type == "bifactor") |>
+  select(-type, -scanid) |>
+  pivot_wider(names_from = factor, values_from = value) |>
+  drop_na()
+```
+
+:::
+
+## General Psychopathology {#factor-general-p}
+
+``` {r}
+#| label: lgi general p
+test_lgi_general_p <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$general_p)
+
+test_lgi_general_p
+
+plot_lgi_general_p <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = general_p)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on General Psychopathology",
+    subtitle = report_correlation(test_lgi_general_p),
+    x = "Global LGI",
+    y = "General Psychopathology (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_general_p
+```
+
+## ADHD {#factor-adhd}
+
+``` {r}
+#| label: lgi adhd
+test_lgi_adhd <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$adhd)
+
+test_lgi_adhd
+
+plot_lgi_adhd <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = adhd)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on ADHD",
+    subtitle = report_correlation(test_lgi_adhd),
+    x = "Global LGI",
+    y = "ADHD (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_adhd
+```
+
+## Depression {#factor-depression}
+
+``` {r}
+#| label: lgi depression
+test_lgi_dep <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$depression)
+
+test_lgi_dep
+
+plot_lgi_dep <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = depression)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on Depression",
+    subtitle = report_correlation(test_lgi_dep),
+    x = "Global LGI",
+    y = "Depression (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_dep
+```
+
+## Mania {#factor-mania}
+
+``` {r}
+#| label: lgi mania
+test_lgi_mania <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$mania)
+
+test_lgi_mania
+
+plot_lgi_mania <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = mania)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on Mania",
+    subtitle = report_correlation(test_lgi_mania),
+    x = "Global LGI",
+    y = "Mania (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_mania
+```
+
+## Psychosis Negative {#factor-psy-neg}
+
+``` {r}
+#| label: lgi psychosis negative
+test_lgi_psy_neg <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$psychosis_negative)
+
+test_lgi_psy_neg
+
+plot_lgi_psy_neg <-
+  ggplot(
+    data = data_lgi_clinical,
+    mapping = aes(x = lgi, y = psychosis_negative)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on Psychosis Negative",
+    subtitle = report_correlation(test_lgi_psy_neg),
+    x = "Global LGI",
+    y = "Psychosis Negative (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_psy_neg
+```
+
+## Psychosis Positive {#factor-psy-pos}
+
+``` {r}
+#| label: lgi psychosis positive
+test_lgi_psy_pos <-
+  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$psychosis_positive)
+
+test_lgi_psy_pos
+
+plot_lgi_psy_pos <-
+  ggplot(
+    data = data_lgi_clinical,
+    mapping = aes(x = lgi, y = psychosis_positive)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Impact of Global LGI on Psychosis Positive",
+    subtitle = report_correlation(test_lgi_psy_pos),
+    x = "Global LGI",
+    y = "Psychosis Positive (bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_psy_pos
 ```
 
 # Psychopathology
@@ -1418,10 +1635,20 @@ plot_lgi_psy_sub <-
     nrow = 3,
     labeller = as_labeller(facet_labels_lgi_psy_sub)
   ) +
-  scale_color_viridis_d(name = NULL, limits = as.character(0:4), breaks = as.character(0:3), labels = category_labels[0:4]) +
-  scale_fill_viridis_d(name = NULL, limits = as.character(0:4), breaks = as.character(0:3), labels = category_labels[0:4]) +
+  scale_color_viridis_d(
+    name = NULL,
+    limits = as.character(0:4),
+    breaks = as.character(0:3),
+    labels = category_labels[0:4]
+  ) +
+  scale_fill_viridis_d(
+    name = NULL,
+    limits = as.character(0:4),
+    breaks = as.character(0:3),
+    labels = category_labels[0:4]
+  ) +
   labs(
-    title = "Global LGI Across Anxiety Disorders",
+    title = "Global LGI Across Psychosis Symptoms",
     y = "LGI (global)",
     x = NULL,
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
