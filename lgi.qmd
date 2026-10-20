@@ -737,12 +737,11 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi anx sample
 data_lgi_anx <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(anx = smry_anx_cat) |>
+  mutate(anx = factor(anx, levels = c("FALSE", "TRUE"))) |>
   select(lgi, anx) |>
-  drop_na() |>
-  filter(anx %in% c(0, 1, 2, 3, 4)) |>
-  mutate(anx = ordered(anx))
+  drop_na()
 ```
 
 :::
@@ -751,12 +750,7 @@ data_lgi_anx <-
 
 ```{r}
 #| label: lgi anx test
-test_lgi_anx <-
-  clinfun::jonckheere.test(
-    x = data_lgi_anx$lgi,
-    g = data_lgi_anx$anx,
-    alternative = "decreasing"
-  )
+test_lgi_anx <- t.test(lgi ~ anx, data = data_lgi_anx)
 
 test_lgi_anx
 ```
@@ -765,26 +759,56 @@ test_lgi_anx
 
 ```{r}
 #| label: lgi anx final
+summary_lgi_anx <- data_lgi_anx |>
+  group_by(anx) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(anx))
+
 plot_lgi_anx <-
-  ggplot(
+  ggplot(mapping = aes(x = anx, y = lgi, color = anx, fill = anx)) +
+  geom_jitter(
     data = data_lgi_anx,
-    aes(x = anx, y = lgi, color = anx, fill = anx)
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
+  geom_rect(
+    data = summary_lgi_anx,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = anx
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_segment(
+    data = summary_lgi_anx,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = anx
+    ),
+    inherit.aes = FALSE,
+    linewidth = 0.75
+  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Differences in Global LGI between Anxiety Levels",
-    subtitle = report_jt(test_lgi_anx),
-    x = "Anxiety (GOASSESS Category)",
+    title = "Differences in Global LGI across Anxiety",
+    subtitle = report_correlation(test_lgi_anx),
+    x = "Anxiety",
     y = "LGI (global)"
   ) +
   theme_linedraw() +

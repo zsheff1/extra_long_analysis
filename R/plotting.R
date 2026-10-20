@@ -8,3 +8,7 @@ my_blue <- "#37659D"
 colors_sex <- c("Female" = my_red, "Male" = my_blue)
 color_scale_sex <- scale_color_manual(name = "Sex", values = colors_sex)
 fill_scale_sex <- scale_fill_manual(name = "Sex", values = colors_sex)
+
+colors_dx <- c("FALSE" = my_green, "TRUE" = my_red)
+color_scale_dx <- scale_color_manual(values = colors_dx)
+fill_scale_dx <- scale_fill_manual(values = colors_dx)
