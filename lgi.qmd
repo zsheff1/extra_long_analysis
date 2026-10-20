@@ -180,43 +180,100 @@ goassess_td <-
 
 # Sample Description
 
-The following analyses use the PNC cross sectional sample.
+The following analyses use the GO1 imaging sample.
+
+## Subsample
+
+The "Clean Subsample" consists of people where LGI data is available, who did not endorse any trauma exposures, who reported their race as "White", who are Typically Developing according to `Dxpmrv7`, and who's estimated Total Intracranial Volume falls between the 25th% and 75th%.
+
+```{r}
+#| label: subsample
+clean_subsample <-
+  demo |>
+  inner_join(data_etiv, by = "bblid") |>
+  mutate(etiv = percent_rank(etiv)) |>
+  semi_join(drop_na(global_lgi), by = "bblid") |>
+  semi_join(filter(env, trauma == 0), by = "bblid") |>
+  filter(
+    race == "White",
+    dx == "td",
+    etiv >= 0.25,
+    etiv <= 0.75
+  ) |>
+  select(bblid)
+```
 
 ## Demographics
 
 ```{r}
 #| label: demos table
 
-demo_table <- demo |>
-  summarize(
-    n = n(),
+demo_summarize <- function(raw) {
+  raw |>
+    dplyr::summarize(
+      n = dplyr::n(),
     age_mean = mean(age, na.rm = TRUE),
     age_sd = sd(age, na.rm = TRUE),
     male_n = sum(sex == "Male"),
     female_n = sum(sex == "Female"),
     dx_td_n = sum(dx == "td", na.rm = TRUE),
     dx_ps_n = sum(dx == "ps", na.rm = TRUE),
-    dx_op_n = sum(dx == "op", na.rm = TRUE)
+      dx_op_n = sum(dx == "op", na.rm = TRUE),
+      trauma_mean = mean(trauma, na.rm = TRUE),
+      trauma_sd = sd(trauma, na.rm = TRUE),
+      ses_mean = mean(ses, na.rm = TRUE),
+      ses_sd = sd(ses, na.rm = TRUE)
   ) |>
-  mutate(
+    dplyr::mutate(
     age = sprintf("%.2f (%.2f)", age_mean, age_sd),
     male = sprintf("%d (%.2f%%)", male_n, (male_n * 100 / n)),
     female = sprintf("%d (%.2f%%)", female_n, (female_n * 100 / n)),
     td = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
     ps = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
-    op = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n))
+      op = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n)),
+      trauma = sprintf("%.2f (%.2f)", trauma_mean, trauma_sd),
+      ses = sprintf("%.2f (%.2f)", ses_mean, ses_sd)
   ) |>
-  mutate(n = as.character(n)) |>
-  select(n, age, male, female, td, ps, op) |>
-  pivot_longer(
-    cols = everything(),
+    dplyr::mutate(n = as.character(n)) |>
+    dplyr::select(n, age, male, female, td, ps, op, trauma, ses) |>
+    tidyr::pivot_longer(
+      cols = tidyselect::everything(),
     names_to = "Characteristic",
     values_to = "Value"
+    )
+}
+
+demo_table <- inner_join(
+  demo |>
+    left_join(env, by = "bblid") |>
+    demo_summarize() |>
+    rename(Overall = Value),
+  demo |>
+    left_join(env, by = "bblid") |>
+    semi_join(clean_subsample, by = "bblid") |>
+    demo_summarize() |>
+    rename(`Clean Subsample` = Value),
+  by = "Characteristic"
+)
+
+demo_kable <- demo_table |>
+  kbl(
+    caption = "GO1 Imaging Sample Demographics",
+    format = "html",
+    col.names = str_replace(colnames(demo_table), "Characteristic", ""),
+    align = c("l", "c", "c")
   ) |>
-  mutate(Category = c("n", "age", "sex", "sex", "dx", "dx", "dx"))
+  kable_styling(
+    full_width = FALSE,
+    position = "left",
+    font_size = 12
+  )
 
 row_hierarchy <- demo_table |>
-  mutate(row_number = row_number()) |>
+  mutate(
+    Category = c("n", "age", "sex", "sex", "dx", "dx", "dx", "env", "env"),
+    row_number = row_number()
+  ) |>
   group_by(Category) |>
   summarise(
     start = min(row_number),
@@ -224,20 +281,6 @@ row_hierarchy <- demo_table |>
     .groups = "drop"
   ) |>
   filter(start != end)
-
-demo_kable <- demo_table |>
-  select(-Category) |>
-  kbl(
-    caption = "PNC Cross Sectional Demographics",
-    format = "html",
-    col.names = c("", "Overall"),
-    align = c("l", "c")
-  ) |>
-  kable_styling(
-    full_width = FALSE,
-    position = "left",
-    font_size = 12
-  )
 
 for (i in seq_len(nrow(row_hierarchy))) {
   demo_kable <- demo_kable |>
