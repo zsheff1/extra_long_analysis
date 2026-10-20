@@ -40,7 +40,7 @@ path_env_trauma <- file.path(dir_evolpsy, "zac_data", "env_for_zac.csv")
 
 path_goassess <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "goassess_scoring",
-  "results", "data_score.csv"
+  "tests", "data", "n9498_goassess_psych_summary_vars_20131014.csv"
 )
 
 # Read Data
@@ -61,13 +61,33 @@ raw_goassess <- read_csv(path_goassess)
 demo <- raw_sub_ses |>
   select(bblid, age) |>
   left_join(
-    select(raw_merge, bblid, sex, clinical_goassessDxpmr7),
+    select(raw_merge, bblid, sex, race, clinical_goassessDxpmr7),
     by = "bblid"
   ) |>
   rename(dx = clinical_goassessDxpmr7) |>
   mutate(
     age = age / 12,
     dx = str_to_lower(dx),
+    race = factor(
+      case_when(
+        race == 1 ~ "White",
+        race == 2 ~ "Black",
+        race == 3 ~ "Native American",
+        race == 4 ~ "Asian",
+        race == 5 ~ "Biracial",
+        race == 6 ~ "Hawaiian/Pacific Islander",
+        race == 9 ~ "Unknown"
+      ),
+      levels = c(
+        "White",
+        "Black",
+        "Native American",
+        "Asian",
+        "Biracial",
+        "Hawiian/Pacific Islander",
+        "Unknown"
+      )
+    ),
     sex = factor(
       case_when(sex == 1 ~ "Male", sex == 2 ~ "Female"),
       levels = c("Female", "Male")
@@ -96,28 +116,66 @@ global_lgi <- imaging |>
   group_by(bblid, scanid) |>
   summarize(lgi = weighted.mean(lgi, area), .groups = "drop")
 
+data_etiv <- raw_imaging |>
+  filter(region == "EstimatedTotalIntraCranialVol") |>
+  rename(etiv = value) |>
+  select(bblid, scanid, etiv)
+
 # Clinical
 clinical <- raw_merge |>
-  select(bblid, starts_with("clinical_longfactor_corrTraits_")) |>
-  pivot_longer(cols = -bblid, values_to = "score", names_to = "factor") |>
-  mutate(factor = str_replace(factor, "clinical_longfactor_corrTraits_", ""))
+  semi_join(demo, by = "bblid") |>
+  select(
+    bblid,
+    starts_with("clinical_longfactor") &
+      (contains("bifactor") | contains("corrTraits"))
+  ) |>
+  pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
+  mutate(
+    type = str_split(name, "_") |>
+      map_chr(3) |>
+      str_to_snake(),
+    factor = str_split(name, "_") |>
+      map_chr(\(x) str_c(x[4:length(x)], collapse = "_")) |>
+      str_to_snake()
+  ) |>
+  select(bblid, type, factor, value)
 
 # Cognitive
 cnb <- raw_merge |>
-  select(bblid, starts_with("cnb") & ends_with("efficiency_agereg")) |>
-  pivot_longer(cols = -bblid, values_to = "efficiency", names_to = "domain") |>
-  mutate(
-    domain = str_replace_all(domain, c("cnb_" = "", "_efficiency_agereg" = ""))
+  semi_join(demo, by = "bblid") |>
+  select(
+    bblid,
+    starts_with("cnb") & ends_with("agereg"),
+    -contains("standard_error"),
+    -contains("discounting")
   ) |>
-  filter(domain != "discounting")
+  pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
+  mutate(
+    domain = map_chr(str_split(name, "_"), 2),
+    measure = map_chr(str_split(name, "_"), 3)
+  ) |>
+  select(bblid, measure, domain, value)
 
 # GOASSESS
 goassess <-
   raw_goassess |>
-  semi_join(demo, by = c("subject_id" = "bblid")) |>
-  filter(version == 1) |>
-  group_by(subject_id) |>
-  summarize(across(starts_with("smry_"), \(x) max(x, na.rm = TRUE)))
+  semi_join(demo, by = "bblid")
+
+goassess_bin <-
+  goassess |>
+  mutate(across(
+    starts_with("smry_"),
+    \(x) case_when(x == 4 ~ TRUE, x %in% 0:3 ~ FALSE)
+  ))
+
+goassess_td <-
+  goassess_bin |>
+  pivot_longer(cols = -bblid, names_to = "cat", values_to = "val") |>
+  replace_na(list(val = FALSE)) |>
+  group_by(bblid) |>
+  summarize(td = !(any(val))) |>
+  filter(td) |>
+  select(bblid)
 ```
 
 # Sample Description
@@ -198,8 +256,7 @@ demo_kable
 ```{r}
 #| label: comorbidities
 comorbid <- goassess |>
-  select(subject_id, ends_with("cat")) |>
-  rename(bblid = subject_id) |>
+  select(bblid, ends_with("cat")) |>
   rename_with(\(x) str_replace_all(x, c("smry_" = "", "_cat" = ""))) |>
   mutate(across(
     -bblid,
@@ -263,11 +320,6 @@ There is a moderate, statistically significant positive correlation between Glob
 
 ```{r}
 #| label: lgi etiv
-data_etiv <- raw_imaging |>
-  filter(region == "EstimatedTotalIntraCranialVol") |>
-  rename(etiv = value) |>
-  select(bblid, scanid, etiv)
-
 data_lgi_etiv <- left_join(global_lgi, data_etiv, by = c("bblid", "scanid"))
 
 test_lgi_etiv <-
@@ -322,12 +374,17 @@ cor_lgi_volume <- data_lgi_volume |>
   arrange(desc(r))
 
 cor_lgi_volume |>
-  mutate(across(c(r, p, p_fdr), \(x) signif(x, 3)), across(everything(), as.character)) |>
-  (\(x) bind_rows(
+  mutate(
+    across(c(r, p, p_fdr), \(x) signif(x, 3)),
+    across(everything(), as.character)
+  ) |>
+  (\(x) {
+    bind_rows(
     head(x, 5),
     as_tibble_row(setNames(rep("...", ncol(x)), names(x))),
-    tail(x, 5)
-  ))() |>
+      tail(x, 5)
+    )
+  })() |>
   knitr::kable()
 
 model_lgi_volume <- lmerTest::lmer(
@@ -420,7 +477,7 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi anx sample
 data_lgi_anx <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   rename(anx = smry_anx_cat) |>
   select(lgi, anx) |>
   drop_na() |>
@@ -483,7 +540,7 @@ plot_lgi_anx
 ```{r}
 #| label: lgi anx individual sample
 data_lgi_anx_sub <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   select(
     bblid,
     lgi,
@@ -616,7 +673,7 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi beh
 data_lgi_beh <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   rename(beh = smry_beh_cat) |>
   select(lgi, beh) |>
   drop_na() |>
@@ -679,7 +736,7 @@ plot_lgi_beh
 ```{r}
 #| label: lgi beh individual sample
 data_lgi_beh_sub <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   select(bblid, lgi, smry_add, smry_odd, smry_con) |>
   pivot_longer(
     cols = starts_with("smry_"),
@@ -796,7 +853,7 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi eat
 data_lgi_eat <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   rename(eat = smry_eat_cat) |>
   select(lgi, eat) |>
   drop_na() |>
@@ -859,7 +916,7 @@ plot_lgi_eat
 ```{r}
 #| label: lgi eat individual sample
 data_lgi_eat_sub <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   select(bblid, lgi, smry_ano, smry_bul) |>
   pivot_longer(
     cols = starts_with("smry_"),
@@ -975,7 +1032,7 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi mood
 data_lgi_mood <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   rename(mood = smry_mood_cat) |>
   select(lgi, mood) |>
   drop_na() |>
@@ -1038,7 +1095,7 @@ plot_lgi_mood
 ```{r}
 #| label: lgi mood individual sample
 data_lgi_mood_sub <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   select(bblid, lgi, smry_dep, smry_man) |>
   pivot_longer(
     cols = starts_with("smry_"),
@@ -1154,7 +1211,7 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi psy
 data_lgi_psy <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   rename(psy = smry_psy_cat) |>
   select(lgi, psy) |>
   drop_na() |>
@@ -1217,7 +1274,7 @@ plot_lgi_psy
 ```{r}
 #| label: lgi psy individual sample
 data_lgi_psy_sub <-
-  inner_join(global_lgi, goassess, by = c("bblid" = "subject_id")) |>
+  inner_join(global_lgi, goassess, by = "bblid") |>
   select(
     bblid,
     lgi,
