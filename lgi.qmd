@@ -502,7 +502,7 @@ plot_lgi_volume <-
 plot_lgi_volume
 ```
 
-# Clinical Factors
+# Psychopathology (Factor Scores)
 
 [General Psychopathology](#factor-general-p), [Depression](#factor-depression), [Psychosis Positive](#factor-psy-pos), and [Psychosis Negative](#factor-psy-neg) all showed a significant negative correlation with Global LGI. No such relationship was observed for [ADHD](#factor-adhd) or [Mania](#factor-mania).
 
@@ -718,17 +718,13 @@ plot_lgi_psy_pos <-
 plot_lgi_psy_pos
 ```
 
-# Psychopathology
+# Psychopathology (Binary GOASSESS)
 
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety severity [(Jonckheere–Terpstra test, p = 0.031)](#goa-anx).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior severity [(Jonckheere–Terpstra test, p = 0.001)](#goa-beh).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-eat).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-mood).
-  - Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis severity [(Jonckheere–Terpstra test, p < 0.001)](#goa-psy).
+Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh), [eating disorders](#goa-eat), [mood disorders](#goa-mood), and [psychotic disorders](#goa-psy) all had significantly lower global LGI than participants without such disorders.
 
 ## Global LGI ~ Anxiety {#goa-anx}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS anxiety scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between anxiety severity and global LGI (JT = 329174, p = 0.031), indicating that higher anxiety categories were associated with lower global LGI. Significant decreasing trends were also observed for six of the eight individual anxiety disorders: agoraphobia, generalized anxiety, OCD, panic disorder, PTSD, and social anxiety. Separation anxiety and specific phobias did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with anxiety disorders relative to those without. Significant decreasing trends were also observed for six of the eight individual anxiety disorders: agoraphobia, generalized anxiety, OCD, panic disorder, PTSD, and social anxiety. Separation anxiety and specific phobias did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -772,9 +768,10 @@ summary_lgi_anx <- data_lgi_anx |>
   mutate(x = as.numeric(anx))
 
 plot_lgi_anx <-
-  ggplot(mapping = aes(x = anx, y = lgi, color = anx, fill = anx)) +
+  ggplot() +
   geom_jitter(
     data = data_lgi_anx,
+    mapping = aes(x = anx, y = lgi, color = anx, fill = anx),
     alpha = 0.25,
     size = 1
   ) +
@@ -787,7 +784,6 @@ plot_lgi_anx <-
       ymax = upper,
       fill = anx
     ),
-    inherit.aes = FALSE,
     alpha = 0.5,
     color = NA
   ) +
@@ -800,7 +796,6 @@ plot_lgi_anx <-
       yend = fit,
       color = anx
     ),
-    inherit.aes = FALSE,
     linewidth = 0.75
   ) +
   color_scale_dx +
@@ -948,7 +943,7 @@ plot_lgi_anx_sub
 
 ## Global LGI ~ Behavior {#goa-beh}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS behavior scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between behavior severity and global LGI (JT = 394546, p = 0.001), indicating that higher behavior categories were associated with lower global LGI. Significant decreasing trends were also observed for two of the three individual behavioral disorders: conduct disorder, and oppositional defiance disorder. Attention deficit disorder did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with behavioral disorders relative to those without. Significant decreasing trends were also observed for two of the three individual behavioral disorders: conduct disorder, and oppositional defiance disorder. Attention deficit disorder did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -957,12 +952,11 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi beh
 data_lgi_beh <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(beh = smry_beh_cat) |>
+  mutate(beh = factor(beh, levels = c("FALSE", "TRUE"))) |>
   select(lgi, beh) |>
-  drop_na() |>
-  filter(beh %in% c(0, 1, 2, 3, 4)) |>
-  mutate(beh = ordered(beh))
+  drop_na()
 ```
 
 :::
@@ -971,12 +965,7 @@ data_lgi_beh <-
 
 ```{r}
 #| label: lgi beh test
-test_lgi_beh <-
-  clinfun::jonckheere.test(
-    x = data_lgi_beh$lgi,
-    g = data_lgi_beh$beh,
-    alternative = "decreasing"
-  )
+test_lgi_beh <- t.test(lgi ~ beh, data = data_lgi_beh)
 
 test_lgi_beh
 ```
@@ -985,26 +974,55 @@ test_lgi_beh
 
 ```{r}
 #| label: lgi beh final
+summary_lgi_beh <- data_lgi_beh |>
+  group_by(beh) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(beh))
+
 plot_lgi_beh <-
-  ggplot(
+  ggplot() +
+  geom_jitter(
     data = data_lgi_beh,
-    aes(x = beh, y = lgi, color = beh, fill = beh)
+    mapping = aes(x = beh, y = lgi, color = beh, fill = beh),
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
+  geom_rect(
+    data = summary_lgi_beh,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = beh
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_segment(
+    data = summary_lgi_beh,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = beh
+    ),
+    linewidth = 0.75
+  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Differences in Global LGI between Behavior Levels",
-    subtitle = report_jt(test_lgi_beh),
-    x = "Behavior (GOASSESS Category)",
+    title = "Differences in Global LGI across Behavior",
+    subtitle = report_correlation(test_lgi_beh),
+    x = "Behavior",
     y = "LGI (global)"
   ) +
   theme_linedraw() +
@@ -1128,7 +1146,7 @@ plot_lgi_beh_sub
 
 ## Global LGI ~ Eating {#goa-eat}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS eating scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between eating severity and global LGI (JT = 183415, p < 0.001), indicating that higher eating categories were associated with lower global LGI. Significant decreasing trends were also observed for both individual eating disorders: anorexia and bulimia.
+Global LGI is significantly lower in participants with eating disorders relative to those without. Significant decreasing trends were also observed for both individual eating disorders: anorexia and bulimia.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1137,12 +1155,11 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi eat
 data_lgi_eat <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(eat = smry_eat_cat) |>
+  mutate(eat = factor(eat, levels = c("FALSE", "TRUE"))) |>
   select(lgi, eat) |>
-  drop_na() |>
-  filter(eat %in% c(0, 1, 2, 3, 4)) |>
-  mutate(eat = ordered(eat))
+  drop_na()
 ```
 
 :::
@@ -1151,12 +1168,7 @@ data_lgi_eat <-
 
 ```{r}
 #| label: lgi eat test
-test_lgi_eat <-
-  clinfun::jonckheere.test(
-    x = data_lgi_eat$lgi,
-    g = data_lgi_eat$eat,
-    alternative = "decreasing"
-  )
+test_lgi_eat <- t.test(lgi ~ eat, data = data_lgi_eat)
 
 test_lgi_eat
 ```
@@ -1165,26 +1177,55 @@ test_lgi_eat
 
 ```{r}
 #| label: lgi eat final
+summary_lgi_eat <- data_lgi_eat |>
+  group_by(eat) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(eat))
+
 plot_lgi_eat <-
-  ggplot(
+  ggplot() +
+  geom_jitter(
     data = data_lgi_eat,
-    aes(x = eat, y = lgi, color = eat, fill = eat)
+    mapping = aes(x = eat, y = lgi, color = eat, fill = eat),
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
+  geom_rect(
+    data = summary_lgi_eat,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = eat
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_segment(
+    data = summary_lgi_eat,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = eat
+    ),
+    linewidth = 0.75
+  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Differences in Global LGI between Eating Levels",
-    subtitle = report_jt(test_lgi_eat),
-    x = "Eating (GOASSESS Category)",
+    title = "Differences in Global LGI across Eating",
+    subtitle = report_correlation(test_lgi_eat),
+    x = "Eating",
     y = "LGI (global)"
   ) +
   theme_linedraw() +
@@ -1307,7 +1348,7 @@ plot_lgi_beh_sub
 
 ## Global LGI ~ Mood {#goa-mood}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS mood scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between mood severity and global LGI (JT = 331493, p < 0.001), indicating that higher mood categories were associated with lower global LGI. Significant decreasing trends were also observed for both mood categories: depression and mania.
+Global LGI is significantly lower in participants with mood disorders relative to those without. Significant decreasing trends were also observed for both mood categories: depression and mania.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1316,12 +1357,11 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi mood
 data_lgi_mood <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(mood = smry_mood_cat) |>
+  mutate(mood = factor(mood, levels = c("FALSE", "TRUE"))) |>
   select(lgi, mood) |>
-  drop_na() |>
-  filter(mood %in% c(0, 1, 2, 3, 4)) |>
-  mutate(mood = ordered(mood))
+  drop_na()
 ```
 
 :::
@@ -1330,12 +1370,7 @@ data_lgi_mood <-
 
 ```{r}
 #| label: lgi mood test
-test_lgi_mood <-
-  clinfun::jonckheere.test(
-    x = data_lgi_mood$lgi,
-    g = data_lgi_mood$mood,
-    alternative = "decreasing"
-  )
+test_lgi_mood <- t.test(lgi ~ mood, data = data_lgi_mood)
 
 test_lgi_mood
 ```
@@ -1344,26 +1379,55 @@ test_lgi_mood
 
 ```{r}
 #| label: lgi mood final
+summary_lgi_mood <- data_lgi_mood |>
+  group_by(mood) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(mood))
+
 plot_lgi_mood <-
-  ggplot(
+  ggplot() +
+  geom_jitter(
     data = data_lgi_mood,
-    aes(x = mood, y = lgi, color = mood, fill = mood)
+    mapping = aes(x = mood, y = lgi, color = mood, fill = mood),
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
+  geom_rect(
+    data = summary_lgi_mood,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = mood
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_segment(
+    data = summary_lgi_mood,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = mood
+    ),
+    linewidth = 0.75
+  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Differences in Global LGI between Mood Levels",
-    subtitle = report_jt(test_lgi_mood),
-    x = "Mood (GOASSESS Category)",
+    title = "Differences in Global LGI across Mood",
+    subtitle = report_correlation(test_lgi_mood),
+    x = "Mood",
     y = "LGI (global)"
   ) +
   theme_linedraw() +
@@ -1486,7 +1550,7 @@ plot_lgi_mood_sub
 
 ## Global LGI ~ Psychosis {#goa-psy}
 
-Global LGI exhibited a significant decreasing trend across increasing levels of GOASSESS psychosis scores. A one-sided Jonckheere–Terpstra test identified a significant negative ordinal association between psychosis severity and global LGI (JT = 250470, p < 0.001), indicating that higher psychosis categories were associated with lower global LGI. Significant decreasing trends were also observed for five of the seven individual psychosis symptoms: hallucinations (general), auditory hallucinations (voices), auditory hallucinations (other), tactile hallucinations and visual hallucinations. Delusions and olfactory hallucinations did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with psychotic disorders relative to those without. Significant decreasing trends were also observed for five of the seven individual psychosis symptoms: hallucinations (general), auditory hallucinations (voices), auditory hallucinations (other), tactile hallucinations and visual hallucinations. Delusions and olfactory hallucinations did not exhibit statistically significant trends.
 
 ::: {.content-visible when-profile="scratch"}
 
@@ -1495,12 +1559,11 @@ Global LGI exhibited a significant decreasing trend across increasing levels of 
 ```{r}
 #| label: lgi psy
 data_lgi_psy <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(psy = smry_psy_cat) |>
+  mutate(psy = factor(psy, levels = c("FALSE", "TRUE"))) |>
   select(lgi, psy) |>
-  drop_na() |>
-  filter(psy %in% c(0, 1, 2, 3, 4)) |>
-  mutate(psy = ordered(psy))
+  drop_na()
 ```
 
 :::
@@ -1509,12 +1572,7 @@ data_lgi_psy <-
 
 ```{r}
 #| label: lgi psy test
-test_lgi_psy <-
-  clinfun::jonckheere.test(
-    x = data_lgi_psy$lgi,
-    g = data_lgi_psy$psy,
-    alternative = "decreasing"
-  )
+test_lgi_psy <- t.test(lgi ~ psy, data = data_lgi_psy)
 
 test_lgi_psy
 ```
@@ -1523,26 +1581,55 @@ test_lgi_psy
 
 ```{r}
 #| label: lgi psy final
+summary_lgi_psy <- data_lgi_psy |>
+  group_by(psy) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(psy))
+
 plot_lgi_psy <-
-  ggplot(
+  ggplot() +
+  geom_jitter(
     data = data_lgi_psy,
-    aes(x = psy, y = lgi, color = psy, fill = psy)
+    mapping = aes(x = psy, y = lgi, color = psy, fill = psy),
+    alpha = 0.25,
+    size = 1
   ) +
-  geom_jitter(alpha = 0.25) +
-  geom_violin(alpha = 0.5) +
-  scale_x_discrete(
-    labels = c(
-      "0" = "Not Endorsed",
-      "1" = "Endorsed",
-      "2" = "Subthreshold",
-      "3" = "Threshold",
-      "4" = "Significant"
-    )
+  geom_rect(
+    data = summary_lgi_psy,
+    mapping = aes(
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = psy
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_segment(
+    data = summary_lgi_psy,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = psy
+    ),
+    linewidth = 0.75
+  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Differences in Global LGI between Psychosis Levels",
-    subtitle = report_jt(test_lgi_psy),
-    x = "Psychosis (GOASSESS Category)",
+    title = "Differences in Global LGI across Psychosis",
+    subtitle = report_correlation(test_lgi_psy),
+    x = "Psychosis",
     y = "LGI (global)"
   ) +
   theme_linedraw() +
