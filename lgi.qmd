@@ -165,17 +165,13 @@ goassess_bin <-
   goassess |>
   mutate(across(
     starts_with("smry_"),
-    \(x) case_when(x == 4 ~ TRUE, x %in% 0:3 ~ FALSE)
+    \(x) {
+      factor(
+        case_when(x == 4 ~ TRUE, x %in% 0:3 ~ FALSE),
+        levels = c("FALSE", "TRUE")
+      )
+    }
   ))
-
-goassess_td <-
-  goassess_bin |>
-  pivot_longer(cols = -bblid, names_to = "cat", values_to = "val") |>
-  replace_na(list(val = FALSE)) |>
-  group_by(bblid) |>
-  summarize(td = !(any(val))) |>
-  filter(td) |>
-  select(bblid)
 ```
 
 # Sample Description
@@ -262,11 +258,6 @@ demo_kable <- demo_table |>
     format = "html",
     col.names = str_replace(colnames(demo_table), "Characteristic", ""),
     align = c("l", "c", "c")
-  ) |>
-  kable_styling(
-    full_width = FALSE,
-    position = "left",
-    font_size = 12
   )
 
 row_hierarchy <- demo_table |>
@@ -726,8 +717,6 @@ Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh
 
 Global LGI is significantly lower in participants with anxiety disorders relative to those without. Significant decreasing trends were also observed for six of the eight individual anxiety disorders: agoraphobia, generalized anxiety, OCD, panic disorder, PTSD, and social anxiety. Separation anxiety and specific phobias did not exhibit statistically significant trends.
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample
 
 ```{r}
@@ -735,12 +724,25 @@ Global LGI is significantly lower in participants with anxiety disorders relativ
 data_lgi_anx <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(anx = smry_anx_cat) |>
-  mutate(anx = factor(anx, levels = c("FALSE", "TRUE"))) |>
   select(lgi, anx) |>
   drop_na()
-```
 
-:::
+kable_lgi_anx <-
+  data_lgi_anx |>
+  group_by(anx) |>
+  summarize(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = anx, values_from = n) |>
+  mutate(disorder = "Anxiety Disorders") |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Size for Analysis of Anxiety Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_anx
+```
 
 ### Hypothesis Test
 
@@ -812,53 +814,54 @@ plot_lgi_anx <-
 plot_lgi_anx
 ```
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample - Individual Disorders
 
 ```{r}
 #| label: lgi anx individual sample
+map_anx_sub <- c(
+  "smry_agr" = "Agoraphobia",
+  "smry_gad" = "Generalized Anxiety",
+  "smry_ocd" = "OCD",
+  "smry_pan" = "Panic Disorder",
+  "smry_phb" = "Specific Phobias",
+  "smry_ptd" = "PTSD",
+  "smry_sep" = "Separation Anxiety",
+  "smry_soc" = "Social Anxiety"
+)
+
 data_lgi_anx_sub <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
-  select(
-    bblid,
-    lgi,
-    smry_gad,
-    smry_sep,
-    smry_phb,
-    smry_soc,
-    smry_pan,
-    smry_agr,
-    smry_ocd,
-    smry_ptd
-  ) |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
+  select(bblid, lgi, all_of(names(map_anx_sub))) |>
   pivot_longer(
     cols = starts_with("smry_"),
     names_to = "disorder",
-    values_to = "score"
+    values_to = "status"
   ) |>
-  mutate(
-    disorder = str_replace_all(disorder, c(
-      "smry_agr" = "Agoraphobia",
-      "smry_gad" = "Generalized Anxiety",
-      "smry_ocd" = "OCD",
-      "smry_pan" = "Panic Disorder",
-      "smry_phb" = "Specific Phobias",
-      "smry_ptd" = "PTSD",
-      "smry_sep" = "Separation Anxiety",
-      "smry_soc" = "Social Anxiety"
-    )),
-    score = ordered(case_when(score %in% 0:4 ~ score))
-  ) |>
+  mutate(disorder = str_replace_all(disorder, map_anx_sub)) |>
   drop_na()
-```
 
-:::
+kable_lgi_anx_sub <- 
+  data_lgi_anx_sub |>
+  group_by(disorder, status) |>
+  summarize(n = n(), .groups = "drop") |>
+  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
+  pivot_wider(names_from = status, values_from = n) |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Sizes for Analyses of Individual Anxiety Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_anx_sub
+```
 
 ### Hypothesis Test - Individual Disorders
 
 ```{r}
 #| label: lgi anx individual test
+#| eval: false
 test_lgi_anx_sub <-
   data_lgi_anx_sub |>
   group_by(disorder) |>
@@ -890,6 +893,7 @@ test_lgi_anx_sub
 
 ```{r}
 #| label: lgi anx individual results
+#| eval: false
 category_labels <- c(
   "0" = "Not Endorsed",
   "1" = "Endorsed",
@@ -945,8 +949,6 @@ plot_lgi_anx_sub
 
 Global LGI is significantly lower in participants with behavioral disorders relative to those without. Significant decreasing trends were also observed for two of the three individual behavioral disorders: conduct disorder, and oppositional defiance disorder. Attention deficit disorder did not exhibit statistically significant trends.
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample
 
 ```{r}
@@ -954,12 +956,25 @@ Global LGI is significantly lower in participants with behavioral disorders rela
 data_lgi_beh <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(beh = smry_beh_cat) |>
-  mutate(beh = factor(beh, levels = c("FALSE", "TRUE"))) |>
   select(lgi, beh) |>
   drop_na()
-```
 
-:::
+kable_lgi_beh <-
+  data_lgi_beh |>
+  group_by(beh) |>
+  summarize(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = beh, values_from = n) |>
+  mutate(disorder = "Behavior Disorders") |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Size for Analysis of Behavior Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_beh
+```
 
 ### Hypothesis Test
 
@@ -1031,37 +1046,49 @@ plot_lgi_beh <-
 plot_lgi_beh
 ```
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample - Individual Disorders
 
 ```{r}
 #| label: lgi beh individual sample
+map_beh_sub <- c(
+  "smry_add" = "Attention Deficit Disorder",
+  "smry_odd" = "Oppositional Defiance Disorder",
+  "smry_con" = "Conduct Disorder"
+)
+
 data_lgi_beh_sub <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
-  select(bblid, lgi, smry_add, smry_odd, smry_con) |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
+  select(bblid, lgi, all_of(names(map_beh_sub))) |>
   pivot_longer(
     cols = starts_with("smry_"),
     names_to = "disorder",
-    values_to = "score"
+    values_to = "status"
   ) |>
-  mutate(
-    disorder = str_replace_all(disorder, c(
-      "smry_add" = "Attention Deficit Disorder",
-      "smry_odd" = "Oppositional Defiance Disorder",
-      "smry_con" = "Conduct Disorder"
-    )),
-    score = ordered(case_when(score %in% 0:4 ~ score))
-  ) |>
+  mutate(disorder = str_replace_all(disorder, map_beh_sub)) |>
   drop_na()
-```
 
-:::
+kable_lgi_beh_sub <- 
+  data_lgi_beh_sub |>
+  group_by(disorder, status) |>
+  summarize(n = n(), .groups = "drop") |>
+  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
+  pivot_wider(names_from = status, values_from = n) |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Sizes for Analyses of Individual Behavior Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_beh_sub
+```
 
 ### Hypothesis Test - Individual Disorders
 
 ```{r}
 #| label: lgi beh individual test
+#| eval: false
 test_lgi_beh_sub <-
   data_lgi_beh_sub |>
   group_by(disorder) |>
@@ -1093,6 +1120,7 @@ test_lgi_beh_sub
 
 ```{r}
 #| label: lgi beh individual results
+#| eval: false
 category_labels <- c(
   "0" = "Not Endorsed",
   "1" = "Endorsed",
@@ -1148,8 +1176,6 @@ plot_lgi_beh_sub
 
 Global LGI is significantly lower in participants with eating disorders relative to those without. Significant decreasing trends were also observed for both individual eating disorders: anorexia and bulimia.
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample
 
 ```{r}
@@ -1157,12 +1183,25 @@ Global LGI is significantly lower in participants with eating disorders relative
 data_lgi_eat <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(eat = smry_eat_cat) |>
-  mutate(eat = factor(eat, levels = c("FALSE", "TRUE"))) |>
   select(lgi, eat) |>
   drop_na()
-```
 
-:::
+kable_lgi_eat <-
+  data_lgi_eat |>
+  group_by(eat) |>
+  summarize(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = eat, values_from = n) |>
+  mutate(disorder = "Eating Disorders") |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Size for Analysis of Eating Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_eat
+```
 
 ### Hypothesis Test
 
@@ -1234,36 +1273,48 @@ plot_lgi_eat <-
 plot_lgi_eat
 ```
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample - Individual Disorders
 
 ```{r}
 #| label: lgi eat individual sample
+map_eat_sub <- c(
+  "smry_ano" = "Anorexia",
+  "smry_bul" = "Bulimia"
+)
+
 data_lgi_eat_sub <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
-  select(bblid, lgi, smry_ano, smry_bul) |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
+  select(bblid, lgi, all_of(names(map_eat_sub))) |>
   pivot_longer(
     cols = starts_with("smry_"),
     names_to = "disorder",
-    values_to = "score"
+    values_to = "status"
   ) |>
-  mutate(
-    disorder = str_replace_all(disorder, c(
-      "smry_ano" = "Anorexia",
-      "smry_bul" = "Bulimia"
-    )),
-    score = ordered(case_when(score %in% 0:4 ~ score))
-  ) |>
+  mutate(disorder = str_replace_all(disorder, map_eat_sub)) |>
   drop_na()
-```
 
-:::
+kable_lgi_eat_sub <- 
+  data_lgi_eat_sub |>
+  group_by(disorder, status) |>
+  summarize(n = n(), .groups = "drop") |>
+  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
+  pivot_wider(names_from = status, values_from = n) |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Sizes for Analyses of Individual Eating Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_eat_sub
+```
 
 ### Hypothesis Test - Individual Disorders
 
 ```{r}
 #| label: lgi eat individual test
+#| eval: false
 test_lgi_eat_sub <-
   data_lgi_eat_sub |>
   group_by(disorder) |>
@@ -1295,6 +1346,7 @@ test_lgi_eat_sub
 
 ```{r}
 #| label: lgi eat individual results
+#| eval: false
 category_labels <- c(
   "0" = "Not Endorsed",
   "1" = "Endorsed",
@@ -1350,8 +1402,6 @@ plot_lgi_beh_sub
 
 Global LGI is significantly lower in participants with mood disorders relative to those without. Significant decreasing trends were also observed for both mood categories: depression and mania.
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample
 
 ```{r}
@@ -1359,12 +1409,25 @@ Global LGI is significantly lower in participants with mood disorders relative t
 data_lgi_mood <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(mood = smry_mood_cat) |>
-  mutate(mood = factor(mood, levels = c("FALSE", "TRUE"))) |>
   select(lgi, mood) |>
   drop_na()
-```
 
-:::
+kable_lgi_mood <-
+  data_lgi_mood |>
+  group_by(mood) |>
+  summarize(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = mood, values_from = n) |>
+  mutate(disorder = "Mood Disorders") |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Size for Analysis of Mood Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_mood
+```
 
 ### Hypothesis Test
 
@@ -1436,36 +1499,48 @@ plot_lgi_mood <-
 plot_lgi_mood
 ```
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample - Individual Disorders
 
 ```{r}
 #| label: lgi mood individual sample
+map_mood_sub <- c(
+  "smry_dep" = "Depression",
+  "smry_man" = "Mania"
+)
+
 data_lgi_mood_sub <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
-  select(bblid, lgi, smry_dep, smry_man) |>
+  inner_join(global_lgi, goassess_bin, by = "bblid") |>
+  select(bblid, lgi, all_of(names(map_mood_sub))) |>
   pivot_longer(
     cols = starts_with("smry_"),
     names_to = "disorder",
-    values_to = "score"
+    values_to = "status"
   ) |>
-  mutate(
-    disorder = str_replace_all(disorder, c(
-      "smry_dep" = "Depression",
-      "smry_man" = "Mania"
-    )),
-    score = ordered(case_when(score %in% 0:4 ~ score))
-  ) |>
+  mutate(disorder = str_replace_all(disorder, map_mood_sub)) |>
   drop_na()
-```
 
-:::
+kable_lgi_mood_sub <- 
+  data_lgi_mood_sub |>
+  group_by(disorder, status) |>
+  summarize(n = n(), .groups = "drop") |>
+  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
+  pivot_wider(names_from = status, values_from = n) |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Sizes for Analyses of Individual Mood Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_mood_sub
+```
 
 ### Hypothesis Test - Individual Disorders
 
 ```{r}
 #| label: lgi mood individual test
+#| eval: false
 test_lgi_mood_sub <-
   data_lgi_mood_sub |>
   group_by(disorder) |>
@@ -1497,6 +1572,7 @@ test_lgi_mood_sub
 
 ```{r}
 #| label: lgi mood individual results
+#| eval: false
 category_labels <- c(
   "0" = "Not Endorsed",
   "1" = "Endorsed",
@@ -1552,8 +1628,6 @@ plot_lgi_mood_sub
 
 Global LGI is significantly lower in participants with psychotic disorders relative to those without. Significant decreasing trends were also observed for five of the seven individual psychosis symptoms: hallucinations (general), auditory hallucinations (voices), auditory hallucinations (other), tactile hallucinations and visual hallucinations. Delusions and olfactory hallucinations did not exhibit statistically significant trends.
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample
 
 ```{r}
@@ -1561,12 +1635,25 @@ Global LGI is significantly lower in participants with psychotic disorders relat
 data_lgi_psy <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
   rename(psy = smry_psy_cat) |>
-  mutate(psy = factor(psy, levels = c("FALSE", "TRUE"))) |>
   select(lgi, psy) |>
   drop_na()
-```
 
-:::
+kable_lgi_psy <-
+  data_lgi_psy |>
+  group_by(psy) |>
+  summarize(n = n(), .groups = "drop") |>
+  pivot_wider(names_from = psy, values_from = n) |>
+  mutate(disorder = "Psychotic Disorders") |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Size for Analysis of Psychotic Disorders",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_psy
+```
 
 ### Hypothesis Test
 
@@ -1638,51 +1725,63 @@ plot_lgi_psy <-
 plot_lgi_psy
 ```
 
-::: {.content-visible when-profile="scratch"}
-
 ### Sample - Individual Disorders
 
 ```{r}
 #| label: lgi psy individual sample
+map_psy_sub <- c(
+  "smry_del" = "Delusions",
+  "smry_hal_av" = "Auditory Hallucinations (Verbal)",
+  "smry_hal_as" = "Auditory Hallucinations (Other)",
+  "smry_hal_vh" = "Visual Hallucinations",
+  "smry_hal_oh" = "Olfactory Hallucinations",
+  "smry_hal_th" = "Tactile Hallucinations",
+  "smry_hal" = "Hallucinations"
+)
+
 data_lgi_psy_sub <-
-  inner_join(global_lgi, goassess, by = "bblid") |>
-  select(
-    bblid,
-    lgi,
-    smry_del,
-    smry_hal,
-    smry_hal_av,
-    smry_hal_as,
-    smry_hal_vh,
-    smry_hal_oh,
-    smry_hal_th
-  ) |>
+  goassess |>
+  mutate(across(
+    starts_with("smry_"),
+    \(x) {
+      factor(
+        case_when(x == 3 ~ TRUE, x %in% 0:2 ~ FALSE),
+        levels = c("FALSE", "TRUE")
+      )
+    }
+  )) |>
+  inner_join(global_lgi, by = "bblid") |>
+  select(bblid, lgi, all_of(names(map_psy_sub))) |>
   pivot_longer(
     cols = starts_with("smry_"),
     names_to = "disorder",
-    values_to = "score"
+    values_to = "status"
   ) |>
-  mutate(
-    disorder = str_replace_all(disorder, c(
-      "smry_del" = "Delusions",
-      "smry_hal_av" = "Auditory Hallucinations (Verbal)",
-      "smry_hal_as" = "Auditory Hallucinations (Other)",
-      "smry_hal_vh" = "Visual Hallucinations",
-      "smry_hal_oh" = "Olfactory Hallucinations",
-      "smry_hal_th" = "Tactile Hallucinations",
-      "smry_hal" = "Hallucinations"
-    )),
-    score = ordered(case_when(score %in% 0:4 ~ score))
-  ) |>
+  mutate(disorder = str_replace_all(disorder, map_psy_sub)) |>
   drop_na()
-```
 
-:::
+kable_lgi_psy_sub <- 
+  data_lgi_psy_sub |>
+  group_by(disorder, status) |>
+  summarize(n = n(), .groups = "drop") |>
+  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
+  pivot_wider(names_from = status, values_from = n) |>
+  select(disorder, `TRUE`, `FALSE`) |>
+  kbl(
+    caption = "Sample Sizes for Analyses of Individual Psychotic Symptoms",
+    format = "html",
+    col.names = c("", "True", "False"),
+    align = c("l", "c", "c")
+  )
+
+kable_lgi_psy_sub
+```
 
 ### Hypothesis Test - Individual Disorders
 
 ```{r}
 #| label: lgi psy individual test
+#| eval: false
 test_lgi_psy_sub <-
   data_lgi_psy_sub |>
   group_by(disorder) |>
@@ -1714,6 +1813,7 @@ test_lgi_psy_sub
 
 ```{r}
 #| label: lgi psy individual results
+#| eval: false
 category_labels <- c(
   "0" = "Not Endorsed",
   "1" = "Endorsed",

@@ -3,7 +3,7 @@ report_correlation <- function(test, sigfigs = 3) {
     broom::tidy() |>
     janitor::clean_names()
 
-  df <- unname(test$parameter)
+  df <- round(unname(test$parameter), digits = 2)
   r <- signif(unname(test$estimate), digits = sigfigs)
   p <- test$p_value
   ci_5 <- signif(test$conf_low, digits = sigfigs)
