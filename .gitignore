@@ -1,2 +1,4 @@
 .quarto/
 /.quarto/
+*.rmarkdown
+*_files/

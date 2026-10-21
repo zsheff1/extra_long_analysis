@@ -13,6 +13,7 @@ library(janitor)
 library(mgcv)
 library(kableExtra)
 library(ComplexUpset)
+library(broom)
 
 # Source
 source("R/plotting.R")
@@ -256,7 +257,7 @@ demo_kable <- demo_table |>
   kbl(
     caption = "GO1 Imaging Sample Demographics",
     format = "html",
-    col.names = str_replace(colnames(demo_table), "Characteristic", ""),
+    col.names = str_replace(names(demo_table), "Characteristic", ""),
     align = c("l", "c", "c")
   )
 
@@ -390,7 +391,6 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 
 ```{r}
 #| label: lgi volume
-#| eval: false
 data_lgi_volume <- raw_imaging |>
   filter(metric %in% c("area", "lgi", "volume"), atlas == "desikan_killiany") |>
   pivot_wider(values_from = value, names_from = metric) |>
@@ -491,6 +491,127 @@ plot_lgi_volume <-
   theme_linedraw()
 
 plot_lgi_volume
+```
+
+## Regional LGI Differences Relating to Psychosis
+
+```{r}
+#| label: lgi regional psy pos factor
+outcome <- "psychosis_positive"
+
+data_regional_psy_pos <-
+  inner_join(
+    clinical |>
+      filter(type == "bifactor", factor == outcome) |>
+      select(bblid, factor, value) |>
+      pivot_wider(names_from = factor, values_from = value),
+    imaging |>
+      mutate(region = str_c(region, laterality, sep = "_")) |>
+      select(bblid, region, lgi) |>
+      pivot_wider(names_from = region, values_from = lgi),
+    by = "bblid"
+  ) |>
+  select(-bblid) |>
+  drop_na()
+
+formula_regional_psy_pos <- reformulate(
+  termlabels = setdiff(names(data_regional_psy_pos), outcome),
+  response = outcome
+)
+
+model_regional_psy_pos <- lm(formula_regional_psy_pos, data = data_regional_psy_pos)
+
+results_regional_psy_pos <-
+  model_regional_psy_pos |>
+  tidy() |>
+  clean_names() |>
+  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  arrange(p_fdr, p_value)
+
+results_regional_psy_pos
+```
+
+```{r}
+#| label: lgi regional psy neg factor
+outcome <- "psychosis_negative"
+
+data_regional_psy_neg <-
+  inner_join(
+    clinical |>
+      filter(type == "bifactor", factor == outcome) |>
+      select(bblid, factor, value) |>
+      pivot_wider(names_from = factor, values_from = value),
+    imaging |>
+      mutate(region = str_c(region, laterality, sep = "_")) |>
+      select(bblid, region, lgi) |>
+      pivot_wider(names_from = region, values_from = lgi),
+    by = "bblid"
+  ) |>
+  select(-bblid) |>
+  drop_na()
+
+formula_regional_psy_neg <- reformulate(
+  termlabels = setdiff(names(data_regional_psy_neg), outcome),
+  response = outcome
+)
+
+model_regional_psy_neg <- lm(formula_regional_psy_neg, data = data_regional_psy_neg)
+
+results_regional_psy_neg <-
+  model_regional_psy_neg |>
+  tidy() |>
+  clean_names() |>
+  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  arrange(p_fdr, p_value)
+
+results_regional_psy_neg
+```
+
+```{r}
+#| label: lgi regional goa psy
+data_regional_psy <-
+  inner_join(
+    goassess_bin |>
+      rename(psy = smry_psy_cat) |>
+      select(bblid, psy),
+    imaging |>
+      mutate(region = str_c(region, laterality, sep = "_")) |>
+      select(bblid, region, lgi),
+    by = "bblid"
+  ) |>
+  drop_na()
+
+test_regional_psy <-
+  data_regional_psy |>
+  group_by(region) |>
+  summarize(test = list(t.test(lgi ~ psy)), .groups = "drop") |>
+  mutate(
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
+    mean_false = map_dbl(test, list("estimate", 1)),
+    mean_true = map_dbl(test, list("estimate", 2)),
+    p = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p, method = "fdr"),
+    direction = case_when(
+      mean_true > mean_false & p_fdr < 0.05 ~ "greater than",
+      mean_true < mean_false & p_fdr < 0.05 ~ "less than",
+      TRUE ~ ""
+    ),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  select(-test)
+
+results_regional_psy <-
+  test_regional_psy |>
+  select(region, mean_false, mean_true, direction, p_fdr, significance) |>
+  arrange(p_fdr)
+
+print(results_regional_psy, n = Inf)
 ```
 
 # Psychopathology (Factor Scores)
