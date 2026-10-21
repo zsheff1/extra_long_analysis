@@ -715,7 +715,7 @@ Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh
 
 ## Global LGI ~ Anxiety {#goa-anx}
 
-Global LGI is significantly lower in participants with anxiety disorders relative to those without. Significant decreasing trends were also observed for six of the eight individual anxiety disorders: agoraphobia, generalized anxiety, OCD, panic disorder, PTSD, and social anxiety. Separation anxiety and specific phobias did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with anxiety disorders relative to those without. Significantly lower global LGI was also observed in four of the eight individual anxiety disorders: agoraphobia, OCD, PTSD, and social anxiety. Generalized anxiety, panic disorder, separation anxiety and specific phobias did not exhibit significant differences.
 
 ### Sample
 
@@ -861,20 +861,13 @@ kable_lgi_anx_sub
 
 ```{r}
 #| label: lgi anx individual test
-#| eval: false
 test_lgi_anx_sub <-
   data_lgi_anx_sub |>
   group_by(disorder) |>
-  summarise(
-    test = list(clinfun::jonckheere.test(
-      x = lgi,
-      g = score,
-      alternative = "decreasing"
-    )),
-    .groups = "drop"
-  ) |>
+  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
   mutate(
-    jt = map_dbl(test, "statistic"),
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
     p = map_dbl(test, "p.value"),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -893,14 +886,18 @@ test_lgi_anx_sub
 
 ```{r}
 #| label: lgi anx individual results
-#| eval: false
-category_labels <- c(
-  "0" = "Not Endorsed",
-  "1" = "Endorsed",
-  "2" = "Subthreshold",
-  "3" = "Threshold",
-  "4" = "Significant"
-)
+summary_lgi_anx_sub <-
+  data_lgi_anx_sub |>
+  group_by(disorder, status) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(status))
 
 facet_labels_lgi_anx_sub <-
   test_lgi_anx_sub |>
@@ -909,29 +906,42 @@ facet_labels_lgi_anx_sub <-
   tibble::deframe()
 
 plot_lgi_anx_sub <-
-  ggplot(
-    data = data_lgi_anx_sub,
+  ggplot() +
+  geom_rect(
+    data = summary_lgi_anx_sub,
     mapping = aes(
-      x = score,
-      y = lgi,
-      group = score,
-      color = score,
-      fill = score
-    )
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
-  geom_boxplot(alpha = 0.5) +
+  geom_segment(
+    data = summary_lgi_anx_sub,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
   facet_wrap(
     ~ disorder,
     ncol = 4,
     nrow = 2,
     labeller = as_labeller(facet_labels_lgi_anx_sub)
   ) +
-  scale_color_viridis_d(name = NULL, labels = category_labels) +
-  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Global LGI Across Anxiety Disorders",
-    y = "LGI (global)",
+    title = "Differences in Global LGI across Anxiety Disorders",
     x = NULL,
+    y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
   ) +
   theme_linedraw() +
@@ -947,7 +957,7 @@ plot_lgi_anx_sub
 
 ## Global LGI ~ Behavior {#goa-beh}
 
-Global LGI is significantly lower in participants with behavioral disorders relative to those without. Significant decreasing trends were also observed for two of the three individual behavioral disorders: conduct disorder, and oppositional defiance disorder. Attention deficit disorder did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with behavioral disorders relative to those without. Significantly lower global LGI was also observed in two of the three individual behavior disorders: conduct disorder and oppositional defiance disorder. Attention deficit disorder shows significantly higher global LGI relative to those without.
 
 ### Sample
 
@@ -1088,20 +1098,13 @@ kable_lgi_beh_sub
 
 ```{r}
 #| label: lgi beh individual test
-#| eval: false
 test_lgi_beh_sub <-
   data_lgi_beh_sub |>
   group_by(disorder) |>
-  summarise(
-    test = list(clinfun::jonckheere.test(
-      x = lgi,
-      g = score,
-      alternative = "decreasing"
-    )),
-    .groups = "drop"
-  ) |>
+  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
   mutate(
-    jt = map_dbl(test, "statistic"),
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
     p = map_dbl(test, "p.value"),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -1120,14 +1123,18 @@ test_lgi_beh_sub
 
 ```{r}
 #| label: lgi beh individual results
-#| eval: false
-category_labels <- c(
-  "0" = "Not Endorsed",
-  "1" = "Endorsed",
-  "2" = "Subthreshold",
-  "3" = "Threshold",
-  "4" = "Significant"
-)
+summary_lgi_beh_sub <-
+  data_lgi_beh_sub |>
+  group_by(disorder, status) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(status))
 
 facet_labels_lgi_beh_sub <-
   test_lgi_beh_sub |>
@@ -1136,29 +1143,42 @@ facet_labels_lgi_beh_sub <-
   tibble::deframe()
 
 plot_lgi_beh_sub <-
-  ggplot(
-    data = data_lgi_beh_sub,
+  ggplot() +
+  geom_rect(
+    data = summary_lgi_beh_sub,
     mapping = aes(
-      x = score,
-      y = lgi,
-      group = score,
-      color = score,
-      fill = score
-    )
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
-  geom_boxplot(alpha = 0.5) +
+  geom_segment(
+    data = summary_lgi_beh_sub,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
   facet_wrap(
     ~ disorder,
     ncol = 3,
     nrow = 1,
     labeller = as_labeller(facet_labels_lgi_beh_sub)
   ) +
-  scale_color_viridis_d(name = NULL, labels = category_labels) +
-  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Global LGI Across Behavioral Disorders",
-    y = "LGI (global)",
+    title = "Differences in Global LGI across Behavior Disorders",
     x = NULL,
+    y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
   ) +
   theme_linedraw() +
@@ -1174,7 +1194,7 @@ plot_lgi_beh_sub
 
 ## Global LGI ~ Eating {#goa-eat}
 
-Global LGI is significantly lower in participants with eating disorders relative to those without. Significant decreasing trends were also observed for both individual eating disorders: anorexia and bulimia.
+Global LGI is significantly lower in participants with eating disorders relative to those without. Significantly lower global LGI was also observed in both individual anxiety disorders: anorexnia and bulemia.
 
 ### Sample
 
@@ -1314,20 +1334,13 @@ kable_lgi_eat_sub
 
 ```{r}
 #| label: lgi eat individual test
-#| eval: false
 test_lgi_eat_sub <-
   data_lgi_eat_sub |>
   group_by(disorder) |>
-  summarise(
-    test = list(clinfun::jonckheere.test(
-      x = lgi,
-      g = score,
-      alternative = "decreasing"
-    )),
-    .groups = "drop"
-  ) |>
+  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
   mutate(
-    jt = map_dbl(test, "statistic"),
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
     p = map_dbl(test, "p.value"),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -1346,14 +1359,18 @@ test_lgi_eat_sub
 
 ```{r}
 #| label: lgi eat individual results
-#| eval: false
-category_labels <- c(
-  "0" = "Not Endorsed",
-  "1" = "Endorsed",
-  "2" = "Subthreshold",
-  "3" = "Threshold",
-  "4" = "Significant"
-)
+summary_lgi_eat_sub <-
+  data_lgi_eat_sub |>
+  group_by(disorder, status) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(status))
 
 facet_labels_lgi_eat_sub <-
   test_lgi_eat_sub |>
@@ -1361,30 +1378,43 @@ facet_labels_lgi_eat_sub <-
   select(disorder, label) |>
   tibble::deframe()
 
-plot_lgi_beh_sub <-
-  ggplot(
-    data = data_lgi_eat_sub,
+plot_lgi_eat_sub <-
+  ggplot() +
+  geom_rect(
+    data = summary_lgi_eat_sub,
     mapping = aes(
-      x = score,
-      y = lgi,
-      group = score,
-      color = score,
-      fill = score
-    )
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
-  geom_boxplot(alpha = 0.5) +
+  geom_segment(
+    data = summary_lgi_eat_sub,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
   facet_wrap(
     ~ disorder,
     ncol = 2,
     nrow = 1,
     labeller = as_labeller(facet_labels_lgi_eat_sub)
   ) +
-  scale_color_viridis_d(name = NULL, labels = category_labels) +
-  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Global LGI Across Eating Disorders",
-    y = "LGI (global)",
+    title = "Differences in Global LGI across Eating Disorders",
     x = NULL,
+    y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
   ) +
   theme_linedraw() +
@@ -1395,12 +1425,12 @@ plot_lgi_beh_sub <-
     plot.caption = element_text(hjust = 0)
   )
 
-plot_lgi_beh_sub
+plot_lgi_eat_sub
 ```
 
 ## Global LGI ~ Mood {#goa-mood}
 
-Global LGI is significantly lower in participants with mood disorders relative to those without. Significant decreasing trends were also observed for both mood categories: depression and mania.
+Global LGI is significantly lower in participants with mood disorders relative to those without. Significantly lower global LGI was also observed in depression. Mania did not exhibit significant differences.
 
 ### Sample
 
@@ -1540,20 +1570,13 @@ kable_lgi_mood_sub
 
 ```{r}
 #| label: lgi mood individual test
-#| eval: false
 test_lgi_mood_sub <-
   data_lgi_mood_sub |>
   group_by(disorder) |>
-  summarise(
-    test = list(clinfun::jonckheere.test(
-      x = lgi,
-      g = score,
-      alternative = "decreasing"
-    )),
-    .groups = "drop"
-  ) |>
+  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
   mutate(
-    jt = map_dbl(test, "statistic"),
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
     p = map_dbl(test, "p.value"),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -1572,14 +1595,18 @@ test_lgi_mood_sub
 
 ```{r}
 #| label: lgi mood individual results
-#| eval: false
-category_labels <- c(
-  "0" = "Not Endorsed",
-  "1" = "Endorsed",
-  "2" = "Subthreshold",
-  "3" = "Threshold",
-  "4" = "Significant"
-)
+summary_lgi_mood_sub <-
+  data_lgi_mood_sub |>
+  group_by(disorder, status) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(status))
 
 facet_labels_lgi_mood_sub <-
   test_lgi_mood_sub |>
@@ -1588,29 +1615,42 @@ facet_labels_lgi_mood_sub <-
   tibble::deframe()
 
 plot_lgi_mood_sub <-
-  ggplot(
-    data = data_lgi_mood_sub,
+  ggplot() +
+  geom_rect(
+    data = summary_lgi_mood_sub,
     mapping = aes(
-      x = score,
-      y = lgi,
-      group = score,
-      color = score,
-      fill = score
-    )
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
-  geom_boxplot(alpha = 0.5) +
+  geom_segment(
+    data = summary_lgi_mood_sub,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
   facet_wrap(
     ~ disorder,
     ncol = 2,
     nrow = 1,
     labeller = as_labeller(facet_labels_lgi_mood_sub)
   ) +
-  scale_color_viridis_d(name = NULL, labels = category_labels) +
-  scale_fill_viridis_d(name = NULL, labels = category_labels) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Global LGI Across Mood Disorders",
-    y = "LGI (global)",
+    title = "Differences in Global LGI across Mood Disorders",
     x = NULL,
+    y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
   ) +
   theme_linedraw() +
@@ -1626,7 +1666,7 @@ plot_lgi_mood_sub
 
 ## Global LGI ~ Psychosis {#goa-psy}
 
-Global LGI is significantly lower in participants with psychotic disorders relative to those without. Significant decreasing trends were also observed for five of the seven individual psychosis symptoms: hallucinations (general), auditory hallucinations (voices), auditory hallucinations (other), tactile hallucinations and visual hallucinations. Delusions and olfactory hallucinations did not exhibit statistically significant trends.
+Global LGI is significantly lower in participants with psychotic disorders relative to those without. Significantly lower global LGI was also observed in three of the seven individual psychotic symptoms: delusions, hallucinations, and tactile hallucinations. Auditory hallucinations (voices), autidory hallucinations (other), olfactory hallucinations, and visual hallucinations did not exhibit significant differences.
 
 ### Sample
 
@@ -1781,20 +1821,13 @@ kable_lgi_psy_sub
 
 ```{r}
 #| label: lgi psy individual test
-#| eval: false
 test_lgi_psy_sub <-
   data_lgi_psy_sub |>
   group_by(disorder) |>
-  summarise(
-    test = list(clinfun::jonckheere.test(
-      x = lgi,
-      g = score,
-      alternative = "decreasing"
-    )),
-    .groups = "drop"
-  ) |>
+  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
   mutate(
-    jt = map_dbl(test, "statistic"),
+    df = map_dbl(test, "parameter"),
+    t = map_dbl(test, "statistic"),
     p = map_dbl(test, "p.value"),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -1813,14 +1846,18 @@ test_lgi_psy_sub
 
 ```{r}
 #| label: lgi psy individual results
-#| eval: false
-category_labels <- c(
-  "0" = "Not Endorsed",
-  "1" = "Endorsed",
-  "2" = "Subthreshold",
-  "3" = "Threshold",
-  "4" = "Significant"
-)
+summary_lgi_psy_sub <-
+  data_lgi_psy_sub |>
+  group_by(disorder, status) |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .groups = "drop"
+  ) |>
+  mutate(x = as.numeric(status))
 
 facet_labels_lgi_psy_sub <-
   test_lgi_psy_sub |>
@@ -1829,39 +1866,42 @@ facet_labels_lgi_psy_sub <-
   tibble::deframe()
 
 plot_lgi_psy_sub <-
-  ggplot(
-    data = data_lgi_psy_sub,
+  ggplot() +
+  geom_rect(
+    data = summary_lgi_psy_sub,
     mapping = aes(
-      x = score,
-      y = lgi,
-      group = score,
-      color = score,
-      fill = score
-    )
+      xmin = x - 0.4,
+      xmax = x + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
   ) +
-  geom_boxplot(alpha = 0.5) +
+  geom_segment(
+    data = summary_lgi_psy_sub,
+    mapping = aes(
+      x = x - 0.4,
+      xend = x + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
   facet_wrap(
     ~ disorder,
     ncol = 3,
     nrow = 3,
     labeller = as_labeller(facet_labels_lgi_psy_sub)
   ) +
-  scale_color_viridis_d(
-    name = NULL,
-    limits = as.character(0:4),
-    breaks = as.character(0:3),
-    labels = category_labels[0:4]
-  ) +
-  scale_fill_viridis_d(
-    name = NULL,
-    limits = as.character(0:4),
-    breaks = as.character(0:3),
-    labels = category_labels[0:4]
-  ) +
+  color_scale_dx +
+  fill_scale_dx +
   labs(
-    title = "Global LGI Across Psychosis Symptoms",
-    y = "LGI (global)",
+    title = "Differences in Global LGI across Psychotic Symptoms",
     x = NULL,
+    y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
   ) +
   theme_linedraw() +
