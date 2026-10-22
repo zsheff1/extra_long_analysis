@@ -493,82 +493,134 @@ plot_lgi_volume <-
 plot_lgi_volume
 ```
 
-## Regional LGI Differences Relating to Psychosis
+## Regional LGI vs Psychosis Factor
+
+Many regions have regional LGI significantly associated with psychosis positive and psychosis negative factors. Some regions for psychosis negative even survive controlling for global lgi. No results survive multiple comparisons correction. It may be helpful to use the literature to determine a priori regions and reduce multiple comparisons.
 
 ```{r}
-#| label: lgi regional psy pos factor
-outcome <- "psychosis_positive"
-
-data_regional_psy_pos <-
-  inner_join(
-    clinical |>
-      filter(type == "bifactor", factor == outcome) |>
-      select(bblid, factor, value) |>
-      pivot_wider(names_from = factor, values_from = value),
+#| label: lgi psy regional factor
+data_lgi_psy_regional <-
+  full_join(
     imaging |>
       mutate(region = str_c(region, laterality, sep = "_")) |>
-      select(bblid, region, lgi) |>
-      pivot_wider(names_from = region, values_from = lgi),
+      rename(regional_lgi = lgi) |>
+      select(bblid, region, regional_lgi),
+    global_lgi |>
+      rename(global_lgi = lgi) |>
+      select(bblid, global_lgi),
     by = "bblid"
   ) |>
-  select(-bblid) |>
-  drop_na()
-
-formula_regional_psy_pos <- reformulate(
-  termlabels = setdiff(names(data_regional_psy_pos), outcome),
-  response = outcome
-)
-
-model_regional_psy_pos <- lm(formula_regional_psy_pos, data = data_regional_psy_pos)
-
-results_regional_psy_pos <-
-  model_regional_psy_pos |>
-  tidy() |>
-  clean_names() |>
-  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
-  arrange(p_fdr, p_value)
-
-results_regional_psy_pos
-```
-
-```{r}
-#| label: lgi regional psy neg factor
-outcome <- "psychosis_negative"
-
-data_regional_psy_neg <-
-  inner_join(
+  full_join(
     clinical |>
-      filter(type == "bifactor", factor == outcome) |>
-      select(bblid, factor, value) |>
-      pivot_wider(names_from = factor, values_from = value),
-    imaging |>
-      mutate(region = str_c(region, laterality, sep = "_")) |>
-      select(bblid, region, lgi) |>
-      pivot_wider(names_from = region, values_from = lgi),
-    by = "bblid"
+      filter(
+        type == "bifactor",
+        factor %in% c("psychosis_positive", "psychosis_negative")
+      ) |>
+      rename(psychosis = value) |>
+      select(bblid, factor, psychosis),
+    by = "bblid",
+    relationship = "many-to-many"
   ) |>
-  select(-bblid) |>
   drop_na()
 
-formula_regional_psy_neg <- reformulate(
-  termlabels = setdiff(names(data_regional_psy_neg), outcome),
-  response = outcome
-)
+test_lgi_psy_regional <-
+  data_lgi_psy_regional |>
+  select(region, factor) |>
+  unique() |>
+  mutate(
+    test = map2(
+      region, factor, \(r, f) {
+        lm(
+          psychosis ~ regional_lgi,
+          data = data_lgi_psy_regional |>
+            filter(region == r, factor == f)
+        )
+      }
+    )
+  )
 
-model_regional_psy_neg <- lm(formula_regional_psy_neg, data = data_regional_psy_neg)
-
-results_regional_psy_neg <-
-  model_regional_psy_neg |>
-  tidy() |>
-  clean_names() |>
+results_lgi_psy_regional <-
+  test_lgi_psy_regional |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "regional_lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(factor) |>
   mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
-  arrange(p_fdr, p_value)
+  ungroup()
 
-results_regional_psy_neg
+results_lgi_psy_regional |>
+  filter(factor == "psychosis_positive", p_value < 0.05) |>
+  arrange(desc(abs(estimate))) |>
+  select(region, estimate, p_value, p_fdr) |>
+  kbl(
+    caption = "Regions where LGI is Significantly Associated with Psychosis Positive Factor (before multiple comparison correction)",
+    format = "html"
+  )
+
+results_lgi_psy_regional |>
+  filter(factor == "psychosis_negative", p_value < 0.05) |>
+  arrange(desc(abs(estimate))) |>
+  select(region, estimate, p_value, p_fdr) |>
+  kbl(
+    caption = "Regions where LGI is Significantly Associated with Psychosis Negative Factor (before multiple comparison correction)",
+    format = "html"
+  )
+
+test_lgi_psy_regional_controlled <-
+  data_lgi_psy_regional |>
+  select(region, factor) |>
+  unique() |>
+  mutate(
+    test = map2(
+      region, factor, \(r, f) {
+        lm(
+          psychosis ~ global_lgi + regional_lgi,
+          data = data_lgi_psy_regional |>
+            filter(region == r, factor == f)
+        )
+      }
+    )
+  )
+
+results_lgi_psy_regional_controlled <-
+  test_lgi_psy_regional_controlled |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "regional_lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(factor) |>
+  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  ungroup()
+
+results_lgi_psy_regional_controlled |>
+  filter(p_value < 0.05) |>
+  arrange(desc(abs(estimate))) |>
+  select(region, factor, estimate, p_value, p_fdr) |>
+  kbl(
+    caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
+    format = "html"
+  )
 ```
 
+## Differences in Regional LGI between Psychosis and TD
+
+LGI is lower in those with psychosis, relative to controls, in almost all regions, even after correcting for multiple comparisons (62 of 68 regions).
+
 ```{r}
-#| label: lgi regional goa psy
+#| label: lgi psy regional goa
 data_regional_psy <-
   inner_join(
     goassess_bin |>
@@ -590,8 +642,8 @@ test_regional_psy <-
     t = map_dbl(test, "statistic"),
     mean_false = map_dbl(test, list("estimate", 1)),
     mean_true = map_dbl(test, list("estimate", 2)),
-    p = map_dbl(test, "p.value"),
-    p_fdr = p.adjust(p, method = "fdr"),
+    p_value = map_dbl(test, "p.value"),
+    p_fdr = p.adjust(p_value, method = "fdr"),
     direction = case_when(
       mean_true > mean_false & p_fdr < 0.05 ~ "greater than",
       mean_true < mean_false & p_fdr < 0.05 ~ "less than",
@@ -608,10 +660,12 @@ test_regional_psy <-
 
 results_regional_psy <-
   test_regional_psy |>
-  select(region, mean_false, mean_true, direction, p_fdr, significance) |>
-  arrange(p_fdr)
+  mutate(estimate = mean_true - mean_false) |>
+  select(region, mean_false, mean_true, estimate, p_value, p_fdr, significance) |>
+  arrange(desc(abs(estimate))) |>
+  kbl(format = "html")
 
-print(results_regional_psy, n = Inf)
+results_regional_psy
 ```
 
 # Psychopathology (Factor Scores)
