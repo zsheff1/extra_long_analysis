@@ -11,4 +11,4 @@ format:
     embed-resources: true
 
 bibliography: references.bib
-
+csl: biological-psychiatry.csl
