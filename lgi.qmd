@@ -2090,6 +2090,73 @@ plot_lgi_psy_sub <-
 plot_lgi_psy_sub
 ```
 
+# Cognition
+
+In the Clean Subsample, LGI is significantly negatively associated with Executive Efficiency, even when controlling for eTIV.
+
+```{r}
+data_lgi_cnb <-
+  full_join(data_etiv, global_lgi, by = "bblid") |>
+  full_join(
+    cnb |>
+      rename(cnb = value) |>
+      filter(measure == "efficiency"),
+    by = "bblid"
+  ) |>
+  semi_join(clean_subsample, by = "bblid") |>
+  select(bblid, lgi, etiv, domain, cnb)
+
+test_lgi_cnb <-
+  crossing(
+    domain = data_lgi_cnb |>
+      pull(domain) |>
+      unique(),
+    controlled = c(TRUE, FALSE)
+  ) |>
+  mutate(
+    test = map2(
+      domain, controlled, \(d, controlled) {
+        lm(
+          reformulate(
+            termlabels = if (controlled) c("lgi", "etiv") else "lgi",
+            response = "cnb"
+          ),
+          data = data_lgi_cnb |>
+            filter(domain == d)
+        )
+      }
+    )
+  )
+
+results_lgi_cnb <-
+  test_lgi_cnb |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(controlled) |>
+  mutate(
+    p_fdr = p.adjust(p_value, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  ungroup()
+
+results_lgi_cnb |>
+  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
+  kbl()
+```
+
 # Main Effects
 
   - Global LGI declined nonlinearly with age, with a modest departure from linearity. [`lgi ~ s(age)`](#main-age)
