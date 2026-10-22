@@ -979,7 +979,7 @@ plot_lgi_anx <-
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Anxiety",
-    subtitle = report_correlation(test_lgi_anx),
+    subtitle = report_t_test(test_lgi_anx),
     x = "Anxiety",
     y = "LGI (global)"
   ) +
@@ -1221,7 +1221,7 @@ plot_lgi_beh <-
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Behavior",
-    subtitle = report_correlation(test_lgi_beh),
+    subtitle = report_t_test(test_lgi_beh),
     x = "Behavior",
     y = "LGI (global)"
   ) +
@@ -1458,7 +1458,7 @@ plot_lgi_eat <-
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Eating",
-    subtitle = report_correlation(test_lgi_eat),
+    subtitle = report_t_test(test_lgi_eat),
     x = "Eating",
     y = "LGI (global)"
   ) +
@@ -1694,7 +1694,7 @@ plot_lgi_mood <-
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Mood",
-    subtitle = report_correlation(test_lgi_mood),
+    subtitle = report_t_test(test_lgi_mood),
     x = "Mood",
     y = "LGI (global)"
   ) +
@@ -1930,7 +1930,7 @@ plot_lgi_psy <-
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Psychosis",
-    subtitle = report_correlation(test_lgi_psy),
+    subtitle = report_t_test(test_lgi_psy),
     x = "Psychosis",
     y = "LGI (global)"
   ) +
