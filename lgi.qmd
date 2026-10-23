@@ -500,6 +500,81 @@ plot_lgi_volume <-
 plot_lgi_volume
 ```
 
+## Lobular LGI vs Psychosis Factor
+
+```{r}
+#| label: lgi psy lobular factor
+plot_lgi_lobe <-
+  ggplot(
+    data = lgi_lobe |>
+      mutate(
+        lobe = factor(
+          str_to_title(lobe),
+          levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
+        )
+      ),
+    mapping = aes(x = lobe, y = lgi)
+  ) +
+  geom_boxplot() +
+  labs(title = "Distribution of LGI by Lobe", x = "Lobe", y = "LGI") +
+  theme_linedraw()
+
+plot_lgi_lobe
+
+data_lgi_psy_lobular <-
+  full_join(
+    lgi_lobe |>
+      rename(lobular_lgi = lgi) |>
+      select(bblid, lobe, lobular_lgi),
+    clinical |>
+      filter(
+        type == "bifactor",
+        factor %in% c("psychosis_positive", "psychosis_negative")
+      ) |>
+      rename(psychosis = value) |>
+      select(bblid, factor, psychosis),
+    by = "bblid",
+    relationship = "many-to-many"
+  ) |>
+  drop_na()
+
+test_lgi_psy_lobular <-
+  data_lgi_psy_lobular |>
+  select(lobe, factor) |>
+  unique() |>
+  mutate(
+    test = map2(
+      lobe, factor, \(l, f) {
+        lm(
+          psychosis ~ lobular_lgi,
+          data = data_lgi_psy_lobular |>
+            filter(lobe == l, factor == f)
+        )
+      }
+    )
+  )
+
+results_lgi_psy_lobular <-
+  test_lgi_psy_lobular |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "lobular_lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(factor) |>
+  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  ungroup()
+
+results_lgi_psy_lobular |>
+  select(lobe, factor, estimate, p_value, p_fdr) |>
+  kbl()
+```
+
 ## Regional LGI vs Psychosis Factor
 
 Many regions have regional LGI significantly associated with psychosis positive and psychosis negative factors. Some regions for psychosis negative even survive controlling for global lgi. No results survive multiple comparisons correction. It may be helpful to use the literature to determine a priori regions and reduce multiple comparisons.
