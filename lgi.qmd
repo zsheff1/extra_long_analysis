@@ -2218,7 +2218,8 @@ aic_lgi_age <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_age
+aic_lgi_age |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -2359,7 +2360,8 @@ aic_lgi_ses <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_ses
+aic_lgi_ses |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -2605,7 +2607,8 @@ aic_lgi_trauma <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_trauma
+aic_lgi_trauma |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -2823,7 +2826,8 @@ aic_lgi_age_ses <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_age_ses
+aic_lgi_age_ses |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -3139,7 +3143,8 @@ aic_lgi_age_sex <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_age_sex
+aic_lgi_age_sex |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -3371,7 +3376,9 @@ aic_lgi_age_trauma <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_age_trauma
+aic_lgi_age_trauma |>
+  kbl()
+  kbl()
 ```
 
 #### Check Final Model
@@ -3728,7 +3735,8 @@ aic_lgi_ses_sex <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_ses_sex
+aic_lgi_ses_sex |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -3964,7 +3972,8 @@ aic_lgi_ses_trauma <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_ses_trauma
+aic_lgi_ses_trauma |>
+  kbl()
 ```
 
 #### Check Final Model
@@ -4301,7 +4310,8 @@ aic_lgi_sex_trauma <-
   mutate(delta_aic = aic - min(aic)) |>
   arrange(delta_aic)
 
-aic_lgi_sex_trauma
+aic_lgi_sex_trauma |>
+  kbl()
 ```
 
 #### Check Final Model
