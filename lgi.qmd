@@ -377,7 +377,7 @@ plot_lgi_etiv <-
     alpha = 0.5
   ) +
   labs(
-    title = "Correlation of LGI and eTIV",
+    title = "Correlation of Global LGI and eTIV",
     subtitle = report_correlation(test_lgi_etiv),
     x = "eTIV",
     y = "LGI (global)"
@@ -708,7 +708,7 @@ plot_lgi_general_p <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on General Psychopathology",
+    title = "Correlation of Global LGI and General Psychopathology Factor",
     subtitle = report_correlation(test_lgi_general_p),
     x = "Global LGI",
     y = "General Psychopathology (bifactor)"
@@ -740,7 +740,7 @@ plot_lgi_adhd <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on ADHD",
+    title = "Correlation of Global LGI and ADHD Factor",
     subtitle = report_correlation(test_lgi_adhd),
     x = "Global LGI",
     y = "ADHD (bifactor)"
@@ -772,7 +772,7 @@ plot_lgi_dep <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on Depression",
+    title = "Correlation of Global LGI and Depression Factor",
     subtitle = report_correlation(test_lgi_dep),
     x = "Global LGI",
     y = "Depression (bifactor)"
@@ -804,7 +804,7 @@ plot_lgi_mania <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on Mania",
+    title = "Correlation of Global LGI and Mania Factor",
     subtitle = report_correlation(test_lgi_mania),
     x = "Global LGI",
     y = "Mania (bifactor)"
@@ -839,7 +839,7 @@ plot_lgi_psy_neg <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on Psychosis Negative",
+    title = "Correlation of Global LGI and Psychosis Negative Factor",
     subtitle = report_correlation(test_lgi_psy_neg),
     x = "Global LGI",
     y = "Psychosis Negative (bifactor)"
@@ -874,7 +874,7 @@ plot_lgi_psy_pos <-
     alpha = 0.5
   ) +
   labs(
-    title = "Impact of Global LGI on Psychosis Positive",
+    title = "Correlation of Global LGI and Psychosis Positive Factor",
     subtitle = report_correlation(test_lgi_psy_pos),
     x = "Global LGI",
     y = "Psychosis Positive (bifactor)"
