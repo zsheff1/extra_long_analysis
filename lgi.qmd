@@ -1054,7 +1054,8 @@ test_lgi_anx_sub <-
   ) |>
   select(-test)
 
-test_lgi_anx_sub
+test_lgi_anx_sub |>
+  kbl()
 ```
 
 ### Results - Individual Disorders
@@ -1291,7 +1292,8 @@ test_lgi_beh_sub <-
   ) |>
   select(-test)
 
-test_lgi_beh_sub
+test_lgi_beh_sub |>
+  kbl()
 ```
 
 ### Results - Individual Disorders
@@ -1527,7 +1529,8 @@ test_lgi_eat_sub <-
   ) |>
   select(-test)
 
-test_lgi_eat_sub
+test_lgi_eat_sub |>
+  kbl()
 ```
 
 ### Results - Individual Disorders
@@ -1763,7 +1766,8 @@ test_lgi_mood_sub <-
   ) |>
   select(-test)
 
-test_lgi_mood_sub
+test_lgi_mood_sub |>
+  kbl()
 ```
 
 ### Results - Individual Disorders
@@ -2014,7 +2018,8 @@ test_lgi_psy_sub <-
   ) |>
   select(-test)
 
-test_lgi_psy_sub
+test_lgi_psy_sub |>
+  kbl()
 ```
 
 ### Results - Individual Disorders
