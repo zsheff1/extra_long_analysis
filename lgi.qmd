@@ -256,7 +256,6 @@ demo_table <- inner_join(
 demo_kable <- demo_table |>
   kbl(
     caption = "GO1 Imaging Sample Demographics",
-    format = "html",
     col.names = str_replace(names(demo_table), "Characteristic", ""),
     align = c("l", "c", "c")
   )
@@ -561,7 +560,6 @@ results_lgi_psy_regional |>
   select(region, estimate, p_value, p_fdr) |>
   kbl(
     caption = "Regions where LGI is Significantly Associated with Psychosis Positive Factor (before multiple comparison correction)",
-    format = "html"
   )
 
 results_lgi_psy_regional |>
@@ -570,7 +568,6 @@ results_lgi_psy_regional |>
   select(region, estimate, p_value, p_fdr) |>
   kbl(
     caption = "Regions where LGI is Significantly Associated with Psychosis Negative Factor (before multiple comparison correction)",
-    format = "html"
   )
 
 test_lgi_psy_regional_controlled <-
@@ -611,7 +608,6 @@ results_lgi_psy_regional_controlled |>
   select(region, factor, estimate, p_value, p_fdr) |>
   kbl(
     caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
-    format = "html"
   )
 ```
 
@@ -663,7 +659,7 @@ results_regional_psy <-
   mutate(estimate = mean_true - mean_false) |>
   select(region, mean_false, mean_true, estimate, p_value, p_fdr, significance) |>
   arrange(desc(abs(estimate))) |>
-  kbl(format = "html")
+  kbl()
 
 results_regional_psy
 ```
@@ -911,7 +907,6 @@ kable_lgi_anx <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Size for Analysis of Anxiety Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1024,7 +1019,6 @@ kable_lgi_anx_sub <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Sizes for Analyses of Individual Anxiety Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1154,7 +1148,6 @@ kable_lgi_beh <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Size for Analysis of Behavior Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1262,7 +1255,6 @@ kable_lgi_beh_sub <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Sizes for Analyses of Individual Behavior Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1392,7 +1384,6 @@ kable_lgi_eat <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Size for Analysis of Eating Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1499,7 +1490,6 @@ kable_lgi_eat_sub <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Sizes for Analyses of Individual Eating Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1629,7 +1619,6 @@ kable_lgi_mood <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Size for Analysis of Mood Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1736,7 +1725,6 @@ kable_lgi_mood_sub <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Sizes for Analyses of Individual Mood Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1866,7 +1854,6 @@ kable_lgi_psy <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Size for Analysis of Psychotic Disorders",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
@@ -1988,7 +1975,6 @@ kable_lgi_psy_sub <-
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
     caption = "Sample Sizes for Analyses of Individual Psychotic Symptoms",
-    format = "html",
     col.names = c("", "True", "False"),
     align = c("l", "c", "c")
   )
