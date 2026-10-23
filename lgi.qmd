@@ -656,10 +656,11 @@ test_regional_psy <-
 
 results_regional_psy <-
   test_regional_psy |>
-  mutate(estimate = mean_true - mean_false) |>
-  select(region, mean_false, mean_true, estimate, p_value, p_fdr, significance) |>
-  arrange(desc(abs(estimate))) |>
-  kbl()
+  mutate(pct_diff = (mean_true - mean_false) / mean_false * 100) |>
+  select(region, mean_false, mean_true, pct_diff, p_value, p_fdr, significance) |>
+  arrange(desc(abs(pct_diff))) |>
+  mutate(pct_diff = sprintf("%.2f%%", pct_diff)) |>
+  kbl(digits = c(NA, 3, 3, NA, 5, 5, NA))
 
 results_regional_psy
 ```
