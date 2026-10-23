@@ -420,7 +420,7 @@ cor_lgi_volume |>
       tail(x, 5)
     )
   })() |>
-  knitr::kable()
+  kbl()
 
 model_lgi_volume <- lmerTest::lmer(
   lgi ~ volume + region + (1 | bblid),
