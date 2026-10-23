@@ -181,30 +181,33 @@ The following analyses use the GO1 imaging sample.
 
 ## Subsample
 
-The "Clean Subsample" consists of people where LGI data is available, who did not endorse any trauma exposures, who reported their race as "White", who are Typically Developing according to `Dxpmrv7`, and who's estimated Total Intracranial Volume falls between the 25th% and 75th%.
+The "Clean Subsample" consists of people where LGI data is available, who did not endorse any trauma exposures, who reported their race as "White", who are Typically Developing according to `Dxpmrv7`. Within each sex, the 25 eligible individuals with estimated Total Intracranial Volume (eTIV) closest to the sex-specific median eTIV of the full sample were selected.
 
 ```{r}
 #| label: subsample
-clean_subsample <-
-  demo |>
-  inner_join(data_etiv, by = "bblid") |>
-  mutate(etiv = percent_rank(etiv)) |>
+clean_subsample <- inner_join(demo, data_etiv, by = "bblid") |>
+  group_by(sex)
+  
+median_etiv_sex <- summarize(clean_subsample, etiv_median = median(etiv), .groups = "drop")
+  
+clean_subsample <- clean_subsample |>
   semi_join(drop_na(global_lgi), by = "bblid") |>
   semi_join(filter(env, trauma == 0), by = "bblid") |>
   filter(
     race == "White",
-    dx == "td",
-    etiv >= 0.25,
-    etiv <= 0.75
+    dx == "td"
   ) |>
-  select(bblid)
+  left_join(median_etiv_sex, by = "sex") |>
+  slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE) |>
+  ungroup() |>
+  select(bblid) |>
+  arrange(bblid)
 ```
 
 ## Demographics
 
 ```{r}
 #| label: demos table
-
 demo_summarize <- function(raw) {
   raw |>
     dplyr::summarize(
@@ -2084,9 +2087,10 @@ plot_lgi_psy_sub
 
 # Cognition
 
-In the Clean Subsample, LGI is significantly negatively associated with Executive Efficiency, even when controlling for eTIV.
+In the Clean Subsample, LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
 
 ```{r}
+#| label: lgi cnb clean subsample
 data_lgi_cnb <-
   full_join(data_etiv, global_lgi, by = "bblid") |>
   full_join(
