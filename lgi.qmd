@@ -2087,11 +2087,13 @@ plot_lgi_psy_sub
 
 # Cognition
 
-In the Clean Subsample, LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
+## Full Sample
+
+In the full sample, Global LGI is significantly positvely associated with cognitive efficiency in the following domains when controlling for eTIV and after correcting for multiple comparisons: Overall Cognition, Complex Cognition, Motor, Social Cognition. Global LGI was significantly positively associated with Memory Efficiency but this effect did not survive correcting for eTIV.
 
 ```{r}
-#| label: lgi cnb clean subsample
-data_lgi_cnb <-
+#| label: lgi cnb full sample
+data_lgi_cnb_full <-
   full_join(data_etiv, global_lgi, by = "bblid") |>
   full_join(
     cnb |>
@@ -2099,12 +2101,11 @@ data_lgi_cnb <-
       filter(measure == "efficiency"),
     by = "bblid"
   ) |>
-  semi_join(clean_subsample, by = "bblid") |>
   select(bblid, lgi, etiv, domain, cnb)
 
-test_lgi_cnb <-
+test_lgi_cnb_full <-
   crossing(
-    domain = data_lgi_cnb |>
+    domain = data_lgi_cnb_full |>
       pull(domain) |>
       unique(),
     controlled = c(TRUE, FALSE)
@@ -2117,15 +2118,15 @@ test_lgi_cnb <-
             termlabels = if (controlled) c("lgi", "etiv") else "lgi",
             response = "cnb"
           ),
-          data = data_lgi_cnb |>
+          data = data_lgi_cnb_full |>
             filter(domain == d)
         )
       }
     )
   )
 
-results_lgi_cnb <-
-  test_lgi_cnb |>
+results_lgi_cnb_full <-
+  test_lgi_cnb_full |>
   mutate(
     results = map(test, \(test) {
       test |>
@@ -2148,7 +2149,75 @@ results_lgi_cnb <-
   ) |>
   ungroup()
 
-results_lgi_cnb |>
+results_lgi_cnb_full |>
+  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
+  kbl()
+```
+
+## Clean Subsample
+
+In the Clean Subsample, Global LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
+
+```{r}
+#| label: lgi cnb clean subsample
+data_lgi_cnb_clean <-
+  full_join(data_etiv, global_lgi, by = "bblid") |>
+  full_join(
+    cnb |>
+      rename(cnb = value) |>
+      filter(measure == "efficiency"),
+    by = "bblid"
+  ) |>
+  semi_join(clean_subsample, by = "bblid") |>
+  select(bblid, lgi, etiv, domain, cnb)
+
+test_lgi_cnb_clean <-
+  crossing(
+    domain = data_lgi_cnb_clean |>
+      pull(domain) |>
+      unique(),
+    controlled = c(TRUE, FALSE)
+  ) |>
+  mutate(
+    test = map2(
+      domain, controlled, \(d, controlled) {
+        lm(
+          reformulate(
+            termlabels = if (controlled) c("lgi", "etiv") else "lgi",
+            response = "cnb"
+          ),
+          data = data_lgi_cnb_clean |>
+            filter(domain == d)
+        )
+      }
+    )
+  )
+
+results_lgi_cnb_clean <-
+  test_lgi_cnb_clean |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(controlled) |>
+  mutate(
+    p_fdr = p.adjust(p_value, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  ungroup()
+
+results_lgi_cnb_clean |>
   select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
   kbl()
 ```
