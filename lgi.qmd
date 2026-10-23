@@ -111,11 +111,16 @@ imaging <- raw_imaging |>
   filter(atlas == "desikan_killiany", !is.na(lobe)) |>
   semi_join(imaging_qc, by = c("bblid", "scanid")) |>
   pivot_wider(values_from = value, names_from = metric) |>
-  select(bblid, scanid, laterality, region, lgi, area)
+  select(bblid, scanid, lobe, laterality, region, lgi, area)
 
 global_lgi <- imaging |>
   group_by(bblid, scanid) |>
   summarize(lgi = weighted.mean(lgi, area), .groups = "drop")
+
+lgi_lobe <- imaging |>
+  group_by(bblid, scanid, lobe) |>
+  summarize(lgi = weighted.mean(lgi, area), .groups = "drop") |>
+  drop_na()
 
 data_etiv <- raw_imaging |>
   filter(region == "EstimatedTotalIntraCranialVol") |>
