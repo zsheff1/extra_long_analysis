@@ -502,6 +502,8 @@ plot_lgi_volume
 
 ## Lobular LGI vs Psychosis Factor
 
+At the lobe level in the full sample, it was found that frontal LGI was negatively associated with positive psychosis symptoms.
+
 ```{r}
 #| label: lgi psy lobular factor
 plot_lgi_lobe <-
@@ -567,12 +569,45 @@ results_lgi_psy_lobular <-
   ) |>
   unnest(results) |>
   group_by(factor) |>
-  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  mutate(
+    p_fdr = p.adjust(p_value, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
   ungroup()
 
 results_lgi_psy_lobular |>
-  select(lobe, factor, estimate, p_value, p_fdr) |>
+  select(lobe, factor, estimate, p_value, p_fdr, significance) |>
   kbl()
+
+plot_frontal_positive <-
+  ggplot(
+    data = data_lgi_psy_lobular |>
+      filter(lobe == "frontal", factor == "psychosis_positive"),
+    mapping = aes(x = lobular_lgi, y = psychosis)
+  ) +
+  geom_point() +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linediwth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Associaiton Between Frontal Lobe LGI and Positive Psychosis Symptoms",
+    x = "Frontal Lobe LGI",
+    y = "Positive Psychosis Symptoms (Bifactor)"
+  ) +
+  theme_linedraw()
+
+plot_frontal_positive
 ```
 
 ## Regional LGI vs Psychosis Factor
