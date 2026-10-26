@@ -14,6 +14,7 @@ library(mgcv)
 library(kableExtra)
 library(ComplexUpset)
 library(broom)
+library(psych)
 
 # Source
 source("R/plotting.R")
@@ -731,6 +732,31 @@ results_lgi_psy_regional_controlled |>
   kbl(
     caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
   )
+```
+
+## PCA LGI vs Psychosis Factor
+```{r}
+#| label: lgi psy pca factor
+tmp <-
+  imaging |>
+  mutate(region = str_c(region, laterality, sep = "_")) |>
+  select(bblid, region, lgi) |>
+  pivot_wider(names_from = region, values_from = lgi) |>
+  drop_na()
+
+scree(select(tmp, -bblid), factors = TRUE)
+
+options(mc.cores = 1)
+
+parallel_lgi <- fa.parallel(select(tmp, -bblid), fa = "fa", fm = "minres")
+
+fa_lgi <- psych::fa(
+  select(tmp, -bblid),
+  nfactors = parallel_lgi$nfact,
+  fm = "minres",
+  rotate = "oblimin",
+  scores = "regression"
+)
 ```
 
 ## Differences in Regional LGI between Psychosis and TD
