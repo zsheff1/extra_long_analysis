@@ -157,9 +157,13 @@ cnb <- raw_merge |>
   ) |>
   pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
   mutate(
-    domain = map_chr(str_split(name, "_"), 2),
+    domain = factor(
+      str_replace(map_chr(str_split(name, "_"), 2), "socialcog", "social"),
+      levels = c("overall", "executive", "memory", "complex", "social", "motor")
+    ),
     measure = map_chr(str_split(name, "_"), 3)
   ) |>
+  arrange(bblid, measure, domain) |>
   select(bblid, measure, domain, value)
 
 # GOASSESS
@@ -2265,8 +2269,91 @@ results_lgi_cnb_full <-
   ungroup()
 
 results_lgi_cnb_full |>
+  filter(!controlled) |>
   select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
+  arrange(controlled, domain) |>
   kbl()
+
+facet_labels_lgi_cnb <-
+  results_lgi_cnb_full |>
+  filter(!controlled) |>
+  mutate(
+    label = str_trim(str_c(str_to_title(domain), significance, sep = " "))
+  ) |>
+  select(domain, label) |>
+  tibble::deframe()
+
+plot_lgi_cnb_full <-
+  ggplot(
+    data = data_lgi_cnb_full,
+    mapping = aes(x = lgi, y = cnb)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb)) +
+  labs(
+    title = "Relationship Between Global LGI and CNB Efficiency",
+    subtitle = "CNB ~ LGI",
+    x = "Global LGI",
+    y = "CNB Efficiency (Age Regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_cnb_full
+
+results_lgi_cnb_full |>
+  filter(controlled) |>
+  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
+  arrange(controlled, domain) |>
+  kbl()
+
+facet_labels_lgi_cnb_controlled <-
+  results_lgi_cnb_full |>
+  filter(controlled) |>
+  mutate(
+    label = str_trim(str_c(str_to_title(domain), significance, sep = " "))
+  ) |>
+  select(domain, label) |>
+  tibble::deframe()
+
+data_controlled <- data_lgi_cnb_full |>
+  group_by(domain) |>
+  drop_na(lgi, cnb, etiv) |>
+  mutate(
+    lgi_resid = resid(lm(lgi ~ etiv)),
+    cnb_resid = resid(lm(cnb ~ etiv))
+  ) |>
+  ungroup()
+
+plot_lgi_cnb_full_controlled <-
+  ggplot(
+    data = data_controlled,
+    mapping = aes(x = lgi_resid, y = cnb_resid)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb_controlled)) +
+  labs(
+    title = "Relationship Between Global LGI and CNB Efficiency",
+    subtitle = "CNB ~ LGI + eTIV",
+    x = "Global LGI (eTIV Regressed)",
+    y = "CNB Efficiency (Age and eTIV Regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_cnb_full_controlled
 ```
 
 ## Clean Subsample
