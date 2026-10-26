@@ -821,6 +821,59 @@ plot_loadings <- ggplot() +
   theme_void()
 
 plot_loadings
+
+
+tmp_clinical <-
+  clinical |>
+  filter(
+    type == "bifactor",
+    factor %in% c("psychosis_positive", "psychosis_negative")
+  ) |>
+  select(bblid, factor, value) |>
+  pivot_wider(values_from = value, names_from = factor)
+
+tmp_lgi <-
+  bind_cols(select(tmp, bblid), as_tibble(fa_lgi$scores))
+
+data_lgi_factors <-
+  inner_join(tmp_clinical, tmp_lgi, by = "bblid") |>
+  pivot_longer(cols = starts_with("psychosis"), names_to = "factor", values_to = "psychosis") |>
+  pivot_longer(cols = starts_with("MR"), names_to = "region", values_to = "regional_lgi") |>
+  drop_na()
+
+test_lgi_factors <-
+  data_lgi_factors |>
+  select(region, factor) |>
+  unique() |>
+  mutate(
+    test = map2(
+      region, factor, \(r, f) {
+        lm(
+          psychosis ~ regional_lgi,
+          data = data_lgi_factors |>
+            filter(region == r, factor == f)
+        )
+      }
+    )
+  )
+
+results_lgi_factors <-
+  test_lgi_factors |>
+  mutate(
+    results = map(test, \(test) {
+      test |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "regional_lgi") |>
+        select(-term)
+    })
+  ) |>
+  unnest(results) |>
+  group_by(factor) |>
+  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  ungroup()
+
+results_lgi_factors
 ```
 
 ## Differences in Regional LGI between Psychosis and TD
