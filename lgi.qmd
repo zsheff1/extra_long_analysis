@@ -15,6 +15,7 @@ library(kableExtra)
 library(ComplexUpset)
 library(broom)
 library(psych)
+library(ggseg)
 
 # Source
 source("R/plotting.R")
@@ -757,6 +758,69 @@ fa_lgi <- psych::fa(
   rotate = "oblimin",
   scores = "regression"
 )
+
+loadings_lgi <- fa_lgi$loadings |>
+  unclass() |>
+  as_tibble(rownames = "roi") |>
+  pivot_longer(
+    -roi,
+    names_to = "factor",
+    values_to = "loading"
+  ) |>
+  separate(
+    roi,
+    into = c("region", "hemi"),
+    sep = "_(?=[^_]+$)"
+  ) |>
+  mutate(
+    region = str_replace_all(region, c(
+      "bankssts" = "banks of superior temporal sulcus",
+      "caudalanteriorcingulate" = "caudal anterior cingulate",
+      "caudalmiddlefrontal" = "caudal middle frontal",
+      "frontalpole" = "frontal pole",
+      "inferiorparietal" = "inferior parietal",
+      "inferiortemporal" = "inferior temporal",
+      "isthmuscingulate" = "isthmus cingulate",
+      "lateraloccipital" = "lateral occipital",
+      "lateralorbitofrontal" = "lateral orbitofrontal",
+      "medialorbitofrontal" = "medial orbitofrontal",
+      "middletemporal" = "middle temporal",
+      "parsopercularis" = "pars opercularis",
+      "parsorbitalis" = "pars orbitalis",
+      "parstriangularis" = "pars triangularis",
+      "posteriorcingulate" = "posterior cingulate",
+      "rostralanteriorcingulate" = "rostral anterior cingulate",
+      "rostralmiddlefrontal" = "rostral middle frontal",
+      "superiorfrontal" = "superior frontal",
+      "superiorparietal" = "superior parietal",
+      "superiortemporal" = "superior temporal",
+      "temporalpole" = "temporal pole",
+      "transversetemporal" = "transverse temporal"
+    )),
+    factor = factor(
+      factor,
+      levels = paste0("MR", 1:14)
+    )
+  )
+
+plot_loadings <- ggplot() +
+  geom_brain(
+    atlas = dk(),
+    data = loadings_lgi |> group_by(factor),
+    mapping = aes(fill = loading),
+    position = position_brain(hemi ~ view)
+  ) +
+  facet_wrap(~ factor) +
+  scale_fill_gradient2(
+    low = "purple",
+    mid = "white",
+    high = "orange",
+    midpoint = 0,
+    limits = c(-1, 1)
+  ) +
+  theme_void()
+
+plot_loadings
 ```
 
 ## Differences in Regional LGI between Psychosis and TD
