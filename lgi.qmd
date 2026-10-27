@@ -5,6 +5,10 @@ author: "Zachary Heffernan"
 date: today
 ---
 
+::: {.content-visible when-profile="scratch"}
+
+# Set Up
+
 ```{r}
 #| label: set up
 # Import Libraries
@@ -57,6 +61,8 @@ raw_env_trauma <- read_csv(path_env_trauma)
 
 raw_goassess <- read_csv(path_goassess)
 ```
+
+# Clean Data
 
 ```{r}
 #| label: clean data
@@ -185,6 +191,8 @@ goassess_bin <-
     }
   ))
 ```
+
+:::
 
 # Sample Description
 
