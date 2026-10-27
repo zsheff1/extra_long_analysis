@@ -459,7 +459,7 @@ data_lgi_volume <- raw_imaging |>
   select(bblid, region, area, lgi, volume) |>
   drop_na()
 
-cor_lgi_volume <- data_lgi_volume |>
+test_lgi_volume <- data_lgi_volume |>
   group_by(region) |>
   summarize(
     cor.test(lgi, volume) |>
@@ -485,7 +485,7 @@ cor_lgi_volume <- data_lgi_volume |>
     )
   )
 
-cor_lgi_volume |>
+test_lgi_volume |>
   select(region, laterality, r, ci, p, p_fdr, significance) |>
   arrange(region, laterality) |>
   kbl(
@@ -598,89 +598,84 @@ data_lgi_psy_regional <-
 
 test_lgi_psy_regional <-
   data_lgi_psy_regional |>
-  select(region, factor) |>
-  unique() |>
-  mutate(
-    test = map2(
-      region, factor, \(r, f) {
-        lm(
-          psychosis ~ regional_lgi,
-          data = data_lgi_psy_regional |>
-            filter(region == r, factor == f)
-        )
-      }
-    )
-  )
-
-results_lgi_psy_regional <-
-  test_lgi_psy_regional |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "regional_lgi") |>
-        select(-term)
-    })
+  group_by(factor, region) |>
+  summarize(
+    lm(psychosis ~ regional_lgi) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "regional_lgi"),
+    .groups = "drop_last"
   ) |>
-  unnest(results) |>
-  group_by(factor) |>
-  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  separate(region, into = c("region", "laterality"), sep = "_") |>
+  rename(b = estimate, p = p_value) |>
+  mutate(
+    region = roi_mapping[region],
+    laterality = str_to_title(laterality),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
   ungroup()
 
-results_lgi_psy_regional |>
-  filter(factor == "psychosis_positive", p_value < 0.05) |>
-  arrange(desc(abs(estimate))) |>
-  select(region, estimate, p_value, p_fdr) |>
+test_lgi_psy_regional |>
+  filter(factor == "psychosis_positive", p < 0.05) |>
+  select(region, laterality, b, ci, p, p_fdr, significance) |>
+  arrange(desc(abs(b))) |>
   kbl(
+    col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Positive Factor (before multiple comparison correction)",
   )
 
-results_lgi_psy_regional |>
-  filter(factor == "psychosis_negative", p_value < 0.05) |>
-  arrange(desc(abs(estimate))) |>
-  select(region, estimate, p_value, p_fdr) |>
+test_lgi_psy_regional |>
+  filter(factor == "psychosis_negative", p < 0.05) |>
+  select(region, laterality, b, ci, p, p_fdr, significance) |>
+  arrange(desc(abs(b))) |>
   kbl(
+    col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Negative Factor (before multiple comparison correction)",
   )
 
 test_lgi_psy_regional_controlled <-
   data_lgi_psy_regional |>
-  select(region, factor) |>
-  unique() |>
-  mutate(
-    test = map2(
-      region, factor, \(r, f) {
-        lm(
-          psychosis ~ global_lgi + regional_lgi,
-          data = data_lgi_psy_regional |>
-            filter(region == r, factor == f)
-        )
-      }
-    )
-  )
-
-results_lgi_psy_regional_controlled <-
-  test_lgi_psy_regional_controlled |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "regional_lgi") |>
-        select(-term)
-    })
+  group_by(factor, region) |>
+  summarize(
+    lm(psychosis ~ global_lgi + regional_lgi) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "regional_lgi"),
+    .groups = "drop_last"
   ) |>
-  unnest(results) |>
-  group_by(factor) |>
-  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  separate(region, into = c("region", "laterality"), sep = "_") |>
+  rename(b = estimate, p = p_value) |>
+  mutate(
+    region = roi_mapping[region],
+    laterality = str_to_title(laterality),
+    factor = str_to_title(str_replace_all(factor, "_", " ")),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
   ungroup()
 
-results_lgi_psy_regional_controlled |>
-  filter(p_value < 0.05) |>
-  arrange(desc(abs(estimate))) |>
-  select(region, factor, estimate, p_value, p_fdr) |>
+test_lgi_psy_regional_controlled |>
+  filter(p < 0.05) |>
+  select(region, laterality, factor, b, ci, p, p_fdr, significance) |>
+  arrange(desc(abs(b))) |>
   kbl(
+    col.names = c("Region", "Laterality", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
   )
 ```
@@ -727,35 +722,23 @@ data_lgi_psy_lobular <-
 
 test_lgi_psy_lobular <-
   data_lgi_psy_lobular |>
-  select(lobe, factor) |>
-  unique() |>
-  mutate(
-    test = map2(
-      lobe, factor, \(l, f) {
-        lm(
-          psychosis ~ lobular_lgi,
-          data = data_lgi_psy_lobular |>
-            filter(lobe == l, factor == f)
-        )
-      }
-    )
-  )
-
-results_lgi_psy_lobular <-
-  test_lgi_psy_lobular |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "lobular_lgi") |>
-        select(-term)
-    })
+  group_by(factor, lobe) |>
+  summarize(
+    lm(psychosis ~ lobular_lgi) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "lobular_lgi"),
+    .groups = "drop_last"
   ) |>
-  unnest(results) |>
-  group_by(factor) |>
+  rename(b = estimate, p = p_value) |>
   mutate(
-    p_fdr = p.adjust(p_value, method = "fdr"),
+    factor = str_to_title(str_replace_all(factor, "_", " ")),
+    lobe = factor(
+      str_to_title(lobe),
+      levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
+    ),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
       p_fdr < 0.01 ~ "**",
@@ -765,9 +748,13 @@ results_lgi_psy_lobular <-
   ) |>
   ungroup()
 
-results_lgi_psy_lobular |>
-  select(lobe, factor, estimate, p_value, p_fdr, significance) |>
-  kbl()
+test_lgi_psy_lobular |>
+  select(lobe, factor, b, ci, p, p_fdr, significance) |>
+  arrange(lobe, desc(factor)) |>
+  kbl(
+    col.names = c("Lobe", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 5, 5, NA)
+  )
 
 plot_frontal_positive <-
   ggplot(
@@ -904,37 +891,35 @@ data_lgi_factors <-
 
 test_lgi_factors <-
   data_lgi_factors |>
-  select(region, factor) |>
-  unique() |>
-  mutate(
-    test = map2(
-      region, factor, \(r, f) {
-        lm(
-          psychosis ~ regional_lgi,
-          data = data_lgi_factors |>
-            filter(region == r, factor == f)
-        )
-      }
-    )
-  )
-
-results_lgi_factors <-
-  test_lgi_factors |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "regional_lgi") |>
-        select(-term)
-    })
+  group_by(factor, region) |>
+  summarize(
+    lm(psychosis ~ regional_lgi) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "regional_lgi"),
+    .groups = "drop_last"
   ) |>
-  unnest(results) |>
-  group_by(factor) |>
-  mutate(p_fdr = p.adjust(p_value, method = "fdr")) |>
+  rename(b = estimate, p = p_value) |>
+  mutate(
+    factor = str_to_title(str_replace_all(factor, "_", " ")),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
   ungroup()
 
-results_lgi_factors
+test_lgi_factors |>
+  select(region, factor, b, ci, p, p_fdr, significance) |>
+  arrange(region, desc(factor)) |>
+  kbl(
+    col.names = c("Region", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 5, 5, NA)
+  )
 ```
 
 ### Differences in Regional LGI between Psychosis and TD
@@ -2478,13 +2463,11 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 ```{r}
 #| label: lgi cnb full sample
 data_lgi_cnb_full <-
-  full_join(data_etiv, global_lgi, by = "bblid") |>
-  full_join(
     cnb |>
-      rename(cnb = value) |>
-      filter(measure == "efficiency"),
-    by = "bblid"
-  ) |>
+    rename(cnb = value) |>
+    filter(measure == "efficiency") |>
+  full_join(data_etiv, by = "bblid") |>
+  full_join(global_lgi, by = "bblid") |>
   select(bblid, lgi, etiv, domain, cnb)
 
 test_lgi_cnb_full <-
