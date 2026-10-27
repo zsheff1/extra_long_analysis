@@ -25,6 +25,44 @@ library(ggseg)
 source("R/plotting.R")
 source("R/reporting.R")
 
+# Define ROI Mapping
+roi_mapping <- c(
+  bankssts = "Banks of STS",
+  caudalanteriorcingulate = "Caudal Anterior Cingulate",
+  caudalmiddlefrontal = "Caudal Middle Frontal",
+  cuneus = "Cuneus",
+  entorhinal = "Entorhinal",
+  frontalpole = "Frontal Pole",
+  fusiform = "Fusiform",
+  inferiorparietal = "Inferior Parietal",
+  inferiortemporal = "Inferior Temporal",
+  insula = "Insula",
+  isthmuscingulate = "Isthmus of the Cingulate",
+  lateraloccipital = "Lateral Occipital",
+  lateralorbitofrontal = "Lateral Orbitofrontal",
+  lingual = "Lingual",
+  medialorbitofrontal = "Medial Orbitofrontal",
+  middletemporal = "Middle Temporal",
+  paracentral = "Paracentral",
+  parahippocampal = "Parahippocampal",
+  parsopercularis = "Pars Opercularis",
+  parsorbitalis = "Pars Orbitalis",
+  parstriangularis = "Pars Triangularis",
+  pericalcarine = "Pericalcarine",
+  postcentral = "Postcentral",
+  posteriorcingulate = "Posterior Cingulate",
+  precentral = "Precentral",
+  precuneus = "Precuneus",
+  rostralanteriorcingulate = "Rostral Anterior Cingulate",
+  rostralmiddlefrontal = "Rostral Middle Frontal",
+  superiorfrontal = "Superior Frontal",
+  superiorparietal = "Superior Parietal",
+  superiortemporal = "Superior Temporal",
+  supramarginal = "Supramarginal",
+  temporalpole = "Temporal Pole",
+  transversetemporal = "Transverse Temporal"
+)
+
 # Define Paths
 dir_dataset <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
@@ -910,37 +948,38 @@ data_regional_psy <-
 test_regional_psy <-
   data_regional_psy |>
   group_by(region) |>
-  summarize(test = list(t.test(lgi ~ psy)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ psy) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ psy)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  separate(region, into = c("region", "laterality"), sep = "_") |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    mean_false = map_dbl(test, list("estimate", 1)),
-    mean_true = map_dbl(test, list("estimate", 2)),
-    p_value = map_dbl(test, "p.value"),
-    p_fdr = p.adjust(p_value, method = "fdr"),
-    direction = case_when(
-      mean_true > mean_false & p_fdr < 0.05 ~ "greater than",
-      mean_true < mean_false & p_fdr < 0.05 ~ "less than",
-      TRUE ~ ""
-    ),
+    region = roi_mapping[region],
+    laterality = str_to_title(laterality),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
-results_regional_psy <-
-  test_regional_psy |>
-  mutate(pct_diff = (mean_true - mean_false) / mean_false * 100) |>
-  select(region, mean_false, mean_true, pct_diff, p_value, p_fdr, significance) |>
-  arrange(desc(abs(pct_diff))) |>
-  mutate(pct_diff = sprintf("%.2f%%", pct_diff)) |>
-  kbl(digits = c(NA, 3, 3, NA, 5, 5, NA))
-
-results_regional_psy
+test_regional_psy |>
+  select(region, laterality, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Region", "Laterality", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 # Psychopathology (Factor Scores)
@@ -1312,11 +1351,20 @@ kable_lgi_anx_sub
 test_lgi_anx_sub <-
   data_lgi_anx_sub |>
   group_by(disorder) |>
-  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    p = map_dbl(test, "p.value"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1324,11 +1372,14 @@ test_lgi_anx_sub <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
 test_lgi_anx_sub |>
-  kbl()
+  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 ### Results - Individual Disorders
@@ -1548,11 +1599,20 @@ kable_lgi_beh_sub
 test_lgi_beh_sub <-
   data_lgi_beh_sub |>
   group_by(disorder) |>
-  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    p = map_dbl(test, "p.value"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1560,11 +1620,14 @@ test_lgi_beh_sub <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
 test_lgi_beh_sub |>
-  kbl()
+  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 ### Results - Individual Disorders
@@ -1783,11 +1846,20 @@ kable_lgi_eat_sub
 test_lgi_eat_sub <-
   data_lgi_eat_sub |>
   group_by(disorder) |>
-  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    p = map_dbl(test, "p.value"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1795,11 +1867,14 @@ test_lgi_eat_sub <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
 test_lgi_eat_sub |>
-  kbl()
+  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 ### Results - Individual Disorders
@@ -2018,11 +2093,20 @@ kable_lgi_mood_sub
 test_lgi_mood_sub <-
   data_lgi_mood_sub |>
   group_by(disorder) |>
-  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    p = map_dbl(test, "p.value"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -2030,11 +2114,14 @@ test_lgi_mood_sub <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
 test_lgi_mood_sub |>
-  kbl()
+  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 ### Results - Individual Disorders
@@ -2268,11 +2355,20 @@ kable_lgi_psy_sub
 test_lgi_psy_sub <-
   data_lgi_psy_sub |>
   group_by(disorder) |>
-  summarize(test = list(t.test(lgi ~ status)), .groups = "drop") |>
+  summarize(
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    .groups = "drop"
+  ) |>
+  rename(
+    mean_difference = estimate,
+    t = statistic,
+    p = p_value
+  ) |>
   mutate(
-    df = map_dbl(test, "parameter"),
-    t = map_dbl(test, "statistic"),
-    p = map_dbl(test, "p.value"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -2280,11 +2376,14 @@ test_lgi_psy_sub <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  select(-test)
+  )
 
 test_lgi_psy_sub |>
-  kbl()
+  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+  kbl(
+    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+  )
 ```
 
 ### Results - Individual Disorders
