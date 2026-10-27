@@ -51,3 +51,16 @@ report_t_test <- function(test, sigfigs = 3) {
     sep = ", "
   )
 }
+
+report_aic <- function(models) {
+  models |>
+    tibble::enframe(name = "identifier", value = "model") |>
+    dplyr::mutate(
+      formula = purrr::map_chr(model, \(x) deparse1(stats::formula(x))),
+      df = purrr::map_dbl(model, \(x) attr(stats::logLik(x), "df")),
+      aic = purrr::map_dbl(model, \(x) stats::AIC(x)),
+      delta_aic = aic - min(aic)
+    ) |>
+    dplyr::select(-model) |>
+    dplyr::arrange(delta_aic)
+}

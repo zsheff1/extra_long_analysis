@@ -2641,17 +2641,16 @@ Model 2 had a lower AIC than Model 1 (ΔAIC = 4.19), indicating greater support 
 
 ```{r}
 #| label: lgi age selection
-aic_lgi_age <-
-  AIC(
-    model_lgi_age_1,
-    model_lgi_age_2
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_age <- report_aic(list(
+  model_lgi_age_1 = model_lgi_age_1,
+  model_lgi_age_2 = model_lgi_age_2
+))
 
 aic_lgi_age |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -2783,17 +2782,16 @@ Both models exhibited nearly identical AIC values (ΔAIC < 0.001), indicating co
 
 ```{r}
 #| label: lgi ses selection
-aic_lgi_ses <-
-  AIC(
-    model_lgi_ses_1,
-    model_lgi_ses_2
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_ses <- report_aic(list(
+  model_lgi_ses_1 = model_lgi_ses_1,
+  model_lgi_ses_2 = model_lgi_ses_2
+))
 
 aic_lgi_ses |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -2887,7 +2885,7 @@ data_lgi_sex <-
   drop_na()
 ```
 
-### Model Selection
+### Check Model
 
 ```{r}
 #| label: lgi sex final
@@ -3030,17 +3028,16 @@ Model 2 had a lower AIC than Model 1 (ΔAIC = 1.73), indicating a slight prefere
 
 ```{r}
 #| label: lgi trauma selection
-aic_lgi_trauma <-
-  AIC(
-    model_lgi_trauma_1,
-    model_lgi_trauma_2
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_trauma <- report_aic(list(
+  model_lgi_trauma_1 = model_lgi_trauma_1,
+  model_lgi_trauma_2 = model_lgi_trauma_2
+))
 
 aic_lgi_trauma |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -3247,19 +3244,18 @@ All four models exhibited similar AIC values (ΔAIC < 2), indicating comparable 
 
 ```{r}
 #| label: lgi age ses selection
-aic_lgi_age_ses <-
-  AIC(
-    model_lgi_age_ses_1,
-    model_lgi_age_ses_2,
-    model_lgi_age_ses_3,
-    model_lgi_age_ses_4
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_age_ses <- report_aic(list(
+  model_lgi_age_ses_1 = model_lgi_age_ses_1,
+  model_lgi_age_ses_2 = model_lgi_age_ses_2,
+  model_lgi_age_ses_3 = model_lgi_age_ses_3,
+  model_lgi_age_ses_4 = model_lgi_age_ses_4
+))
 
 aic_lgi_age_ses |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -3565,18 +3561,17 @@ All three models exhibited similar AIC values (ΔAIC < 2), indicating comparable
 
 ```{r}
 #| label: lgi age sex selection
-aic_lgi_age_sex <-
-  AIC(
-    model_lgi_age_sex_1,
-    model_lgi_age_sex_2,
-    model_lgi_age_sex_3
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_age_sex <- report_aic(list(
+  model_lgi_age_sex_1 = model_lgi_age_sex_1,
+  model_lgi_age_sex_2 = model_lgi_age_sex_2,
+  model_lgi_age_sex_3 = model_lgi_age_sex_3
+))
 
 aic_lgi_age_sex |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -3797,19 +3792,18 @@ All four models exhibited similar AIC values (ΔAIC < 2), indicating comparable 
 
 ```{r}
 #| label: lgi age trauma selection
-aic_lgi_age_trauma <-
-  AIC(
-    model_lgi_age_trauma_1,
-    model_lgi_age_trauma_2,
-    model_lgi_age_trauma_3,
-    model_lgi_age_trauma_4
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_age_trauma <- report_aic(list(
+  model_lgi_age_trauma_1 = model_lgi_age_trauma_1,
+  model_lgi_age_trauma_2 = model_lgi_age_trauma_2,
+  model_lgi_age_trauma_3 = model_lgi_age_trauma_3,
+  model_lgi_age_trauma_4 = model_lgi_age_trauma_4
+))
 
 aic_lgi_age_trauma |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -4153,21 +4147,20 @@ All six models exhibited similar AIC values (ΔAIC < 2), indicating comparable m
 
 ```{r}
 #| label: lgi ses sex selection
-aic_lgi_ses_sex <-
-  AIC(
-    model_lgi_ses_sex_1,
-    model_lgi_ses_sex_2,
-    model_lgi_ses_sex_3,
-    model_lgi_ses_sex_4,
-    model_lgi_ses_sex_5,
-    model_lgi_ses_sex_6
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_ses_sex <- report_aic(list(
+  model_lgi_ses_sex_1 = model_lgi_ses_sex_1,
+  model_lgi_ses_sex_2 = model_lgi_ses_sex_2,
+  model_lgi_ses_sex_3 = model_lgi_ses_sex_3,
+  model_lgi_ses_sex_4 = model_lgi_ses_sex_4,
+  model_lgi_ses_sex_5 = model_lgi_ses_sex_5,
+  model_lgi_ses_sex_6 = model_lgi_ses_sex_6
+))
 
 aic_lgi_ses_sex |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -4392,19 +4385,18 @@ All four models exhibited relatively similar AIC values, with Models 1, 2, and 4
 
 ```{r}
 #| label: lgi ses trauma selection
-aic_lgi_ses_trauma <-
-  AIC(
-    model_lgi_ses_trauma_1,
-    model_lgi_ses_trauma_2,
-    model_lgi_ses_trauma_3,
-    model_lgi_ses_trauma_4
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_ses_trauma <- report_aic(list(
+  model_lgi_ses_trauma_1 = model_lgi_ses_trauma_1,
+  model_lgi_ses_trauma_2 = model_lgi_ses_trauma_2,
+  model_lgi_ses_trauma_3 = model_lgi_ses_trauma_3,
+  model_lgi_ses_trauma_4 = model_lgi_ses_trauma_4
+))
 
 aic_lgi_ses_trauma |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
@@ -4729,20 +4721,19 @@ All five models exhibited similar AIC values (ΔAIC < 2), indicating comparable 
 
 ```{r}
 #| label: lgi sex trauma selection
-aic_lgi_sex_trauma <-
-  AIC(
-    model_lgi_sex_trauma_1,
-    model_lgi_sex_trauma_2,
-    model_lgi_sex_trauma_3,
-    model_lgi_sex_trauma_4,
-    model_lgi_sex_trauma_5
-  ) |>
-  clean_names() |>
-  mutate(delta_aic = aic - min(aic)) |>
-  arrange(delta_aic)
+aic_lgi_sex_trauma <- report_aic(list(
+  model_lgi_sex_trauma_1 = model_lgi_sex_trauma_1,
+  model_lgi_sex_trauma_2 = model_lgi_sex_trauma_2,
+  model_lgi_sex_trauma_3 = model_lgi_sex_trauma_3,
+  model_lgi_sex_trauma_4 = model_lgi_sex_trauma_4,
+  model_lgi_sex_trauma_5 = model_lgi_sex_trauma_5
+))
 
 aic_lgi_sex_trauma |>
-  kbl()
+  kbl(
+    col.names = c("", "Formula", "df", "AIC", "ΔAIC"),
+    digits = 2
+  )
 ```
 
 #### Check Final Model
