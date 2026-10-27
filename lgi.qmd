@@ -461,27 +461,37 @@ data_lgi_volume <- raw_imaging |>
 
 cor_lgi_volume <- data_lgi_volume |>
   group_by(region) |>
-  summarise(
-    r = cor(lgi, volume),
-    p = cor.test(lgi, volume)$p.value,
+  summarize(
+    cor.test(lgi, volume) |>
+      tidy() |>
+      clean_names(),
     .groups = "drop"
   ) |>
-  mutate(p_fdr = p.adjust(p, method = "fdr")) |>
-  arrange(desc(r))
+  separate(region, into = c("laterality", "region"), sep = "_") |>
+  rename(
+    r = estimate,
+    p = p_value
+  ) |>
+  mutate(
+    region = roi_mapping[region],
+    laterality = str_to_title(laterality),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  )
 
 cor_lgi_volume |>
-  mutate(
-    across(c(r, p, p_fdr), \(x) signif(x, 3)),
-    across(everything(), as.character)
-  ) |>
-  (\(x) {
-    bind_rows(
-      head(x, 5),
-      as_tibble_row(setNames(rep("...", ncol(x)), names(x))),
-      tail(x, 5)
-    )
-  })() |>
-  kbl()
+  select(region, laterality, r, ci, p, p_fdr, significance) |>
+  arrange(region, laterality) |>
+  kbl(
+    col.names = c("Region", "Laterality", "r", "95% CI", "p", "pFDR", ""),
+    digits = c(NA, NA, 3, NA, 5, 5, NA)
+  )
 
 model_lgi_volume <- lmerTest::lmer(
   lgi ~ volume + region + (1 | bblid),
