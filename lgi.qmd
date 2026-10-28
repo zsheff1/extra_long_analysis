@@ -941,6 +941,33 @@ test_regional_psy |>
     align = "llrrrrrrl",
     digits = c(NA, NA, 3, NA, 3, 3, 5, 5, NA)
   )
+
+plot_regional_psy <-
+  ggplot() +
+  geom_brain(
+    atlas = dk(),
+    data = test_regional_psy |>
+      mutate(
+        region = str_replace_all(
+          setNames(names(roi_mapping), roi_mapping)[region],
+          ggseg_mapping
+        ),
+        hemi = str_to_lower(laterality),
+        cohens_d = replace_when(cohens_d, p_fdr >= 0.05 ~ NA)
+      ),
+    mapping = aes(fill = cohens_d),
+    position = position_brain(view ~ hemi)
+  ) +
+  scale_fill_viridis_c() +
+  labs(
+    title = "Differences in LGI Between TD and PSY",
+    caption = "Only differences with pFDR < 0.05 are shown.",
+    fill = "Cohen's d"
+  ) +
+  theme_void() +
+  theme(plot.caption = element_text(hjust = 0))
+
+plot_regional_psy
 ```
 
 # Psychopathology (Factor Scores)
