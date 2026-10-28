@@ -2643,6 +2643,29 @@ test_lgi_cnb_clean |>
     digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Efficiency with Global LGI with and without Controlling for eTIV"
   )
+
+plot_lgi_cnb_clean <-
+  ggplot(
+    data = data_lgi_cnb_clean |> filter(domain == "Motor"),
+    mapping = aes(x = lgi, y = cnb)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Relationship Between Global LGI and CNB Motor Efficiency",
+    subtitle = "CNB ~ LGI",
+    x = "Global LGI",
+    y = "CNB Motor Efficiency (Age Regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_cnb_clean
 ```
 
 # Main Effects
