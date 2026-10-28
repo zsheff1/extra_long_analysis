@@ -749,7 +749,7 @@ plot_frontal_positive <-
       filter(lobe == "frontal", factor == "psychosis_positive"),
     mapping = aes(x = lobular_lgi, y = psychosis)
   ) +
-  geom_point() +
+  geom_point(alpha = 0.25, size = 1) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
@@ -852,9 +852,9 @@ plot_loadings <- ggplot() +
   ) +
   facet_wrap(~ factor) +
   scale_fill_gradient2(
-    low = "purple",
+    low = my_red,
     mid = "white",
-    high = "orange",
+    high = my_green,
     midpoint = 0,
     limits = c(-1, 1)
   ) +
@@ -2559,11 +2559,13 @@ plot_lgi_cnb_full <-
     data = data_lgi_cnb_full,
     mapping = aes(x = lgi, y = cnb)
   ) +
-  geom_point(alpha = 0.25, size = 1) +
+  geom_point(alpha = 0.1, size = 1) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
     se = TRUE,
+    color = "black",
+    fill = "black",
     linewidth = 0.75,
     alpha = 0.5
   ) +
@@ -2610,11 +2612,13 @@ plot_lgi_cnb_full_controlled <-
     data = data_controlled,
     mapping = aes(x = lgi_resid, y = cnb_resid)
   ) +
-  geom_point(alpha = 0.25, size = 1) +
+  geom_point(alpha = 0.1, size = 1) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
     se = TRUE,
+    color = "black",
+    fill = "black",
     linewidth = 0.75,
     alpha = 0.5
   ) +
@@ -2694,6 +2698,8 @@ plot_lgi_cnb_clean <-
     method = "lm",
     formula = y ~ x,
     se = TRUE,
+    color = "black",
+    fill = "black",
     linewidth = 0.75,
     alpha = 0.5
   ) +
