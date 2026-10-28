@@ -628,6 +628,7 @@ test_lgi_psy_regional |>
   arrange(desc(abs(b))) |>
   kbl(
     col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Positive Factor (before multiple comparison correction)",
   )
@@ -638,6 +639,7 @@ test_lgi_psy_regional |>
   arrange(desc(abs(b))) |>
   kbl(
     col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Negative Factor (before multiple comparison correction)",
   )
@@ -675,6 +677,7 @@ test_lgi_psy_regional_controlled |>
   arrange(desc(abs(b))) |>
   kbl(
     col.names = c("Region", "Laterality", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, NA, 3, NA, 5, 5, NA),
     caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
   )
@@ -753,6 +756,7 @@ test_lgi_psy_lobular |>
   arrange(lobe, desc(factor)) |>
   kbl(
     col.names = c("Lobe", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
 
@@ -918,6 +922,7 @@ test_lgi_factors |>
   arrange(region, desc(factor)) |>
   kbl(
     col.names = c("Region", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
 ```
@@ -973,6 +978,7 @@ test_regional_psy |>
   select(region, laterality, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
   kbl(
     col.names = c("Region", "Laterality", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "llrrrrrrl",
     digits = c(NA, NA, 3, NA, 3, 3, 5, 5, NA)
   )
 ```
@@ -1373,6 +1379,7 @@ test_lgi_anx_sub |>
   select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
   kbl(
     col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrl",
     digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
   )
 ```
@@ -1621,6 +1628,7 @@ test_lgi_beh_sub |>
   select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
   kbl(
     col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrl",
     digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
   )
 ```
@@ -1868,6 +1876,7 @@ test_lgi_eat_sub |>
   select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
   kbl(
     col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrl",
     digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
   )
 ```
@@ -2377,6 +2386,7 @@ test_lgi_psy_sub |>
   select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
   kbl(
     col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrl",
     digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
   )
 ```
@@ -2463,50 +2473,33 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 ```{r}
 #| label: lgi cnb full sample
 data_lgi_cnb_full <-
-    cnb |>
-    rename(cnb = value) |>
-    filter(measure == "efficiency") |>
+  cnb |>
   full_join(data_etiv, by = "bblid") |>
   full_join(global_lgi, by = "bblid") |>
+  rename(cnb = value) |>
+  filter(measure == "efficiency") |>
+  mutate(domain = fct_relabel(domain, str_to_title)) |>
   select(bblid, lgi, etiv, domain, cnb)
 
 test_lgi_cnb_full <-
-  crossing(
-    domain = data_lgi_cnb_full |>
-      pull(domain) |>
-      unique(),
-    controlled = c(TRUE, FALSE)
-  ) |>
+  data_lgi_cnb_full |>
+  crossing(controlled = c(TRUE, FALSE)) |>
+  group_by(controlled, domain) |>
+  summarize(
+    lm(
+      reformulate(
+        termlabels = if(first(controlled)) c("lgi", "etiv") else "lgi",
+        response = "cnb"
+      )
+    ) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "lgi"),
+    .groups = "drop_last") |>
+  rename(b = estimate, p = p_value) |>
   mutate(
-    test = map2(
-      domain, controlled, \(d, controlled) {
-        lm(
-          reformulate(
-            termlabels = if (controlled) c("lgi", "etiv") else "lgi",
-            response = "cnb"
-          ),
-          data = data_lgi_cnb_full |>
-            filter(domain == d)
-        )
-      }
-    )
-  )
-
-results_lgi_cnb_full <-
-  test_lgi_cnb_full |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "lgi") |>
-        select(-term)
-    })
-  ) |>
-  unnest(results) |>
-  group_by(controlled) |>
-  mutate(
-    p_fdr = p.adjust(p_value, method = "fdr"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
       p_fdr < 0.01 ~ "**",
@@ -2516,18 +2509,21 @@ results_lgi_cnb_full <-
   ) |>
   ungroup()
 
-results_lgi_cnb_full |>
+test_lgi_cnb_full |>
   filter(!controlled) |>
-  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
-  arrange(controlled, domain) |>
-  kbl()
+  select(domain, b, ci, p, p_fdr, significance) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Efficiency with Global LGI"
+  )
 
 facet_labels_lgi_cnb <-
-  results_lgi_cnb_full |>
+  test_lgi_cnb_full |>
   filter(!controlled) |>
-  mutate(
-    label = str_trim(str_c(str_to_title(domain), significance, sep = " "))
-  ) |>
+  mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
   select(domain, label) |>
   tibble::deframe()
 
@@ -2555,18 +2551,21 @@ plot_lgi_cnb_full <-
 
 plot_lgi_cnb_full
 
-results_lgi_cnb_full |>
+test_lgi_cnb_full |>
   filter(controlled) |>
-  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
-  arrange(controlled, domain) |>
-  kbl()
+  select(domain, b, ci, p, p_fdr, significance) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Efficiency with Global LGI Controlling for eTIV"
+  )
 
 facet_labels_lgi_cnb_controlled <-
-  results_lgi_cnb_full |>
+  test_lgi_cnb_full |>
   filter(controlled) |>
-  mutate(
-    label = str_trim(str_c(str_to_title(domain), significance, sep = " "))
-  ) |>
+  mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
   select(domain, label) |>
   tibble::deframe()
 
@@ -2611,53 +2610,34 @@ In the Clean Subsample, Global LGI is significantly positively associated with M
 ```{r}
 #| label: lgi cnb clean subsample
 data_lgi_cnb_clean <-
-  full_join(data_etiv, global_lgi, by = "bblid") |>
-  full_join(
-    cnb |>
-      rename(cnb = value) |>
-      filter(measure == "efficiency"),
-    by = "bblid"
-  ) |>
+  cnb |>
+  full_join(data_etiv, by = "bblid") |>
+  full_join(global_lgi, by = "bblid") |>
   semi_join(clean_subsample, by = "bblid") |>
+  rename(cnb = value) |>
+  filter(measure == "efficiency") |>
+  mutate(domain = fct_relabel(domain, str_to_title)) |>
   select(bblid, lgi, etiv, domain, cnb)
 
 test_lgi_cnb_clean <-
-  crossing(
-    domain = data_lgi_cnb_clean |>
-      pull(domain) |>
-      unique(),
-    controlled = c(TRUE, FALSE)
-  ) |>
+  data_lgi_cnb_clean |>
+  crossing(controlled = c(TRUE, FALSE)) |>
+  group_by(controlled, domain) |>
+  summarize(
+    lm(
+      reformulate(
+        termlabels = if(first(controlled)) c("lgi", "etiv") else "lgi",
+        response = "cnb"
+      )
+    ) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "lgi"),
+    .groups = "drop_last") |>
+  rename(b = estimate, p = p_value) |>
   mutate(
-    test = map2(
-      domain, controlled, \(d, controlled) {
-        lm(
-          reformulate(
-            termlabels = if (controlled) c("lgi", "etiv") else "lgi",
-            response = "cnb"
-          ),
-          data = data_lgi_cnb_clean |>
-            filter(domain == d)
-        )
-      }
-    )
-  )
-
-results_lgi_cnb_clean <-
-  test_lgi_cnb_clean |>
-  mutate(
-    results = map(test, \(test) {
-      test |>
-        tidy() |>
-        clean_names() |>
-        filter(term == "lgi") |>
-        select(-term)
-    })
-  ) |>
-  unnest(results) |>
-  group_by(controlled) |>
-  mutate(
-    p_fdr = p.adjust(p_value, method = "fdr"),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
       p_fdr < 0.01 ~ "**",
@@ -2667,9 +2647,15 @@ results_lgi_cnb_clean <-
   ) |>
   ungroup()
 
-results_lgi_cnb_clean |>
-  select(domain, controlled, estimate, statistic, p_value, p_fdr, significance) |>
-  kbl()
+test_lgi_cnb_clean |>
+  select(domain, controlled, b, ci, p, p_fdr, significance) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "Controlled", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
+    digits = c(NA, NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Efficiency with Global LGI with and without Controlling for eTIV"
+  )
 ```
 
 # Main Effects
