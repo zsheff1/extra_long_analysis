@@ -63,6 +63,31 @@ roi_mapping <- c(
   transversetemporal = "Transverse Temporal"
 )
 
+ggseg_mapping <- c(
+  "bankssts" = "banks of superior temporal sulcus",
+  "caudalanteriorcingulate" = "caudal anterior cingulate",
+  "caudalmiddlefrontal" = "caudal middle frontal",
+  "frontalpole" = "frontal pole",
+  "inferiorparietal" = "inferior parietal",
+  "inferiortemporal" = "inferior temporal",
+  "isthmuscingulate" = "isthmus cingulate",
+  "lateraloccipital" = "lateral occipital",
+  "lateralorbitofrontal" = "lateral orbitofrontal",
+  "medialorbitofrontal" = "medial orbitofrontal",
+  "middletemporal" = "middle temporal",
+  "parsopercularis" = "pars opercularis",
+  "parsorbitalis" = "pars orbitalis",
+  "parstriangularis" = "pars triangularis",
+  "posteriorcingulate" = "posterior cingulate",
+  "rostralanteriorcingulate" = "rostral anterior cingulate",
+  "rostralmiddlefrontal" = "rostral middle frontal",
+  "superiorfrontal" = "superior frontal",
+  "superiorparietal" = "superior parietal",
+  "superiortemporal" = "superior temporal",
+  "temporalpole" = "temporal pole",
+  "transversetemporal" = "transverse temporal"
+)
+
 # Define Paths
 dir_dataset <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
@@ -412,7 +437,7 @@ Local Gyrification Index (LGI) is a measure of cortical gyrification. Prior to c
 
 ### Global LGI vs eTIV
 
-There is a moderate, statistically significant positive correlation between Global LGI and estimated total intracranial volume (eTIV) $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
+There is a significant positive correlation between Global LGI and estimated total intracranial volume (eTIV) $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
 
 ```{r}
 #| label: lgi etiv
@@ -490,76 +515,34 @@ test_lgi_volume |>
   arrange(region, laterality) |>
   kbl(
     col.names = c("Region", "Laterality", "r", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
 
-model_lgi_volume <- lmerTest::lmer(
-  lgi ~ volume + region + (1 | bblid),
-  data = data_lgi_volume,
-  REML = TRUE
-)
-
-result_lgi_volume <-
-  coef(summary(model_lgi_volume)) |>
-  as.data.frame() |>
-  tibble::rownames_to_column("term") |>
-  filter(term == "volume") |>
-  transmute(
-    beta = Estimate * 1000,
-    se = `Std. Error` * 1000,
-    df = df,
-    t = `t value`,
-    p = `Pr(>|t|)`
-  )
-
-report_lgi_volume <-
-  result_lgi_volume |>
-  mutate(
-    report = sprintf(
-      "β = %.5f, SE = %.5f, t(%.0f) = %.2f, p %s",
-      beta,
-      se,
-      df,
-      t,
-      if_else(p < 0.001, "< 0.001", sprintf("= %.3f", p))
-    )
-  ) |>
-  pull(report)
-
-beta_volume <- lme4::fixef(model_lgi_volume)[["volume"]]
-
-data_lgi_volume_plot <-
-  model.frame(model_lgi_volume) |>
-  group_by(region) |>
-  mutate(volume_c = volume - mean(volume)) |>
-  ungroup() |>
-  mutate(
-    volume_c = volume_c / 1000,
-    lgi_adjusted = lgi -
-      as.numeric(predict(model_lgi_volume)) +
-      mean(lgi) +
-      beta_volume * volume_c * 1000
-  )
-
 plot_lgi_volume <-
-  ggplot(
-    data = data_lgi_volume_plot,
-    mapping = aes(x = volume_c, y = lgi_adjusted)
+  ggplot() +
+  geom_brain(
+    atlas = dk(),
+    data = test_lgi_volume |>
+      mutate(
+        region = str_replace_all(
+          setNames(names(roi_mapping), roi_mapping)[region],
+          ggseg_mapping
+        ),
+        hemi = str_to_lower(laterality),
+        r = replace_when(r, p_fdr >= 0.05 ~ NA)
+      ),
+    mapping = aes(fill = r),
+    position = position_brain(view ~ hemi)
   ) +
-  geom_point(alpha = 0.1, size = 0.5) +
-  geom_abline(
-    intercept = mean(data_lgi_volume_plot$lgi),
-    slope = beta_volume * 1000,
-    color = "black",
-    linewidth = 0.75
-  ) +
+  scale_fill_viridis_c(limits = c(0, 1)) +
   labs(
-    title = "Relationship Between Regional LGI and Volume",
-    subtitle = report_lgi_volume,
-    x = "Regional Volume (Centered, 1,000 mm³)",
-    y = "LGI (Adjusted)"
+    title = "Regional Correlations Between LGI and Volume",
+    caption = "Only correlations with pFDR < 0.05 are shown.",
+    fill = "Pearson's r"
   ) +
-  theme_linedraw()
+  theme_void() +
+  theme(plot.caption = element_text(hjust = 0))
 
 plot_lgi_volume
 ```
@@ -825,30 +808,7 @@ loadings_lgi <- fa_lgi$loadings |>
     sep = "_(?=[^_]+$)"
   ) |>
   mutate(
-    region = str_replace_all(region, c(
-      "bankssts" = "banks of superior temporal sulcus",
-      "caudalanteriorcingulate" = "caudal anterior cingulate",
-      "caudalmiddlefrontal" = "caudal middle frontal",
-      "frontalpole" = "frontal pole",
-      "inferiorparietal" = "inferior parietal",
-      "inferiortemporal" = "inferior temporal",
-      "isthmuscingulate" = "isthmus cingulate",
-      "lateraloccipital" = "lateral occipital",
-      "lateralorbitofrontal" = "lateral orbitofrontal",
-      "medialorbitofrontal" = "medial orbitofrontal",
-      "middletemporal" = "middle temporal",
-      "parsopercularis" = "pars opercularis",
-      "parsorbitalis" = "pars orbitalis",
-      "parstriangularis" = "pars triangularis",
-      "posteriorcingulate" = "posterior cingulate",
-      "rostralanteriorcingulate" = "rostral anterior cingulate",
-      "rostralmiddlefrontal" = "rostral middle frontal",
-      "superiorfrontal" = "superior frontal",
-      "superiorparietal" = "superior parietal",
-      "superiortemporal" = "superior temporal",
-      "temporalpole" = "temporal pole",
-      "transversetemporal" = "transverse temporal"
-    )),
+    region = str_replace_all(region, ggseg_mapping),
     factor = factor(
       factor,
       levels = paste0("MR", 1:14)
