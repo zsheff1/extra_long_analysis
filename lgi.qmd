@@ -771,26 +771,54 @@ plot_frontal_positive
 
 ### LGI Factors vs Psychosis Factor
 
+#### Factor Analysis
+
 ```{r}
-#| label: lgi psy pca factor
-tmp <-
+imaging_wide <-
   imaging |>
   mutate(region = str_c(region, laterality, sep = "_")) |>
   select(bblid, region, lgi) |>
   pivot_wider(names_from = region, values_from = lgi) |>
   drop_na()
 
-scree(select(tmp, -bblid), factors = TRUE)
+scree(select(imaging_wide, -bblid), factors = TRUE)
 
-options(mc.cores = 1)
+VSS(
+  select(imaging_wide, -bblid),
+  n = 20,
+  rotate = "oblimin",
+  fm = "minres"
+)
 
-parallel_lgi <- fa.parallel(select(tmp, -bblid), fa = "fa", fm = "minres")
+regional_lgi_residuals <-
+  inner_join(
+    global_lgi |>
+      rename(global_lgi = lgi) |>
+      select(bblid, global_lgi),
+    imaging_wide,
+    by = "bblid"
+  ) |>
+  mutate(across(
+    c(ends_with("_left"), ends_with("_right")),
+    \(x) residuals(mgcv::gam(x ~ s(global_lgi)))
+  ))
+
+scree(select(regional_lgi_residuals, -bblid, -global_lgi), factors = TRUE)
+
+VSS(
+  select(regional_lgi_residuals, -bblid, -global_lgi),
+  n = 20,
+  rotate = "oblimin",
+  fm = "minres"
+)
+
+n_factors <- 5
 
 fa_lgi <- psych::fa(
-  select(tmp, -bblid),
-  nfactors = parallel_lgi$nfact,
+  select(imaging_wide, -bblid),
+  nfactors = n_factors,
   fm = "minres",
-  rotate = "oblimin",
+  rotate = "bifactor",
   scores = "regression"
 )
 
@@ -810,8 +838,8 @@ loadings_lgi <- fa_lgi$loadings |>
   mutate(
     region = str_replace_all(region, ggseg_mapping),
     factor = factor(
-      factor,
-      levels = paste0("MR", 1:14)
+      str_replace_all(factor, "MR", "Factor"),
+      levels = paste0("Factor", 1:n_factors)
     )
   )
 
@@ -820,7 +848,7 @@ plot_loadings <- ggplot() +
     atlas = dk(),
     data = loadings_lgi |> group_by(factor),
     mapping = aes(fill = loading),
-    position = position_brain(hemi ~ view)
+    position = position_brain(view ~ hemi)
   ) +
   facet_wrap(~ factor) +
   scale_fill_gradient2(
@@ -833,24 +861,36 @@ plot_loadings <- ggplot() +
   theme_void()
 
 plot_loadings
+```
 
+#### Results
 
+```{r}
 tmp_clinical <-
   clinical |>
-  filter(
-    type == "bifactor",
-    factor %in% c("psychosis_positive", "psychosis_negative")
-  ) |>
-  select(bblid, factor, value) |>
-  pivot_wider(values_from = value, names_from = factor)
+  filter(type == "bifactor", str_detect(factor, "psychosis")) |>
+  rename(psychosis = value) |>
+  select(bblid, factor, psychosis)
 
 tmp_lgi <-
-  bind_cols(select(tmp, bblid), as_tibble(fa_lgi$scores))
+  bind_cols(select(imaging_wide, bblid), as_tibble(fa_lgi$scores)) |>
+  pivot_longer(
+    cols = starts_with("MR"),
+    names_to = "region",
+    values_to = "regional_lgi"
+  ) |>
+  mutate(region = factor(
+    str_replace_all(region, "MR", "Factor"),
+    levels = paste0("Factor", 1:n_factors)
+  ))
 
 data_lgi_factors <-
-  inner_join(tmp_clinical, tmp_lgi, by = "bblid") |>
-  pivot_longer(cols = starts_with("psychosis"), names_to = "factor", values_to = "psychosis") |>
-  pivot_longer(cols = starts_with("MR"), names_to = "region", values_to = "regional_lgi") |>
+  inner_join(
+    tmp_clinical,
+    tmp_lgi,
+    by = "bblid",
+    relationship = "many-to-many"
+  ) |>
   drop_na()
 
 test_lgi_factors <-
