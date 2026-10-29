@@ -243,9 +243,9 @@ demo_table <- inner_join(
 
 demo_kable <- demo_table |>
   kbl(
-    caption = "GO1 Imaging Sample Demographics",
     col.names = str_replace(names(demo_table), "Characteristic", ""),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "GO1 Imaging Sample Demographics",
   )
 
 row_hierarchy <- demo_table |>
@@ -1157,9 +1157,9 @@ kable_lgi_anx <-
   mutate(disorder = "Anxiety Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Size for Analysis of Anxiety Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Size for Analysis of Anxiety Disorders"
   )
 
 kable_lgi_anx
@@ -1263,9 +1263,9 @@ kable_lgi_anx_sub <-
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Sizes for Analyses of Individual Anxiety Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Sizes for Analyses of Individual Anxiety Disorders"
   )
 
 kable_lgi_anx_sub
@@ -1405,9 +1405,9 @@ kable_lgi_beh <-
   mutate(disorder = "Behavior Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Size for Analysis of Behavior Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Size for Analysis of Behavior Disorders"
   )
 
 kable_lgi_beh
@@ -1508,9 +1508,9 @@ kable_lgi_beh_sub <-
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Sizes for Analyses of Individual Behavior Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Sizes for Analyses of Individual Behavior Disorders"
   )
 
 kable_lgi_beh_sub
@@ -1650,9 +1650,9 @@ kable_lgi_eat <-
   mutate(disorder = "Eating Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Size for Analysis of Eating Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Size for Analysis of Eating Disorders",
   )
 
 kable_lgi_eat
@@ -1753,9 +1753,9 @@ kable_lgi_eat_sub <-
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Sizes for Analyses of Individual Eating Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Sizes for Analyses of Individual Eating Disorders"
   )
 
 kable_lgi_eat_sub
@@ -1895,9 +1895,9 @@ kable_lgi_mood <-
   mutate(disorder = "Mood Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Size for Analysis of Mood Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Size for Analysis of Mood Disorders"
   )
 
 kable_lgi_mood
@@ -1998,9 +1998,9 @@ kable_lgi_mood_sub <-
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Sizes for Analyses of Individual Mood Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Sizes for Analyses of Individual Mood Disorders"
   )
 
 kable_lgi_mood_sub
@@ -2139,9 +2139,9 @@ kable_lgi_psy <-
   mutate(disorder = "Psychotic Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Size for Analysis of Psychotic Disorders",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Size for Analysis of Psychotic Disorders",
   )
 
 kable_lgi_psy
@@ -2255,9 +2255,9 @@ kable_lgi_psy_sub <-
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
   kbl(
-    caption = "Sample Sizes for Analyses of Individual Psychotic Symptoms",
     col.names = c("", "True", "False"),
-    align = c("l", "c", "c")
+    align = "lcc",
+    caption = "Sample Sizes for Analyses of Individual Psychotic Symptoms",
   )
 
 kable_lgi_psy_sub
