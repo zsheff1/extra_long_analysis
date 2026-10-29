@@ -695,13 +695,6 @@ imaging_wide <-
 
 scree(select(imaging_wide, -bblid), factors = TRUE)
 
-VSS(
-  select(imaging_wide, -bblid),
-  n = 10,
-  rotate = "oblimin",
-  fm = "minres"
-)
-
 regional_lgi_residuals <-
   inner_join(
     global_lgi |>
@@ -717,14 +710,7 @@ regional_lgi_residuals <-
 
 scree(select(regional_lgi_residuals, -bblid, -global_lgi), factors = TRUE)
 
-VSS(
-  select(regional_lgi_residuals, -bblid, -global_lgi),
-  n = 10,
-  rotate = "oblimin",
-  fm = "minres"
-)
-
-n_factors <- 5
+n_factors <- 9
 
 fa_lgi <- psych::fa(
   select(imaging_wide, -bblid),
