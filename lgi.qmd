@@ -378,6 +378,8 @@ plot_lgi_etiv
 
 LGI was significantly correlated with volume in all cortical brain regions except the left temporal pole. The strength of the correlation varied widely, from very weak ($r = 0.0832$) in the right temporal pole to very strong ($r = 0.667$) in the right rostral middle frontal area.
 
+::: {.collapsible-table data-rows="5"}
+
 ```{r}
 #| label: lgi volume
 data_lgi_volume <- raw_imaging |>
@@ -450,11 +452,15 @@ plot_lgi_volume <-
 plot_lgi_volume
 ```
 
+:::
+
 ## Regionality of Relationship Between LGI and Psychosis
 
 ### Regional LGI vs Psychosis Factor
 
 Many regions have regional LGI significantly associated with psychosis positive and psychosis negative factors. Some regions for psychosis negative even survive controlling for global lgi. No results survive multiple comparisons correction. It may be helpful to use the literature to determine a priori regions and reduce multiple comparisons.
+
+::: {.collapsible-table data-rows="5"}
 
 ```{r}
 #| label: lgi psy regional factor
@@ -568,6 +574,8 @@ test_lgi_psy_regional_controlled |>
     caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
   )
 ```
+
+:::
 
 ### Lobular LGI vs Psychosis Factor
 
@@ -836,6 +844,8 @@ test_lgi_factors |>
 
 LGI is lower in those with psychosis, relative to controls, in almost all regions, even after correcting for multiple comparisons (62 of 68 regions).
 
+::: {.collapsible-table data-rows="5"}
+
 ```{r}
 #| label: lgi psy regional goa
 data_regional_psy <-
@@ -914,6 +924,8 @@ plot_regional_psy <-
 
 plot_regional_psy
 ```
+
+:::
 
 # Psychopathology (Factor Scores)
 
@@ -4841,3 +4853,39 @@ plot_lgi_sex_trauma <-
 
 plot_lgi_sex_trauma
 ```
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".collapsible-table").forEach(container => {
+    const n = Number(container.dataset.rows ?? 5);
+
+    container.querySelectorAll("table").forEach(table => {
+      const rows = [...table.querySelectorAll("tbody tr")];
+
+      if (rows.length <= n) return;
+
+      rows.slice(n).forEach(row => row.hidden = true);
+
+      const button = document.createElement("button");
+      button.textContent = `Show more`;
+      button.className = "collapsible-table-button";
+
+      let expanded = false;
+
+      button.addEventListener("click", () => {
+        expanded = !expanded;
+
+        rows.slice(n).forEach(row => {
+          row.hidden = !expanded;
+        });
+
+        button.textContent = expanded
+          ? "Show less"
+          : `Show more`;
+      });
+
+      table.insertAdjacentElement("afterend", button);
+    });
+  });
+});
+</script>
