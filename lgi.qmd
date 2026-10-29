@@ -22,71 +22,9 @@ library(psych)
 library(ggseg)
 
 # Source
+source("R/mapping.R")
 source("R/plotting.R")
 source("R/reporting.R")
-
-# Define ROI Mapping
-roi_mapping <- c(
-  bankssts = "Banks of STS",
-  caudalanteriorcingulate = "Caudal Anterior Cingulate",
-  caudalmiddlefrontal = "Caudal Middle Frontal",
-  cuneus = "Cuneus",
-  entorhinal = "Entorhinal",
-  frontalpole = "Frontal Pole",
-  fusiform = "Fusiform",
-  inferiorparietal = "Inferior Parietal",
-  inferiortemporal = "Inferior Temporal",
-  insula = "Insula",
-  isthmuscingulate = "Isthmus of the Cingulate",
-  lateraloccipital = "Lateral Occipital",
-  lateralorbitofrontal = "Lateral Orbitofrontal",
-  lingual = "Lingual",
-  medialorbitofrontal = "Medial Orbitofrontal",
-  middletemporal = "Middle Temporal",
-  paracentral = "Paracentral",
-  parahippocampal = "Parahippocampal",
-  parsopercularis = "Pars Opercularis",
-  parsorbitalis = "Pars Orbitalis",
-  parstriangularis = "Pars Triangularis",
-  pericalcarine = "Pericalcarine",
-  postcentral = "Postcentral",
-  posteriorcingulate = "Posterior Cingulate",
-  precentral = "Precentral",
-  precuneus = "Precuneus",
-  rostralanteriorcingulate = "Rostral Anterior Cingulate",
-  rostralmiddlefrontal = "Rostral Middle Frontal",
-  superiorfrontal = "Superior Frontal",
-  superiorparietal = "Superior Parietal",
-  superiortemporal = "Superior Temporal",
-  supramarginal = "Supramarginal",
-  temporalpole = "Temporal Pole",
-  transversetemporal = "Transverse Temporal"
-)
-
-ggseg_mapping <- c(
-  "bankssts" = "banks of superior temporal sulcus",
-  "caudalanteriorcingulate" = "caudal anterior cingulate",
-  "caudalmiddlefrontal" = "caudal middle frontal",
-  "frontalpole" = "frontal pole",
-  "inferiorparietal" = "inferior parietal",
-  "inferiortemporal" = "inferior temporal",
-  "isthmuscingulate" = "isthmus cingulate",
-  "lateraloccipital" = "lateral occipital",
-  "lateralorbitofrontal" = "lateral orbitofrontal",
-  "medialorbitofrontal" = "medial orbitofrontal",
-  "middletemporal" = "middle temporal",
-  "parsopercularis" = "pars opercularis",
-  "parsorbitalis" = "pars orbitalis",
-  "parstriangularis" = "pars triangularis",
-  "posteriorcingulate" = "posterior cingulate",
-  "rostralanteriorcingulate" = "rostral anterior cingulate",
-  "rostralmiddlefrontal" = "rostral middle frontal",
-  "superiorfrontal" = "superior frontal",
-  "superiorparietal" = "superior parietal",
-  "superiortemporal" = "superior temporal",
-  "temporalpole" = "temporal pole",
-  "transversetemporal" = "transverse temporal"
-)
 
 # Define Paths
 dir_dataset <- file.path(
@@ -774,6 +712,7 @@ plot_frontal_positive
 #### Factor Analysis
 
 ```{r}
+#| label: lgi factor analysis
 imaging_wide <-
   imaging |>
   mutate(region = str_c(region, laterality, sep = "_")) |>
@@ -866,6 +805,7 @@ plot_loadings
 #### Results
 
 ```{r}
+#| label: lgi factor results
 tmp_clinical <-
   clinical |>
   filter(type == "bifactor", str_detect(factor, "psychosis")) |>
@@ -1334,16 +1274,10 @@ plot_lgi_anx
 
 ```{r}
 #| label: lgi anx individual sample
-map_anx_sub <- c(
-  "smry_agr" = "Agoraphobia",
-  "smry_gad" = "Generalized Anxiety",
-  "smry_ocd" = "OCD",
-  "smry_pan" = "Panic Disorder",
-  "smry_phb" = "Specific Phobias",
-  "smry_ptd" = "PTSD",
-  "smry_sep" = "Separation Anxiety",
-  "smry_soc" = "Social Anxiety"
-)
+map_anx_sub <- goassess_mapping[c(
+  "smry_agr", "smry_gad", "smry_ocd", "smry_pan", "smry_phb", "smry_ptd",
+  "smry_sep", "smry_soc"
+)]
 
 data_lgi_anx_sub <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
@@ -1588,11 +1522,7 @@ plot_lgi_beh
 
 ```{r}
 #| label: lgi beh individual sample
-map_beh_sub <- c(
-  "smry_add" = "Attention Deficit Disorder",
-  "smry_odd" = "Oppositional Defiance Disorder",
-  "smry_con" = "Conduct Disorder"
-)
+map_beh_sub <- goassess_mapping[c("smry_add", "smry_odd", "smry_con")]
 
 data_lgi_beh_sub <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
@@ -1837,10 +1767,7 @@ plot_lgi_eat
 
 ```{r}
 #| label: lgi eat individual sample
-map_eat_sub <- c(
-  "smry_ano" = "Anorexia",
-  "smry_bul" = "Bulimia"
-)
+map_eat_sub <- goassess_mapping[c("smry_ano", "smry_bul")]
 
 data_lgi_eat_sub <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
@@ -2085,10 +2012,7 @@ plot_lgi_mood
 
 ```{r}
 #| label: lgi mood individual sample
-map_mood_sub <- c(
-  "smry_dep" = "Depression",
-  "smry_man" = "Mania"
-)
+map_mood_sub <- goassess_mapping[c("smry_dep", "smry_man")]
 
 data_lgi_mood_sub <-
   inner_join(global_lgi, goassess_bin, by = "bblid") |>
@@ -2332,15 +2256,10 @@ plot_lgi_psy
 
 ```{r}
 #| label: lgi psy individual sample
-map_psy_sub <- c(
-  "smry_del" = "Delusions",
-  "smry_hal_av" = "Auditory Hallucinations (Verbal)",
-  "smry_hal_as" = "Auditory Hallucinations (Other)",
-  "smry_hal_vh" = "Visual Hallucinations",
-  "smry_hal_oh" = "Olfactory Hallucinations",
-  "smry_hal_th" = "Tactile Hallucinations",
-  "smry_hal" = "Hallucinations"
-)
+map_psy_sub <- goassess_mapping[c(
+  "smry_del", "smry_hal_av", "smry_hal_as", "smry_hal_vh", "smry_hal_oh",
+  "smry_hal_th", "smry_hal"
+)]
 
 data_lgi_psy_sub <-
   goassess |>
