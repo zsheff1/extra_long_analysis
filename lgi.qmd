@@ -689,7 +689,7 @@ scree(select(imaging_wide, -bblid), factors = TRUE)
 
 VSS(
   select(imaging_wide, -bblid),
-  n = 20,
+  n = 10,
   rotate = "oblimin",
   fm = "minres"
 )
@@ -711,7 +711,7 @@ scree(select(regional_lgi_residuals, -bblid, -global_lgi), factors = TRUE)
 
 VSS(
   select(regional_lgi_residuals, -bblid, -global_lgi),
-  n = 20,
+  n = 10,
   rotate = "oblimin",
   fm = "minres"
 )
