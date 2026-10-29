@@ -931,16 +931,28 @@ plot_regional_psy
 
 [General Psychopathology](#factor-general-p), [Depression](#factor-depression), [Psychosis Positive](#factor-psy-pos), and [Psychosis Negative](#factor-psy-neg) all showed a significant negative correlation with Global LGI. No such relationship was observed for [ADHD](#factor-adhd) or [Mania](#factor-mania).
 
+When regressing sex and the spline of age from global LGI and the psychopatholgy factor scores [General Psychopathology](#factor-general-p) and [ADHD](#factor-adhd) showed a significant negative correlation with Global LGI. No such relationship was observed for [Depression](#factor-depression), [Mania](#factor-mania), [Psychosis Positive](#factor-psy-pos), or [Psychosis Negative](#factor-psy-neg).
+
 ::: {.content-visible when-profile="scratch"}
 
 ```{r}
 #| label: clinical factors sample
 data_lgi_clinical <-
-  inner_join(clinical, global_lgi, by = "bblid") |>
+  clinical |>
   filter(type == "bifactor") |>
-  select(-type, -scanid) |>
+  select(bblid, factor, value) |>
   pivot_wider(names_from = factor, values_from = value) |>
-  drop_na()
+  inner_join(select(global_lgi, bblid, lgi), by = "bblid") |>
+  inner_join(select(demo, bblid, age, sex), by = "bblid") |>
+  drop_na() |>
+  mutate(across(
+    c(
+      lgi, general_p, adhd, depression, mania, psychosis_positive,
+      psychosis_negative
+    ),
+    \(x) residuals(mgcv::gam(x ~ s(age) + sex, data = pick(everything()))),
+    .names = "{.col}_reg"
+  ))
 ```
 
 :::
@@ -977,6 +989,36 @@ plot_lgi_general_p <-
 plot_lgi_general_p
 ```
 
+```{r}
+#| label: lgi general p reg
+test_lgi_general_p_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$general_p_reg)
+
+test_lgi_general_p_reg
+
+plot_lgi_general_p_reg <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = general_p_reg)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and General Psychopathology Factor",
+    subtitle = report_correlation(test_lgi_general_p_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "General Psychopathology (bifactor; s(age) + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_general_p_reg
+```
+
 ## ADHD {#factor-adhd}
 
 ``` {r}
@@ -1007,6 +1049,36 @@ plot_lgi_adhd <-
   theme_linedraw()
 
 plot_lgi_adhd
+```
+
+``` {r}
+#| label: lgi adhd reg
+test_lgi_adhd_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$adhd_reg)
+
+test_lgi_adhd_reg
+
+plot_lgi_adhd_reg <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = adhd_reg)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and ADHD Factor",
+    subtitle = report_correlation(test_lgi_adhd_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "ADHD (bifactor; s(age) + sex regressed))"
+  ) +
+  theme_linedraw()
+
+plot_lgi_adhd_reg
 ```
 
 ## Depression {#factor-depression}
@@ -1041,6 +1113,36 @@ plot_lgi_dep <-
 plot_lgi_dep
 ```
 
+``` {r}
+#| label: lgi depression reg
+test_lgi_dep_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$depression_reg)
+
+test_lgi_dep_reg
+
+plot_lgi_dep_reg <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = depression_reg)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and Depression Factor",
+    subtitle = report_correlation(test_lgi_dep_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "Depression (bifactor; s(age) + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_dep_reg
+```
+
 ## Mania {#factor-mania}
 
 ``` {r}
@@ -1071,6 +1173,36 @@ plot_lgi_mania <-
   theme_linedraw()
 
 plot_lgi_mania
+```
+
+``` {r}
+#| label: lgi mania reg
+test_lgi_mania_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$mania_reg)
+
+test_lgi_mania_reg
+
+plot_lgi_mania_reg <-
+  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = mania_reg)) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and Mania Factor",
+    subtitle = report_correlation(test_lgi_mania_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "Mania (bifactor; s(age) + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_mania_reg
 ```
 
 ## Psychosis Negative {#factor-psy-neg}
@@ -1108,6 +1240,39 @@ plot_lgi_psy_neg <-
 plot_lgi_psy_neg
 ```
 
+``` {r}
+#| label: lgi psychosis negative reg
+test_lgi_psy_neg_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$psychosis_negative_reg)
+
+test_lgi_psy_neg_reg
+
+plot_lgi_psy_neg_reg <-
+  ggplot(
+    data = data_lgi_clinical,
+    mapping = aes(x = lgi_reg, y = psychosis_negative_reg)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and Psychosis Negative Factor",
+    subtitle = report_correlation(test_lgi_psy_neg_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "Psychosis Negative (bifactor; s(age) + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_psy_neg_reg
+```
+
 ## Psychosis Positive {#factor-psy-pos}
 
 ``` {r}
@@ -1120,7 +1285,7 @@ test_lgi_psy_pos
 plot_lgi_psy_pos <-
   ggplot(
     data = data_lgi_clinical,
-    mapping = aes(x = lgi, y = psychosis_positive)
+    mapping = aes(x = lgi_reg, y = psychosis_positive)
   ) +
   geom_point(alpha = 0.25, size = 1) +
   geom_smooth(
@@ -1141,6 +1306,39 @@ plot_lgi_psy_pos <-
   theme_linedraw()
 
 plot_lgi_psy_pos
+```
+
+``` {r}
+#| label: lgi psychosis positive reg
+test_lgi_psy_pos_reg <-
+  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$psychosis_positive_reg)
+
+test_lgi_psy_pos_reg
+
+plot_lgi_psy_pos_reg <-
+  ggplot(
+    data = data_lgi_clinical,
+    mapping = aes(x = lgi_reg, y = psychosis_positive_reg)
+  ) +
+  geom_point(alpha = 0.25, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  labs(
+    title = "Correlation of Global LGI and Psychosis Positive Factor",
+    subtitle = report_correlation(test_lgi_psy_pos_reg),
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "Psychosis Positive (bifactor; s(age) + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_lgi_psy_pos_reg
 ```
 
 # Psychopathology (Binary GOASSESS)
