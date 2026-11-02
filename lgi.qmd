@@ -458,24 +458,37 @@ plot_lgi_volume
 
 ### Regional LGI vs Psychosis Factor
 
-Many regions have regional LGI significantly associated with psychosis positive and psychosis negative factors. Some regions for psychosis negative even survive controlling for global lgi. No results survive multiple comparisons correction. It may be helpful to use the literature to determine a priori regions and reduce multiple comparisons.
+At the region level in the full sample, after regressing `s(age) + sex` out of regional LGI and psychosis factors, no regions were found where LGI was significantly associated with psychosis.
 
 ::: {.collapsible-table data-rows="5"}
 
 ```{r}
 #| label: lgi psy regional factor
-data_lgi_psy_regional <-
+data_regional_lgi <-
   full_join(
+    demo |>
+      select(bblid, age, sex),
     imaging |>
       mutate(region = str_c(region, laterality, sep = "_")) |>
       rename(regional_lgi = lgi) |>
       select(bblid, region, regional_lgi),
-    global_lgi |>
-      rename(global_lgi = lgi) |>
-      select(bblid, global_lgi),
-    by = "bblid"
+    by = "bblid",
+    relationship = "one-to-many"    
   ) |>
+  drop_na() |>
+  group_by(region) |>
+  mutate(
+    regional_lgi = residuals(
+      mgcv::gam(regional_lgi ~ s(age) + sex, data = pick(everything()))
+    )
+  ) |>
+  ungroup() |>
+  select(-age, -sex)
+
+data_regional_psy <-
   full_join(
+    demo |>
+      select(bblid, age, sex),
     clinical |>
       filter(
         type == "bifactor",
@@ -483,6 +496,24 @@ data_lgi_psy_regional <-
       ) |>
       rename(psychosis = value) |>
       select(bblid, factor, psychosis),
+    by = "bblid",
+    relationship = "one-to-many"
+  ) |>
+  drop_na() |>
+  group_by(factor) |>
+  mutate(
+    psychosis = residuals(
+      mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
+    ),
+    factor = str_to_title(str_replace_all(factor, "_", " "))
+  ) |>
+  ungroup() |>
+  select(-age, -sex)
+
+data_lgi_psy_regional <-
+  inner_join(
+    data_regional_lgi,
+    data_regional_psy,
     by = "bblid",
     relationship = "many-to-many"
   ) |>
@@ -515,63 +546,12 @@ test_lgi_psy_regional <-
   ungroup()
 
 test_lgi_psy_regional |>
-  filter(factor == "psychosis_positive", p < 0.05) |>
-  select(region, laterality, b, ci, p, p_fdr, significance) |>
-  arrange(desc(abs(b))) |>
-  kbl(
-    col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
-    align = "llrrrrl",
-    digits = c(NA, NA, 3, NA, 5, 5, NA),
-    caption = "Regions where LGI is Significantly Associated with Psychosis Positive Factor (before multiple comparison correction)",
-  )
-
-test_lgi_psy_regional |>
-  filter(factor == "psychosis_negative", p < 0.05) |>
-  select(region, laterality, b, ci, p, p_fdr, significance) |>
-  arrange(desc(abs(b))) |>
-  kbl(
-    col.names = c("Region", "Laterality", "b", "95% CI", "p", "pFDR", ""),
-    align = "llrrrrl",
-    digits = c(NA, NA, 3, NA, 5, 5, NA),
-    caption = "Regions where LGI is Significantly Associated with Psychosis Negative Factor (before multiple comparison correction)",
-  )
-
-test_lgi_psy_regional_controlled <-
-  data_lgi_psy_regional |>
-  group_by(factor, region) |>
-  summarize(
-    lm(psychosis ~ global_lgi + regional_lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "regional_lgi"),
-    .groups = "drop_last"
-  ) |>
-  separate(region, into = c("region", "laterality"), sep = "_") |>
-  rename(b = estimate, p = p_value) |>
-  mutate(
-    region = roi_mapping[region],
-    laterality = str_to_title(laterality),
-    factor = str_to_title(str_replace_all(factor, "_", " ")),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  ) |>
-  ungroup()
-
-test_lgi_psy_regional_controlled |>
-  filter(p < 0.05) |>
   select(region, laterality, factor, b, ci, p, p_fdr, significance) |>
-  arrange(desc(abs(b))) |>
+  arrange(region, laterality, desc(factor)) |>
   kbl(
     col.names = c("Region", "Laterality", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
-    digits = c(NA, NA, NA, 3, NA, 5, 5, NA),
-    caption = "Regions where LGI is Significantly Associated with Psychosis Factors when Controlling for Global LGI (before multiple comparison correction)",
+    digits = c(NA, NA, NA, 3, NA, 5, 5, NA)
   )
 ```
 
@@ -580,6 +560,8 @@ test_lgi_psy_regional_controlled |>
 ### Lobular LGI vs Psychosis Factor
 
 At the lobe level in the full sample, after regressing `s(age) + sex` out of lobular LGI and psychosis factors, no lobes were found where LGI was significantly associated with psychosis.
+
+::: {.collapsible-table data-rows="5"}
 
 ```{r}
 #| label: lgi psy lobular factor
@@ -690,6 +672,8 @@ test_lgi_psy_lobular |>
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
 ```
+
+:::
 
 ### LGI Factors vs Psychosis Factor
 
@@ -845,7 +829,7 @@ LGI is significantly lower in those with psychosis, relative to controls, in all
 
 ```{r}
 #| label: lgi psy regional goa
-data_regional_psy <-
+data_regional_td_psy <-
   inner_join(
     demo |>
       filter(dx %in% c("td", "ps")) |>
@@ -859,7 +843,7 @@ data_regional_psy <-
   drop_na()
 
 test_regional_psy <-
-  data_regional_psy |>
+  data_regional_td_psy |>
   group_by(region) |>
   summarize(
     t.test(lgi ~ dx) |>
