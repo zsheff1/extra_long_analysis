@@ -686,34 +686,73 @@ imaging_wide <-
   mutate(region = str_c(region, laterality, sep = "_")) |>
   select(bblid, region, lgi) |>
   pivot_wider(names_from = region, values_from = lgi) |>
-  drop_na()
+  inner_join(
+    demo |>
+      select(bblid, age, sex),
+    by = "bblid",
+    relationship = "one-to-one"
+  ) |>
+  drop_na() |>
+  mutate(across(
+    c(ends_with("_left"), ends_with("_right")),
+    \(x) residuals(mgcv::gam(x ~ s(age) + sex, data = pick(everything())))
+  )) |>
+  select(-age, -sex)
 
 scree(select(imaging_wide, -bblid), factors = TRUE)
 
 regional_lgi_residuals <-
+  imaging |>
+  mutate(region = str_c(region, laterality, sep = "_")) |>
+  select(bblid, region, lgi) |>
+  pivot_wider(names_from = region, values_from = lgi) |>
+  inner_join(
+    demo |>
+      select(bblid, age, sex),
+    by = "bblid",
+    relationship = "one-to-one"
+  ) |>
   inner_join(
     global_lgi |>
       rename(global_lgi = lgi) |>
       select(bblid, global_lgi),
-    imaging_wide,
-    by = "bblid"
+    by = "bblid",
+    relationship = "one-to-one"
   ) |>
+  drop_na() |>
   mutate(across(
     c(ends_with("_left"), ends_with("_right")),
-    \(x) residuals(mgcv::gam(x ~ s(global_lgi)))
-  ))
+    \(x) residuals(mgcv::gam(x ~ s(age) + s(global_lgi) + sex, data = pick(everything())))
+  )) |>
+  select(-age, -sex, -global_lgi)
 
-scree(select(regional_lgi_residuals, -bblid, -global_lgi), factors = TRUE)
+scree(select(regional_lgi_residuals, -bblid), factors = TRUE)
 
 n_factors <- 9
 
-fa_lgi <- psych::fa(
-  select(imaging_wide, -bblid),
-  nfactors = n_factors,
-  fm = "minres",
-  rotate = "bifactor",
-  scores = "regression"
-)
+fa_lgi <-
+  psych::fa(
+    select(imaging_wide, -bblid),
+    nfactors = n_factors,
+    fm = "minres",
+    rotate = "bifactor",
+    scores = "regression"
+  ) |>
+  psych::fa.organize(
+    cn = c("Global", str_c("Region", 1:(n_factors - 1), sep = " "))
+  )
+
+colnames(fa_lgi$scores) <- colnames(fa_lgi$loadings)
+
+scores_lgi <-
+  bind_cols(select(imaging_wide, bblid), as_tibble(fa_lgi$scores)) |>
+  pivot_longer(
+    cols = -bblid,
+    names_to = "region",
+    values_to = "regional_lgi"
+  ) |>
+  filter(region != "Global") |>
+  mutate(region = factor(region))
 
 loadings_lgi <- fa_lgi$loadings |>
   unclass() |>
@@ -723,6 +762,7 @@ loadings_lgi <- fa_lgi$loadings |>
     names_to = "factor",
     values_to = "loading"
   ) |>
+  filter(factor != "Global") |>
   separate(
     roi,
     into = c("region", "hemi"),
@@ -730,10 +770,7 @@ loadings_lgi <- fa_lgi$loadings |>
   ) |>
   mutate(
     region = str_replace_all(region, ggseg_mapping),
-    factor = factor(
-      str_replace_all(factor, "MR", "Factor"),
-      levels = paste0("Factor", 1:n_factors)
-    )
+    factor = factor(factor)
   )
 
 plot_loadings <- ggplot() +
@@ -743,7 +780,7 @@ plot_loadings <- ggplot() +
     mapping = aes(fill = loading),
     position = position_brain(view ~ hemi)
   ) +
-  facet_wrap(~ factor) +
+  facet_wrap(~ factor, ncol = 4, nrow = 2) +
   scale_fill_gradient2(
     low = my_red,
     mid = "white",
@@ -764,24 +801,22 @@ tmp_clinical <-
   clinical |>
   filter(type == "bifactor", str_detect(factor, "psychosis")) |>
   rename(psychosis = value) |>
-  select(bblid, factor, psychosis)
-
-tmp_lgi <-
-  bind_cols(select(imaging_wide, bblid), as_tibble(fa_lgi$scores)) |>
-  pivot_longer(
-    cols = starts_with("MR"),
-    names_to = "region",
-    values_to = "regional_lgi"
+  inner_join(
+    demo |>
+      select(bblid, age, sex),
+    by = "bblid",
+    relationship = "many-to-one"
   ) |>
-  mutate(region = factor(
-    str_replace_all(region, "MR", "Factor"),
-    levels = paste0("Factor", 1:n_factors)
-  ))
+  drop_na() |>
+  group_by(factor) |>
+  mutate(psychosis = residuals(mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything())))) |>
+  ungroup() |>
+  select(bblid, factor, psychosis)
 
 data_lgi_factors <-
   inner_join(
     tmp_clinical,
-    tmp_lgi,
+    scores_lgi,
     by = "bblid",
     relationship = "many-to-many"
   ) |>
