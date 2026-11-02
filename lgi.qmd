@@ -579,7 +579,7 @@ test_lgi_psy_regional_controlled |>
 
 ### Lobular LGI vs Psychosis Factor
 
-At the lobe level in the full sample, it was found that frontal LGI was negatively associated with positive psychosis symptoms.
+At the lobe level in the full sample, after regressing `s(age) + sex` out of lobular LGI and psychosis factors, no lobes were found where LGI was significantly associated with psychosis.
 
 ```{r}
 #| label: lgi psy lobular factor
@@ -600,11 +600,34 @@ plot_lgi_lobe <-
 
 plot_lgi_lobe
 
-data_lgi_psy_lobular <-
+data_lobular_lgi <-
   full_join(
+    demo |>
+      select(bblid, age, sex),
     lgi_lobe |>
       rename(lobular_lgi = lgi) |>
       select(bblid, lobe, lobular_lgi),
+    by = "bblid",
+    relationship = "one-to-many"
+  ) |>
+  drop_na() |>
+  group_by(lobe) |>
+  mutate(
+    lobular_lgi = residuals(
+      mgcv::gam(lobular_lgi ~ s(age) + sex, data = pick(everything()))
+    ),
+    lobe = factor(
+      str_to_title(lobe),
+      levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
+    )
+  ) |>
+  ungroup() |>
+  select(-age, -sex)
+
+data_lobular_psy <-
+  full_join(
+    demo |>
+      select(bblid, age, sex),
     clinical |>
       filter(
         type == "bifactor",
@@ -612,6 +635,24 @@ data_lgi_psy_lobular <-
       ) |>
       rename(psychosis = value) |>
       select(bblid, factor, psychosis),
+    by = "bblid",
+    relationship = "one-to-many"
+  ) |>
+  drop_na() |>
+  group_by(factor) |>
+  mutate(
+    psychosis = residuals(
+      mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
+    ),
+    factor = str_to_title(str_replace_all(factor, "_", " "))
+  ) |>
+  ungroup() |>
+  select(-age, -sex)
+
+data_lgi_psy_lobular <-
+  inner_join(
+    data_lobular_lgi,
+    data_lobular_psy,
     by = "bblid",
     relationship = "many-to-many"
   ) |>
@@ -629,11 +670,6 @@ test_lgi_psy_lobular <-
   ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
-    factor = str_to_title(str_replace_all(factor, "_", " ")),
-    lobe = factor(
-      str_to_title(lobe),
-      levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
-    ),
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
@@ -653,31 +689,6 @@ test_lgi_psy_lobular |>
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
-
-plot_frontal_positive <-
-  ggplot(
-    data = data_lgi_psy_lobular |>
-      filter(lobe == "frontal", factor == "psychosis_positive"),
-    mapping = aes(x = lobular_lgi, y = psychosis)
-  ) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linediwth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Associaiton Between Frontal Lobe LGI and Positive Psychosis Symptoms",
-    x = "Frontal Lobe LGI",
-    y = "Positive Psychosis Symptoms (Bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_frontal_positive
 ```
 
 ### LGI Factors vs Psychosis Factor
