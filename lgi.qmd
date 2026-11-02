@@ -2664,7 +2664,7 @@ data_lgi_cnb_full <-
   full_join(data_etiv, by = "bblid") |>
   full_join(global_lgi, by = "bblid") |>
   rename(cnb = value) |>
-  filter(measure == "efficiency") |>
+  filter(measure == "accuracy") |>
   mutate(domain = fct_relabel(domain, str_to_title)) |>
   select(bblid, lgi, etiv, domain, cnb)
 
@@ -2704,7 +2704,7 @@ test_lgi_cnb_full |>
     col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
     align = "lrrrrl",
     digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Efficiency with Global LGI"
+    caption = "Association of CNB Accuracy with Global LGI"
   )
 
 facet_labels_lgi_cnb <-
@@ -2731,10 +2731,10 @@ plot_lgi_cnb_full <-
   ) +
   facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb)) +
   labs(
-    title = "Relationship Between Global LGI and CNB Efficiency",
+    title = "Relationship Between Global LGI and CNB Accuracy",
     subtitle = "CNB ~ LGI",
     x = "Global LGI",
-    y = "CNB Efficiency (Age Regressed)"
+    y = "CNB Accuracy (Age Regressed)"
   ) +
   theme_linedraw()
 
@@ -2748,7 +2748,7 @@ test_lgi_cnb_full |>
     col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
     align = "lrrrrl",
     digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Efficiency with Global LGI Controlling for eTIV"
+    caption = "Association of CNB Accuracy with Global LGI Controlling for eTIV"
   )
 
 facet_labels_lgi_cnb_controlled <-
@@ -2784,10 +2784,10 @@ plot_lgi_cnb_full_controlled <-
   ) +
   facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb_controlled)) +
   labs(
-    title = "Relationship Between Global LGI and CNB Efficiency",
+    title = "Relationship Between Global LGI and CNB Accuracy",
     subtitle = "CNB ~ LGI + eTIV",
     x = "Global LGI (eTIV Regressed)",
-    y = "CNB Efficiency (Age and eTIV Regressed)"
+    y = "CNB Accuracy (Age and eTIV Regressed)"
   ) +
   theme_linedraw()
 
@@ -2806,7 +2806,7 @@ data_lgi_cnb_clean <-
   full_join(global_lgi, by = "bblid") |>
   semi_join(clean_subsample, by = "bblid") |>
   rename(cnb = value) |>
-  filter(measure == "efficiency") |>
+  filter(measure == "accuracy") |>
   mutate(domain = fct_relabel(domain, str_to_title)) |>
   select(bblid, lgi, etiv, domain, cnb)
 
@@ -2845,7 +2845,7 @@ test_lgi_cnb_clean |>
     col.names = c("Domain", "Controlled", "b", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Efficiency with Global LGI with and without Controlling for eTIV"
+    caption = "Association of CNB Accuracy with Global LGI with and without Controlling for eTIV"
   )
 
 plot_lgi_cnb_clean <-
