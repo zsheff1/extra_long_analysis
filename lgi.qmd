@@ -2659,30 +2659,31 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 
 ```{r}
 #| label: lgi cnb full sample
-data_lgi_cnb_full <-
+data_lgi_cnb_acc <-
   cnb |>
-  full_join(data_etiv, by = "bblid") |>
   full_join(global_lgi, by = "bblid") |>
+  full_join(demo, by = "bblid") |>
   rename(cnb = value) |>
   filter(measure == "accuracy") |>
+  drop_na() |>
   mutate(domain = fct_relabel(domain, str_to_title)) |>
-  select(bblid, lgi, etiv, domain, cnb)
+  group_by(domain) |>
+  mutate(
+    lgi = residuals(mgcv::gam(lgi ~ s(age) + sex)),
+    cnb = residuals(mgcv::gam(cnb ~ sex))
+  ) |>
+  ungroup() |>
+  select(bblid, lgi, domain, cnb)
 
-test_lgi_cnb_full <-
-  data_lgi_cnb_full |>
-  crossing(controlled = c(TRUE, FALSE)) |>
-  group_by(controlled, domain) |>
+test_lgi_cnb_acc <-
+  data_lgi_cnb_acc |>
+  group_by(domain) |>
   summarize(
-    lm(
-      reformulate(
-        termlabels = if(first(controlled)) c("lgi", "etiv") else "lgi",
-        response = "cnb"
-      )
-    ) |>
+    lm(cnb ~ lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .groups = "drop_last") |>
+    .groups = "drop") |>
   rename(b = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
@@ -2693,11 +2694,9 @@ test_lgi_cnb_full <-
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     )
-  ) |>
-  ungroup()
+  )
 
-test_lgi_cnb_full |>
-  filter(!controlled) |>
+test_lgi_cnb_acc |>
   select(domain, b, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
@@ -2708,15 +2707,14 @@ test_lgi_cnb_full |>
   )
 
 facet_labels_lgi_cnb <-
-  test_lgi_cnb_full |>
-  filter(!controlled) |>
+  test_lgi_cnb_acc |>
   mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
   select(domain, label) |>
   tibble::deframe()
 
-plot_lgi_cnb_full <-
+plot_lgi_cnb_acc <-
   ggplot(
-    data = data_lgi_cnb_full,
+    data = data_lgi_cnb_acc,
     mapping = aes(x = lgi, y = cnb)
   ) +
   geom_point(alpha = 0.1, size = 1) +
@@ -2738,60 +2736,7 @@ plot_lgi_cnb_full <-
   ) +
   theme_linedraw()
 
-plot_lgi_cnb_full
-
-test_lgi_cnb_full |>
-  filter(controlled) |>
-  select(domain, b, ci, p, p_fdr, significance) |>
-  arrange(domain) |>
-  kbl(
-    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
-    align = "lrrrrl",
-    digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Accuracy with Global LGI Controlling for eTIV"
-  )
-
-facet_labels_lgi_cnb_controlled <-
-  test_lgi_cnb_full |>
-  filter(controlled) |>
-  mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
-  select(domain, label) |>
-  tibble::deframe()
-
-data_controlled <- data_lgi_cnb_full |>
-  group_by(domain) |>
-  drop_na(lgi, cnb, etiv) |>
-  mutate(
-    lgi_resid = resid(lm(lgi ~ etiv)),
-    cnb_resid = resid(lm(cnb ~ etiv))
-  ) |>
-  ungroup()
-
-plot_lgi_cnb_full_controlled <-
-  ggplot(
-    data = data_controlled,
-    mapping = aes(x = lgi_resid, y = cnb_resid)
-  ) +
-  geom_point(alpha = 0.1, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb_controlled)) +
-  labs(
-    title = "Relationship Between Global LGI and CNB Accuracy",
-    subtitle = "CNB ~ LGI + eTIV",
-    x = "Global LGI (eTIV Regressed)",
-    y = "CNB Accuracy (Age and eTIV Regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_cnb_full_controlled
+plot_lgi_cnb_acc
 ```
 
 ## Clean Subsample
