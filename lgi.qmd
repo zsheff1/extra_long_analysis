@@ -828,7 +828,7 @@ test_lgi_factors |>
 
 ### Differences in Regional LGI between Psychosis and TD
 
-LGI is lower in those with psychosis, relative to controls, in almost all regions, even after correcting for multiple comparisons (62 of 68 regions).
+LGI is significantly lower in those with psychosis, relative to controls, in all regions other than the Left Inferior Temporal. Cohen's d, the standardized mean difference, varried widely, from relatively small $(d = 0.148)$ in the Left Lateral Occipital, to relatively large $(d = 0.375)$ in the Right Paracentral.
 
 ::: {.collapsible-table data-rows="5"}
 
@@ -836,9 +836,10 @@ LGI is lower in those with psychosis, relative to controls, in almost all region
 #| label: lgi psy regional goa
 data_regional_psy <-
   inner_join(
-    goassess_bin |>
-      rename(psy = smry_psy_cat) |>
-      select(bblid, psy),
+    demo |>
+      filter(dx %in% c("td", "ps")) |>
+      select(bblid, dx) |>
+      mutate(dx = factor(str_to_upper(dx), levels = c("TD", "PS"))),
     imaging |>
       mutate(region = str_c(region, laterality, sep = "_")) |>
       select(bblid, region, lgi),
@@ -850,10 +851,10 @@ test_regional_psy <-
   data_regional_psy |>
   group_by(region) |>
   summarize(
-    t.test(lgi ~ psy) |>
+    t.test(lgi ~ dx) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ psy)$Cohens_d,
+    cohens_d = effectsize::cohens_d(lgi ~ dx)$Cohens_d,
     .groups = "drop"
   ) |>
   separate(region, into = c("region", "laterality"), sep = "_") |>
@@ -901,7 +902,7 @@ plot_regional_psy <-
   ) +
   scale_fill_viridis_c() +
   labs(
-    title = "Differences in LGI Between TD and PSY",
+    title = "Standardized Differences in Mean LGI Between TD and PSY",
     caption = "Only differences with pFDR < 0.05 are shown.",
     fill = "Cohen's d"
   ) +
