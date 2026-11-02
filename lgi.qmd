@@ -224,6 +224,55 @@ clean_subsample <- clean_subsample |>
   arrange(bblid)
 ```
 
+## LGI-Volume Tertile Groups
+
+```{r}
+data_lgi_vol_tertile <- demo |>
+  full_join(global_lgi, by = "bblid", relationship = "one-to-one") |>
+  full_join(data_etiv, by = "bblid", relationship = "one-to-one") |>
+  drop_na() |>
+  mutate(
+    across(
+      c(lgi, etiv),
+      \(x) {
+        mgcv::gam(x ~ s(age) + sex, data = pick(everything())) |>
+          residuals()
+      },
+      .names = "{.col}_reg"
+    ),
+    g = case_when(
+      percent_rank(lgi_reg) >= 0 & percent_rank(lgi_reg) < 1/3 ~ 1,
+      percent_rank(lgi_reg) >= 1/3 & percent_rank(lgi_reg) < 2/3 ~ 2,
+      percent_rank(lgi_reg) >= 2/3 & percent_rank(lgi_reg) <= 1 ~ 3
+    ),
+    v = case_when(
+      percent_rank(etiv_reg) >= 0 & percent_rank(etiv_reg) < 1/3 ~ 1,
+      percent_rank(etiv_reg) >= 1/3 & percent_rank(etiv_reg) < 2/3 ~ 2,
+      percent_rank(etiv_reg) >= 2/3 & percent_rank(etiv_reg) <= 1 ~ 3
+    ),
+    group = str_c("g", g, "v", v)
+  )
+
+plot_lgi_vol_tertile <-
+  ggplot(
+    data = data_lgi_vol_tertile,
+    mapping = aes(x = lgi_reg, y = etiv_reg, color = group)
+  ) +
+  geom_point(alpha = 0.75, size = 1) +
+  scale_color_manual(
+    name = "Group",
+    values = c("g1v1" = my_red, "g1v3" = my_orange, "g3v1" = my_purple, "g3v3" = my_green)
+  ) +
+  labs(
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "eTIV (s(age) + sex regressed)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom")
+
+plot_lgi_vol_tertile
+```
+
 ## Demographics
 
 ```{r}
