@@ -10,7 +10,7 @@ date: today
 # Set Up
 
 ```{r}
-#| label: set up
+#| label: set-up
 # Import Libraries
 library(tidyverse)
 library(janitor)
@@ -67,7 +67,7 @@ raw_goassess <- read_csv(path_goassess)
 # Clean Data
 
 ```{r}
-#| label: clean data
+#| label: clean-data
 # Demographics
 demo <- raw_sub_ses |>
   select(bblid, age) |>
@@ -124,12 +124,10 @@ imaging <- raw_imaging |>
   select(bblid, scanid, lobe, laterality, region, lgi, area)
 
 global_lgi <- imaging |>
-  group_by(bblid, scanid) |>
-  summarize(lgi = weighted.mean(lgi, area), .groups = "drop")
+  summarize(lgi = weighted.mean(lgi, area), .by = c(bblid, scanid))
 
 lgi_lobe <- imaging |>
-  group_by(bblid, scanid, lobe) |>
-  summarize(lgi = weighted.mean(lgi, area), .groups = "drop") |>
+  summarize(lgi = weighted.mean(lgi, area), .by = c(bblid, scanid, lobe)) |>
   drop_na()
 
 data_etiv <- raw_imaging |>
@@ -206,10 +204,10 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 
 ```{r}
 #| label: subsample
-clean_subsample <- inner_join(demo, data_etiv, by = "bblid") |>
-  group_by(sex)
+clean_subsample <- inner_join(demo, data_etiv, by = "bblid")
   
-median_etiv_sex <- summarize(clean_subsample, etiv_median = median(etiv), .groups = "drop")
+median_etiv_sex <- clean_subsample |>
+  summarize(etiv_median = median(etiv), .by = sex)
   
 clean_subsample <- clean_subsample |>
   semi_join(drop_na(global_lgi), by = "bblid") |>
@@ -219,8 +217,7 @@ clean_subsample <- clean_subsample |>
     dx == "td"
   ) |>
   left_join(median_etiv_sex, by = "sex") |>
-  slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE) |>
-  ungroup() |>
+  slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE, by = sex) |>
   select(bblid) |>
   arrange(bblid)
 ```
@@ -228,7 +225,7 @@ clean_subsample <- clean_subsample |>
 ## LGI-Volume Tertile Groups
 
 ```{r}
-#| label: tertile groups
+#| label: tertile-groups
 #| control: {method: residual, variables: [age, sex]}
 data_lgi_vol_tertile <- demo |>
   full_join(global_lgi, by = "bblid", relationship = "one-to-one") |>
@@ -279,7 +276,7 @@ plot_lgi_vol_tertile
 ## Demographics
 
 ```{r}
-#| label: demos table
+#| label: demos-table
 demo_table <- inner_join(
   demo |>
     left_join(env, by = "bblid") |>
@@ -305,11 +302,10 @@ row_hierarchy <- demo_table |>
     Category = c("n", "age", "sex", "sex", "dx", "dx", "dx", "env", "env"),
     row_number = row_number()
   ) |>
-  group_by(Category) |>
   summarise(
     start = min(row_number),
     end = max(row_number),
-    .groups = "drop"
+    .by = Category
   ) |>
   filter(start != end)
 
@@ -448,12 +444,11 @@ data_lgi_volume <- raw_imaging |>
   drop_na()
 
 test_lgi_volume <- data_lgi_volume |>
-  group_by(region) |>
   summarize(
     cor.test(lgi, volume) |>
       tidy() |>
       clean_names(),
-    .groups = "drop"
+    .by = region
   ) |>
   separate(region, into = c("laterality", "region"), sep = "_") |>
   rename(
@@ -537,13 +532,12 @@ data_regional_lgi <-
     relationship = "one-to-many"    
   ) |>
   drop_na() |>
-  group_by(region) |>
   mutate(
     regional_lgi = residuals(
       mgcv::gam(regional_lgi ~ s(age) + sex, data = pick(everything()))
-    )
+    ),
+    .by = region
   ) |>
-  ungroup() |>
   select(-age, -sex)
 
 data_regional_psy <-
@@ -561,14 +555,13 @@ data_regional_psy <-
     relationship = "one-to-many"
   ) |>
   drop_na() |>
-  group_by(factor) |>
   mutate(
     psychosis = residuals(
       mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
     ),
-    factor = str_to_title(str_replace_all(factor, "_", " "))
+    .by = factor
   ) |>
-  ungroup() |>
+  mutate(factor = str_to_title(str_replace_all(factor, "_", " "))) |>
   select(-age, -sex)
 
 data_lgi_psy_regional <-
@@ -582,29 +575,30 @@ data_lgi_psy_regional <-
 
 test_lgi_psy_regional <-
   data_lgi_psy_regional |>
-  group_by(factor, region) |>
   summarize(
     lm(psychosis ~ regional_lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "regional_lgi"),
-    .groups = "drop_last"
+    .by = c(factor, region)
   ) |>
   separate(region, into = c("region", "laterality"), sep = "_") |>
   rename(b = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high)
+  ) |>
+  mutate(
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    )
-  ) |>
-  ungroup()
+    ),
+    .by = factor
+  )
 
 test_lgi_psy_regional |>
   select(region, laterality, factor, b, ci, p, p_fdr, significance) |>
@@ -657,7 +651,6 @@ data_lobular_lgi <-
     relationship = "one-to-many"
   ) |>
   drop_na() |>
-  group_by(lobe) |>
   mutate(
     lobular_lgi = residuals(
       mgcv::gam(lobular_lgi ~ s(age) + sex, data = pick(everything()))
@@ -665,9 +658,9 @@ data_lobular_lgi <-
     lobe = factor(
       str_to_title(lobe),
       levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
-    )
+    ),
+    .by = lobe
   ) |>
-  ungroup() |>
   select(-age, -sex)
 
 data_lobular_psy <-
@@ -685,14 +678,13 @@ data_lobular_psy <-
     relationship = "one-to-many"
   ) |>
   drop_na() |>
-  group_by(factor) |>
   mutate(
     psychosis = residuals(
       mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
     ),
-    factor = str_to_title(str_replace_all(factor, "_", " "))
+    factor = str_to_title(str_replace_all(factor, "_", " ")),
+    .by = factor
   ) |>
-  ungroup() |>
   select(-age, -sex)
 
 data_lgi_psy_lobular <-
@@ -706,13 +698,12 @@ data_lgi_psy_lobular <-
 
 test_lgi_psy_lobular <-
   data_lgi_psy_lobular |>
-  group_by(factor, lobe) |>
   summarize(
     lm(psychosis ~ lobular_lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lobular_lgi"),
-    .groups = "drop_last"
+    .by = c(factor, lobe)
   ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
@@ -723,9 +714,9 @@ test_lgi_psy_lobular <-
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    )
-  ) |>
-  ungroup()
+    ),
+    .by = factor
+  )
 
 test_lgi_psy_lobular |>
   select(lobe, factor, b, ci, p, p_fdr, significance) |>
@@ -886,13 +877,12 @@ data_regional_td_psy <-
 
 test_regional_psy <-
   data_regional_td_psy |>
-  group_by(region) |>
   summarize(
     t.test(lgi ~ dx) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ dx)$Cohens_d,
-    .groups = "drop"
+    .by = region
   ) |>
   separate(region, into = c("region", "laterality"), sep = "_") |>
   rename(
@@ -1422,8 +1412,7 @@ data_lgi_anx <-
 
 kable_lgi_anx <-
   data_lgi_anx |>
-  group_by(anx) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = anx) |>
   pivot_wider(names_from = anx, values_from = n) |>
   mutate(disorder = "Anxiety Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -1453,14 +1442,13 @@ test_lgi_anx
 ```{r}
 #| label: lgi-anx-final
 summary_lgi_anx <- data_lgi_anx |>
-  group_by(anx) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = anx
   ) |>
   mutate(x = as.numeric(anx))
 
@@ -1531,8 +1519,7 @@ data_lgi_anx_sub <-
 
 kable_lgi_anx_sub <- 
   data_lgi_anx_sub |>
-  group_by(disorder, status) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = c(disorder, status)) |>
   complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -1551,13 +1538,12 @@ kable_lgi_anx_sub
 #| label: lgi-anx-individual-test
 test_lgi_anx_sub <-
   data_lgi_anx_sub |>
-  group_by(disorder) |>
   summarize(
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
-    .groups = "drop"
+    .by = disorder
   ) |>
   rename(
     mean_difference = estimate,
@@ -1590,14 +1576,13 @@ test_lgi_anx_sub |>
 #| label: lgi-anx-individual-results
 summary_lgi_anx_sub <-
   data_lgi_anx_sub |>
-  group_by(disorder, status) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = c(disorder, status)
   ) |>
   mutate(x = as.numeric(status))
 
@@ -1673,8 +1658,7 @@ data_lgi_beh <-
 
 kable_lgi_beh <-
   data_lgi_beh |>
-  group_by(beh) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = beh) |>
   pivot_wider(names_from = beh, values_from = n) |>
   mutate(disorder = "Behavior Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -1704,14 +1688,13 @@ test_lgi_beh
 ```{r}
 #| label: lgi-beh-final
 summary_lgi_beh <- data_lgi_beh |>
-  group_by(beh) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = beh
   ) |>
   mutate(x = as.numeric(beh))
 
@@ -1779,8 +1762,7 @@ data_lgi_beh_sub <-
 
 kable_lgi_beh_sub <- 
   data_lgi_beh_sub |>
-  group_by(disorder, status) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = c(disorder, status)) |>
   complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -1799,13 +1781,12 @@ kable_lgi_beh_sub
 #| label: lgi-beh-individual-test
 test_lgi_beh_sub <-
   data_lgi_beh_sub |>
-  group_by(disorder) |>
   summarize(
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
-    .groups = "drop"
+    .by = disorder
   ) |>
   rename(
     mean_difference = estimate,
@@ -1838,14 +1819,13 @@ test_lgi_beh_sub |>
 #| label: lgi-beh-individual-results
 summary_lgi_beh_sub <-
   data_lgi_beh_sub |>
-  group_by(disorder, status) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = c(disorder, status)
   ) |>
   mutate(x = as.numeric(status))
 
@@ -1921,8 +1901,7 @@ data_lgi_eat <-
 
 kable_lgi_eat <-
   data_lgi_eat |>
-  group_by(eat) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = eat) |>
   pivot_wider(names_from = eat, values_from = n) |>
   mutate(disorder = "Eating Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -1952,14 +1931,13 @@ test_lgi_eat
 ```{r}
 #| label: lgi-eat-final
 summary_lgi_eat <- data_lgi_eat |>
-  group_by(eat) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = eat
   ) |>
   mutate(x = as.numeric(eat))
 
@@ -2027,8 +2005,7 @@ data_lgi_eat_sub <-
 
 kable_lgi_eat_sub <- 
   data_lgi_eat_sub |>
-  group_by(disorder, status) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = c(disorder, status)) |>
   complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -2047,13 +2024,12 @@ kable_lgi_eat_sub
 #| label: lgi-eat-individual-test
 test_lgi_eat_sub <-
   data_lgi_eat_sub |>
-  group_by(disorder) |>
   summarize(
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
-    .groups = "drop"
+    .by = disorder
   ) |>
   rename(
     mean_difference = estimate,
@@ -2086,14 +2062,13 @@ test_lgi_eat_sub |>
 #| label: lgi-eat-individual-results
 summary_lgi_eat_sub <-
   data_lgi_eat_sub |>
-  group_by(disorder, status) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = c(disorder, status)
   ) |>
   mutate(x = as.numeric(status))
 
@@ -2169,8 +2144,7 @@ data_lgi_mood <-
 
 kable_lgi_mood <-
   data_lgi_mood |>
-  group_by(mood) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = mood) |>
   pivot_wider(names_from = mood, values_from = n) |>
   mutate(disorder = "Mood Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -2200,14 +2174,13 @@ test_lgi_mood
 ```{r}
 #| label: lgi-mood-final
 summary_lgi_mood <- data_lgi_mood |>
-  group_by(mood) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = mood
   ) |>
   mutate(x = as.numeric(mood))
 
@@ -2275,8 +2248,7 @@ data_lgi_mood_sub <-
 
 kable_lgi_mood_sub <- 
   data_lgi_mood_sub |>
-  group_by(disorder, status) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = c(disorder, status)) |>
   complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -2295,13 +2267,12 @@ kable_lgi_mood_sub
 #| label: lgi-mood-individual-test
 test_lgi_mood_sub <-
   data_lgi_mood_sub |>
-  group_by(disorder) |>
   summarize(
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
-    .groups = "drop"
+    .by = disorder
   ) |>
   rename(
     mean_difference = estimate,
@@ -2333,14 +2304,13 @@ test_lgi_mood_sub |>
 #| label: lgi-mood-individual-results
 summary_lgi_mood_sub <-
   data_lgi_mood_sub |>
-  group_by(disorder, status) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = c(disorder, status)
   ) |>
   mutate(x = as.numeric(status))
 
@@ -2416,8 +2386,7 @@ data_lgi_psy <-
 
 kable_lgi_psy <-
   data_lgi_psy |>
-  group_by(psy) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = psy) |>
   pivot_wider(names_from = psy, values_from = n) |>
   mutate(disorder = "Psychotic Disorders") |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -2447,14 +2416,13 @@ test_lgi_psy
 ```{r}
 #| label: lgi-psy-final
 summary_lgi_psy <- data_lgi_psy |>
-  group_by(psy) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = psy
   ) |>
   mutate(x = as.numeric(psy))
 
@@ -2535,8 +2503,7 @@ data_lgi_psy_sub <-
 
 kable_lgi_psy_sub <- 
   data_lgi_psy_sub |>
-  group_by(disorder, status) |>
-  summarize(n = n(), .groups = "drop") |>
+  summarize(n = n(), .by = c(disorder, status)) |>
   complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
   pivot_wider(names_from = status, values_from = n) |>
   select(disorder, `TRUE`, `FALSE`) |>
@@ -2555,13 +2522,12 @@ kable_lgi_psy_sub
 #| label: lgi-psy-individual-test
 test_lgi_psy_sub <-
   data_lgi_psy_sub |>
-  group_by(disorder) |>
   summarize(
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
-    .groups = "drop"
+    .by = disorder
   ) |>
   rename(
     mean_difference = estimate,
@@ -2594,14 +2560,13 @@ test_lgi_psy_sub |>
 #| label: lgi-psy-individual-results
 summary_lgi_psy_sub <-
   data_lgi_psy_sub |>
-  group_by(disorder, status) |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .groups = "drop"
+    .by = c(disorder, status)
   ) |>
   mutate(x = as.numeric(status))
 
@@ -2682,23 +2647,21 @@ data_lgi_cnb_acc <-
   filter(measure == "accuracy") |>
   drop_na() |>
   mutate(domain = fct_relabel(domain, str_to_title)) |>
-  group_by(domain) |>
   mutate(
     lgi = residuals(mgcv::gam(lgi ~ s(age) + sex)),
-    cnb = residuals(mgcv::gam(cnb ~ sex))
+    cnb = residuals(mgcv::gam(cnb ~ sex)),
+    .by = domain
   ) |>
-  ungroup() |>
   select(bblid, lgi, domain, cnb)
 
 test_lgi_cnb_acc <-
   data_lgi_cnb_acc |>
-  group_by(domain) |>
   summarize(
     lm(cnb ~ lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .groups = "drop") |>
+    .by = domain) |>
   rename(b = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
@@ -2778,7 +2741,6 @@ data_lgi_cnb_clean <-
 test_lgi_cnb_clean <-
   data_lgi_cnb_clean |>
   crossing(controlled = c(TRUE, FALSE)) |>
-  group_by(controlled, domain) |>
   summarize(
     lm(
       reformulate(
@@ -2789,7 +2751,7 @@ test_lgi_cnb_clean <-
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .groups = "drop_last") |>
+    .by = c(controlled, domain)) |>
   rename(b = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
@@ -2799,9 +2761,9 @@ test_lgi_cnb_clean <-
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    )
-  ) |>
-  ungroup()
+    ),
+    .by = controlled
+  )
 
 test_lgi_cnb_clean |>
   select(domain, controlled, b, ci, p, p_fdr, significance) |>
@@ -3277,7 +3239,7 @@ aic_lgi_trauma |>
 #### Check Final Model
 
 ```{r}
-#| label: lgit-trauma-final
+#| label: lgi-trauma-final
 model_lgi_trauma_final <- gam(
   lgi ~ s(trauma, k = 7),
   data = data_lgi_trauma,
@@ -3531,7 +3493,6 @@ prediction_lgi_age_ses_1 <- data_lgi_age_ses |>
       ses > ses_66 ~ ses_83
     )
   ) |>
-  group_by(ses) |>
   summarise(
     age = list(
       seq(
@@ -3540,7 +3501,7 @@ prediction_lgi_age_ses_1 <- data_lgi_age_ses |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = ses
   ) |>
   unnest(age)
 
@@ -3619,7 +3580,6 @@ prediction_lgi_age_ses_2 <- data_lgi_age_ses |>
       age > age_66 ~ age_83
     )
   ) |>
-  group_by(age) |>
   summarise(
     ses = list(
       seq(
@@ -3628,7 +3588,7 @@ prediction_lgi_age_ses_2 <- data_lgi_age_ses |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = age
   ) |>
   unnest(ses)
 
@@ -3830,7 +3790,6 @@ gam.check(model_lgi_age_sex_final)
 summary(model_lgi_age_sex_final)
 
 prediction_lgi_age_sex <- data_lgi_age_sex |>
-  group_by(sex) |>
   summarise(
     age = list(
       seq(
@@ -3839,7 +3798,7 @@ prediction_lgi_age_sex <- data_lgi_age_sex |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = sex
   ) |>
   unnest(age)
 
@@ -4065,7 +4024,6 @@ summary(model_lgi_age_trauma_final)
 
 prediction_lgi_age_trauma_1 <- data_lgi_age_trauma |>
   filter(trauma %in% c(0, 3, 6)) |>
-  group_by(trauma) |>
   summarise(
     age = list(
       seq(
@@ -4074,7 +4032,7 @@ prediction_lgi_age_trauma_1 <- data_lgi_age_trauma |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = trauma
   ) |>
   unnest(age)
 
@@ -4146,7 +4104,6 @@ prediction_lgi_age_trauma_2 <- data_lgi_age_trauma |>
       age > age_66 ~ age_83
     )
   ) |>
-  group_by(age) |>
   summarise(
     trauma = list(
       seq(
@@ -4155,7 +4112,7 @@ prediction_lgi_age_trauma_2 <- data_lgi_age_trauma |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = age
   ) |>
   unnest(trauma)
 
@@ -4419,7 +4376,6 @@ gam.check(model_lgi_ses_sex_final)
 summary(model_lgi_ses_sex_final)
 
 prediction_lgi_ses_sex <- data_lgi_ses_sex |>
-  group_by(sex) |>
   summarise(
     ses = list(
       seq(
@@ -4428,7 +4384,7 @@ prediction_lgi_ses_sex <- data_lgi_ses_sex |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = sex
   ) |>
   unnest(ses)
 
@@ -4672,7 +4628,6 @@ prediction_lgi_ses_trauma_1 <- data_lgi_ses_trauma |>
       ses > ses_66 ~ ses_83
     )
   ) |>
-  group_by(ses) |>
   summarise(
     trauma = list(
       seq(
@@ -4681,7 +4636,7 @@ prediction_lgi_ses_trauma_1 <- data_lgi_ses_trauma |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = ses
   ) |>
   unnest(trauma)
 
@@ -4760,7 +4715,6 @@ plot_lgi_ses_trauma_1
 
 prediction_lgi_ses_trauma_2 <- data_lgi_ses_trauma |>
   filter(trauma %in% c(0, 3, 6)) |>
-  group_by(trauma) |>
   summarise(
     ses = list(
       seq(
@@ -4769,7 +4723,7 @@ prediction_lgi_ses_trauma_2 <- data_lgi_ses_trauma |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = trauma
   ) |>
   unnest(ses)
 
@@ -4992,7 +4946,6 @@ gam.check(model_lgi_sex_trauma_final)
 summary(model_lgi_sex_trauma_final)
 
 prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
-  group_by(sex) |>
   summarise(
     trauma = list(
       seq(
@@ -5001,7 +4954,7 @@ prediction_lgi_sex_trauma <- data_lgi_sex_trauma |>
         length.out = 250
       )
     ),
-    .groups = "drop"
+    .by = sex
   ) |>
   unnest(trauma)
 
