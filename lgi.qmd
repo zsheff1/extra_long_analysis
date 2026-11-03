@@ -21,6 +21,8 @@ library(broom)
 library(psych)
 library(ggseg)
 library(BifactorIndicesCalculator)
+library(effectsize)
+library(scales)
 
 # Source
 source("R/mapping.R")
@@ -234,10 +236,7 @@ data_lgi_vol_tertile <- demo |>
   mutate(
     across(
       c(lgi, etiv),
-      \(x) {
-        mgcv::gam(x ~ s(age) + sex, data = pick(everything())) |>
-          residuals()
-      },
+      \(x) residuals(gam(x ~ s(age) + sex)),
       .names = "{.col}_reg"
     ),
     g = case_when(
@@ -533,9 +532,7 @@ data_regional_lgi <-
   ) |>
   drop_na() |>
   mutate(
-    regional_lgi = residuals(
-      mgcv::gam(regional_lgi ~ s(age) + sex, data = pick(everything()))
-    ),
+    regional_lgi = residuals(gam(regional_lgi ~ s(age) + sex)),
     .by = region
   ) |>
   select(-age, -sex)
@@ -556,9 +553,7 @@ data_regional_psy <-
   ) |>
   drop_na() |>
   mutate(
-    psychosis = residuals(
-      mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
-    ),
+    psychosis = residuals(gam(psychosis ~ s(age) + sex)),
     .by = factor
   ) |>
   mutate(factor = str_to_title(str_replace_all(factor, "_", " "))) |>
@@ -652,9 +647,7 @@ data_lobular_lgi <-
   ) |>
   drop_na() |>
   mutate(
-    lobular_lgi = residuals(
-      mgcv::gam(lobular_lgi ~ s(age) + sex, data = pick(everything()))
-    ),
+    lobular_lgi = residuals(gam(lobular_lgi ~ s(age) + sex)),
     lobe = factor(
       str_to_title(lobe),
       levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
@@ -679,9 +672,7 @@ data_lobular_psy <-
   ) |>
   drop_na() |>
   mutate(
-    psychosis = residuals(
-      mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything()))
-    ),
+    psychosis = residuals(gam(psychosis ~ s(age) + sex)),
     factor = str_to_title(str_replace_all(factor, "_", " ")),
     .by = factor
   ) |>
@@ -751,7 +742,7 @@ imaging_wide <-
   drop_na() |>
   mutate(across(
     c(ends_with("_left"), ends_with("_right")),
-    \(x) residuals(mgcv::gam(x ~ s(age) + sex, data = pick(everything())))
+    \(x) residuals(gam(x ~ s(age) + sex))
   )) |>
   select(-age, -sex)
 
@@ -778,7 +769,7 @@ regional_lgi_residuals <-
   drop_na() |>
   mutate(across(
     c(ends_with("_left"), ends_with("_right")),
-    \(x) residuals(mgcv::gam(x ~ s(age) + s(global_lgi) + sex, data = pick(everything())))
+    \(x) residuals(gam(x ~ s(age) + s(global_lgi) + sex))
   )) |>
   select(-age, -sex, -global_lgi)
 
@@ -787,14 +778,14 @@ scree(select(regional_lgi_residuals, -bblid), factors = TRUE)
 n_factors <- 9
 
 fa_lgi <-
-  psych::fa(
+  fa(
     select(imaging_wide, -bblid),
     nfactors = n_factors,
     fm = "minres",
     rotate = "bifactor",
     scores = "regression"
   ) |>
-  psych::fa.organize(
+  fa.organize(
     cn = c("Global", str_c("Region", 1:(n_factors - 1), sep = " "))
   )
 
@@ -881,7 +872,7 @@ test_regional_psy <-
     t.test(lgi ~ dx) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ dx)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ dx)$Cohens_d,
     .by = region
   ) |>
   separate(region, into = c("region", "laterality"), sep = "_") |>
@@ -947,319 +938,91 @@ plot_regional_psy
 
 When regressing sex and the spline of age from global LGI and the psychopatholgy factor scores [General Psychopathology](#factor-general-p) and [ADHD](#factor-adhd) showed a significant negative correlation with Global LGI. No such relationship was observed for [Depression](#factor-depression), [Mania](#factor-mania), [Psychosis Positive](#factor-psy-pos), or [Psychosis Negative](#factor-psy-neg).
 
-::: {.content-visible when-profile="scratch"}
-
 ```{r}
 #| label: clinical-factors-sample
-#| control: {method: residual, variables: [age, sex]}
-data_lgi_clinical <-
-  clinical |>
-  filter(type == "bifactor") |>
-  select(bblid, factor, value) |>
-  pivot_wider(names_from = factor, values_from = value) |>
-  inner_join(select(global_lgi, bblid, lgi), by = "bblid") |>
-  inner_join(select(demo, bblid, age, sex), by = "bblid") |>
-  drop_na() |>
-  mutate(across(
-    c(
-      lgi, general_p, adhd, depression, mania, psychosis_positive,
-      psychosis_negative
+#| test: {method: correlation, variables: [lgi, [general p, adhd, depression, mania, psychosis positive, psychosis negative]]}
+#| control: [null, {method: residual, variables: [age, sex]}]
+#| scale: global
+tmp_lgi <- 
+  inner_join(
+    global_lgi |>
+      select(bblid, lgi),
+    demo |>
+      select(bblid, age, sex),
+    by = "bblid"
+  ) |>
+  drop_na(lgi, age, sex) |>
+  mutate(lgi_reg = residuals(gam(lgi ~ s(age) + sex))) |>
+  pivot_longer(cols = c(lgi, lgi_reg), names_to = "control", values_to = "lgi") |>
+  mutate(control = case_when(control == "lgi_reg" ~ TRUE, control == "lgi" ~ FALSE)) |>
+  select(bblid, control, lgi)
+
+tmp_clinical <-
+  inner_join(
+    clinical |>
+      filter(type == "bifactor") |>
+      select(bblid, factor, value),
+    demo |>
+      select(bblid, age, sex),
+    by = "bblid") |>
+  drop_na(factor, value, age, sex) |>
+  mutate(value_reg = residuals(gam(value ~ s(age) + sex)), .by = factor) |>
+  pivot_longer(cols = c(value, value_reg), names_to = "control", values_to = "value") |>
+  mutate(
+    control = case_when(control == "value_reg" ~ TRUE, control == "value" ~ FALSE),
+    factor = if_else(factor == "adhd", str_to_upper(factor), str_to_title(str_replace_all(factor, "_", " ")))
+  ) |>
+  select(bblid, control, factor, value)
+
+data_lgi_clinical <- inner_join(tmp_lgi, tmp_clinical, by = c("bblid", "control"), relationship = "one-to-many")
+
+test_lgi_clinical <- data_lgi_clinical |>
+  summarize(
+    cor.test(lgi, value) |>
+      tidy() |>
+      clean_names(),
+    .by = c(control, factor)
+  ) |>
+  rename(
+    r = estimate,
+    p = p_value
+  ) |>
+  mutate(
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
     ),
-    \(x) residuals(mgcv::gam(x ~ s(age) + sex, data = pick(everything()))),
-    .names = "{.col}_reg"
-  ))
-```
+    .by = control
+  )
 
-:::
+test_lgi_clinical |>
+  filter(!control) |>
+  select(factor, r, ci, p, p_fdr, significance) |>
+  arrange(factor) |>
+  kbl(
+    col.names = c("Clinical Factor", "r", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Relationship Between Global LGI and Psychopathology Factors",
+  )
 
-## General Psychopathology {#factor-general-p}
+labeller_lgi_clinical <-
+  test_lgi_clinical |>
+  filter(!control) |>
+  mutate(label = str_trim(str_c(factor, significance, sep = " "))) |>
+  select(factor, label) |>
+  deframe() |>
+  as_labeller()
 
-``` {r}
-#| label: lgi-general-p
-#| test: {method: correlation, variables: [lgi, general p]}
-#| control: null
-#| scale: global
-test_lgi_general_p <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$general_p)
-
-test_lgi_general_p
-
-plot_lgi_general_p <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = general_p)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and General Psychopathology Factor",
-    subtitle = report_correlation(test_lgi_general_p),
-    x = "Global LGI",
-    y = "General Psychopathology (bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_general_p
-```
-
-```{r}
-#| label: lgi-general-p-reg
-#| test: {method: correlation, variables: [lgi, general p]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_general_p_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$general_p_reg)
-
-test_lgi_general_p_reg
-
-plot_lgi_general_p_reg <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = general_p_reg)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and General Psychopathology Factor",
-    subtitle = report_correlation(test_lgi_general_p_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "General Psychopathology (bifactor; s(age) + sex regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_general_p_reg
-```
-
-## ADHD {#factor-adhd}
-
-``` {r}
-#| label: lgi-adhd
-#| test: {method: correlation, variables: [lgi, adhd]}
-#| control: null
-#| scale: global
-test_lgi_adhd <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$adhd)
-
-test_lgi_adhd
-
-plot_lgi_adhd <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = adhd)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and ADHD Factor",
-    subtitle = report_correlation(test_lgi_adhd),
-    x = "Global LGI",
-    y = "ADHD (bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_adhd
-```
-
-``` {r}
-#| label: lgi-adhd-reg
-#| test: {method: correlation, variables: [lgi, adhd]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_adhd_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$adhd_reg)
-
-test_lgi_adhd_reg
-
-plot_lgi_adhd_reg <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = adhd_reg)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and ADHD Factor",
-    subtitle = report_correlation(test_lgi_adhd_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "ADHD (bifactor; s(age) + sex regressed))"
-  ) +
-  theme_linedraw()
-
-plot_lgi_adhd_reg
-```
-
-## Depression {#factor-depression}
-
-``` {r}
-#| label: lgi-depression
-#| test: {method: correlation, variables: [lgi, depression]}
-#| control: null
-#| scale: global
-test_lgi_dep <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$depression)
-
-test_lgi_dep
-
-plot_lgi_dep <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = depression)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Depression Factor",
-    subtitle = report_correlation(test_lgi_dep),
-    x = "Global LGI",
-    y = "Depression (bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_dep
-```
-
-``` {r}
-#| label: lgi-depression-reg
-#| test: {method: correlation, variables: [lgi, general_p]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_dep_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$depression_reg)
-
-test_lgi_dep_reg
-
-plot_lgi_dep_reg <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = depression_reg)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Depression Factor",
-    subtitle = report_correlation(test_lgi_dep_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "Depression (bifactor; s(age) + sex regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_dep_reg
-```
-
-## Mania {#factor-mania}
-
-``` {r}
-#| label: lgi-mania
-#| test: {method: correlation, variables: [lgi, mania]}
-#| control: null
-#| scale: global
-test_lgi_mania <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$mania)
-
-test_lgi_mania
-
-plot_lgi_mania <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi, y = mania)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Mania Factor",
-    subtitle = report_correlation(test_lgi_mania),
-    x = "Global LGI",
-    y = "Mania (bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_mania
-```
-
-``` {r}
-#| label: lgi-mania-reg
-#| test: {method: correlation, variables: [lgi, mania]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_mania_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$mania_reg)
-
-test_lgi_mania_reg
-
-plot_lgi_mania_reg <-
-  ggplot(data = data_lgi_clinical, mapping = aes(x = lgi_reg, y = mania_reg)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Mania Factor",
-    subtitle = report_correlation(test_lgi_mania_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "Mania (bifactor; s(age) + sex regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_mania_reg
-```
-
-## Psychosis Negative {#factor-psy-neg}
-
-``` {r}
-#| label: lgi-psychosis-negative
-#| test: {method: correlation, variables: [lgi, psychosis negative]}
-#| control: null
-#| scale: global
-test_lgi_psy_neg <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$psychosis_negative)
-
-test_lgi_psy_neg
-
-plot_lgi_psy_neg <-
+plot_lgi_clinical <-
   ggplot(
-    data = data_lgi_clinical,
-    mapping = aes(x = lgi, y = psychosis_negative)
+    data = data_lgi_clinical |>
+      filter(!control),
+    mapping = aes(x = lgi, y = value)
   ) +
   geom_point(alpha = 0.25, size = 1) +
   geom_smooth(
@@ -1271,31 +1034,40 @@ plot_lgi_psy_neg <-
     linewidth = 0.75,
     alpha = 0.5
   ) +
+  facet_wrap(~ factor, labeller = labeller_lgi_clinical) +
   labs(
-    title = "Correlation of Global LGI and Psychosis Negative Factor",
-    subtitle = report_correlation(test_lgi_psy_neg),
+    title = "Relationship Between Global LGI and Psychopathology Factors",
     x = "Global LGI",
-    y = "Psychosis Negative (bifactor)"
+    y = "Psychopathology (bifactor)"
   ) +
   theme_linedraw()
 
-plot_lgi_psy_neg
-```
+plot_lgi_clinical
 
-``` {r}
-#| label: lgi-psychosis-negative-reg
-#| test: {method: correlation, variables: [lgi, psychosis negative]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_psy_neg_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$psychosis_negative_reg)
+test_lgi_clinical |>
+  filter(control) |>
+  select(factor, r, ci, p, p_fdr, significance) |>
+  arrange(factor) |>
+  kbl(
+    col.names = c("Clinical Factor", "r", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Relationship Between Global LGI and Psychopathology Factors, Controlling for Age and Sex",
+  )
 
-test_lgi_psy_neg_reg
+labeller_lgi_clinical_controlled <-
+  test_lgi_clinical |>
+  filter(control) |>
+  mutate(label = str_trim(str_c(factor, significance, sep = " "))) |>
+  select(factor, label) |>
+  deframe() |>
+  as_labeller()
 
-plot_lgi_psy_neg_reg <-
+plot_lgi_clinical_controlled <-
   ggplot(
-    data = data_lgi_clinical,
-    mapping = aes(x = lgi_reg, y = psychosis_negative_reg)
+    data = data_lgi_clinical |>
+      filter(control),
+    mapping = aes(x = lgi, y = value)
   ) +
   geom_point(alpha = 0.25, size = 1) +
   geom_smooth(
@@ -1307,89 +1079,15 @@ plot_lgi_psy_neg_reg <-
     linewidth = 0.75,
     alpha = 0.5
   ) +
+  facet_wrap(~ factor, labeller = labeller_lgi_clinical_controlled) +
   labs(
-    title = "Correlation of Global LGI and Psychosis Negative Factor",
-    subtitle = report_correlation(test_lgi_psy_neg_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "Psychosis Negative (bifactor; s(age) + sex regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_psy_neg_reg
-```
-
-## Psychosis Positive {#factor-psy-pos}
-
-``` {r}
-#| label: lgi-psychosis-positive
-#| test: {method: correlation, variables: [lgi, psychosis positive]}
-#| control: null
-#| scale: global
-test_lgi_psy_pos <-
-  cor.test(data_lgi_clinical$lgi, data_lgi_clinical$psychosis_positive)
-
-test_lgi_psy_pos
-
-plot_lgi_psy_pos <-
-  ggplot(
-    data = data_lgi_clinical,
-    mapping = aes(x = lgi_reg, y = psychosis_positive)
-  ) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Psychosis Positive Factor",
-    subtitle = report_correlation(test_lgi_psy_pos),
+    title = "Relationship Between Global LGI and Psychopathology Factors",
     x = "Global LGI",
-    y = "Psychosis Positive (bifactor)"
+    y = "Psychopathology (bifactor)"
   ) +
   theme_linedraw()
 
-plot_lgi_psy_pos
-```
-
-``` {r}
-#| label: lgi-psychosis-positive-reg
-#| test: {method: correlation, variables: [lgi, psychosis positive]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_psy_pos_reg <-
-  cor.test(data_lgi_clinical$lgi_reg, data_lgi_clinical$psychosis_positive_reg)
-
-test_lgi_psy_pos_reg
-
-plot_lgi_psy_pos_reg <-
-  ggplot(
-    data = data_lgi_clinical,
-    mapping = aes(x = lgi_reg, y = psychosis_positive_reg)
-  ) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  labs(
-    title = "Correlation of Global LGI and Psychosis Positive Factor",
-    subtitle = report_correlation(test_lgi_psy_pos_reg),
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "Psychosis Positive (bifactor; s(age) + sex regressed)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_psy_pos_reg
+plot_lgi_clinical_controlled
 ```
 
 # Psychopathology (Binary GOASSESS)
@@ -1542,7 +1240,7 @@ test_lgi_anx_sub <-
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
     .by = disorder
   ) |>
   rename(
@@ -1586,11 +1284,12 @@ summary_lgi_anx_sub <-
   ) |>
   mutate(x = as.numeric(status))
 
-facet_labels_lgi_anx_sub <-
+labeller_lgi_anx_sub <-
   test_lgi_anx_sub |>
   mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
   select(disorder, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_anx_sub <-
   ggplot() +
@@ -1617,12 +1316,7 @@ plot_lgi_anx_sub <-
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(
-    ~ disorder,
-    ncol = 4,
-    nrow = 2,
-    labeller = as_labeller(facet_labels_lgi_anx_sub)
-  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_anx_sub) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -1785,7 +1479,7 @@ test_lgi_beh_sub <-
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
     .by = disorder
   ) |>
   rename(
@@ -1829,11 +1523,12 @@ summary_lgi_beh_sub <-
   ) |>
   mutate(x = as.numeric(status))
 
-facet_labels_lgi_beh_sub <-
+labeller_lgi_beh_sub <-
   test_lgi_beh_sub |>
   mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
   select(disorder, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_beh_sub <-
   ggplot() +
@@ -1860,12 +1555,7 @@ plot_lgi_beh_sub <-
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(
-    ~ disorder,
-    ncol = 3,
-    nrow = 1,
-    labeller = as_labeller(facet_labels_lgi_beh_sub)
-  ) +
+  facet_wrap(~ disorder, ncol = 3, nrow = 1, labeller = labeller_lgi_beh_sub) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -2028,7 +1718,7 @@ test_lgi_eat_sub <-
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
     .by = disorder
   ) |>
   rename(
@@ -2072,11 +1762,12 @@ summary_lgi_eat_sub <-
   ) |>
   mutate(x = as.numeric(status))
 
-facet_labels_lgi_eat_sub <-
+labeller_lgi_eat_sub <-
   test_lgi_eat_sub |>
   mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
   select(disorder, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_eat_sub <-
   ggplot() +
@@ -2103,12 +1794,7 @@ plot_lgi_eat_sub <-
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(
-    ~ disorder,
-    ncol = 2,
-    nrow = 1,
-    labeller = as_labeller(facet_labels_lgi_eat_sub)
-  ) +
+  facet_wrap(~ disorder, ncol = 2, nrow = 1, labeller = labeller_lgi_eat_sub) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -2271,7 +1957,7 @@ test_lgi_mood_sub <-
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
     .by = disorder
   ) |>
   rename(
@@ -2314,11 +2000,12 @@ summary_lgi_mood_sub <-
   ) |>
   mutate(x = as.numeric(status))
 
-facet_labels_lgi_mood_sub <-
+labeller_lgi_mood_sub <-
   test_lgi_mood_sub |>
   mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
   select(disorder, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_mood_sub <-
   ggplot() +
@@ -2345,12 +2032,7 @@ plot_lgi_mood_sub <-
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(
-    ~ disorder,
-    ncol = 2,
-    nrow = 1,
-    labeller = as_labeller(facet_labels_lgi_mood_sub)
-  ) +
+  facet_wrap(~ disorder, ncol = 2, nrow = 1, labeller = labeller_lgi_mood_sub) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -2526,7 +2208,7 @@ test_lgi_psy_sub <-
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
-    cohens_d = effectsize::cohens_d(lgi ~ status)$Cohens_d,
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
     .by = disorder
   ) |>
   rename(
@@ -2574,7 +2256,8 @@ facet_labels_lgi_psy_sub <-
   test_lgi_psy_sub |>
   mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
   select(disorder, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_psy_sub <-
   ggplot() +
@@ -2601,12 +2284,7 @@ plot_lgi_psy_sub <-
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(
-    ~ disorder,
-    ncol = 3,
-    nrow = 3,
-    labeller = as_labeller(facet_labels_lgi_psy_sub)
-  ) +
+  facet_wrap(~ disorder, ncol = 3, nrow = 3, labeller = facet_labels_lgi_psy_sub) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -2648,8 +2326,8 @@ data_lgi_cnb_acc <-
   drop_na() |>
   mutate(domain = fct_relabel(domain, str_to_title)) |>
   mutate(
-    lgi = residuals(mgcv::gam(lgi ~ s(age) + sex)),
-    cnb = residuals(mgcv::gam(cnb ~ sex)),
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    cnb = residuals(gam(cnb ~ sex)),
     .by = domain
   ) |>
   select(bblid, lgi, domain, cnb)
@@ -2688,7 +2366,8 @@ facet_labels_lgi_cnb <-
   test_lgi_cnb_acc |>
   mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
   select(domain, label) |>
-  tibble::deframe()
+  deframe() |>
+  as_labeller()
 
 plot_lgi_cnb_acc <-
   ggplot(
@@ -2705,7 +2384,7 @@ plot_lgi_cnb_acc <-
     linewidth = 0.75,
     alpha = 0.5
   ) +
-  facet_wrap(~ domain, labeller = as_labeller(facet_labels_lgi_cnb)) +
+  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb) +
   labs(
     title = "Relationship Between Global LGI and CNB Accuracy",
     subtitle = "CNB ~ LGI",
@@ -3542,12 +3221,12 @@ plot_lgi_age_ses_1 <-
   scale_color_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   scale_fill_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   labs(
     title = "LGI Developmental Trajectories by SES",
@@ -3629,12 +3308,12 @@ plot_lgi_age_ses_2 <-
   scale_color_viridis_c(
     limits = c(age_0, age_100),
     breaks = c(age_16, age_50, age_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   scale_fill_viridis_c(
     limits = c(age_0, age_100),
     breaks = c(age_16, age_50, age_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   labs(
     title = "LGI-SES Relationship by Age",
@@ -4141,7 +3820,7 @@ plot_lgi_age_trauma_2 <-
   geom_point(
     data = data_lgi_age_trauma,
     mapping = aes(
-      x = trauma + scales::rescale(age, to = c(-0.25, 0.25))
+      x = trauma + rescale(age, to = c(-0.25, 0.25))
     ),
     alpha = 0.25,
     size = 1
@@ -4160,12 +3839,12 @@ plot_lgi_age_trauma_2 <-
   scale_color_viridis_c(
     limits = c(age_0, age_100),
     breaks = c(age_16, age_50, age_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   scale_fill_viridis_c(
     limits = c(age_0, age_100),
     breaks = c(age_16, age_50, age_83),
-    labels = scales::label_number(accuracy = 0.01)
+    labels = label_number(accuracy = 0.01)
   ) +
   labs(
     title = "LGI-Trauma Relationship by Age",
@@ -4665,7 +4344,7 @@ plot_lgi_ses_trauma_1 <-
   geom_point(
     data = data_lgi_ses_trauma,
     mapping = aes(
-      x = trauma + scales::rescale(ses, to = c(-0.25, 0.25))
+      x = trauma + rescale(ses, to = c(-0.25, 0.25))
     ),
     alpha = 0.25,
     size = 1
@@ -4684,12 +4363,12 @@ plot_lgi_ses_trauma_1 <-
   scale_color_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = label_number(accuracy = 0.1)
   ) +
   scale_fill_viridis_c(
     limits = c(ses_0, ses_100),
     breaks = c(ses_16, ses_50, ses_83),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = label_number(accuracy = 0.1)
   ) +
   labs(
     title = "LGI Trauma Relationship by SES",
@@ -4764,12 +4443,12 @@ plot_lgi_ses_trauma_2 <-
   scale_color_viridis_c(
     limits = c(0, 7),
     breaks = c(0, 3, 6),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = label_number(accuracy = 0.1)
   ) +
   scale_fill_viridis_c(
     limits = c(0, 7),
     breaks = c(0, 3, 6),
-    labels = scales::label_number(accuracy = 0.1)
+    labels = label_number(accuracy = 0.1)
   ) +
   labs(
     title = "LGI SES Relationship by Trauma",
