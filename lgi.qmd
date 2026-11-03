@@ -20,6 +20,7 @@ library(ComplexUpset)
 library(broom)
 library(psych)
 library(ggseg)
+library(BifactorIndicesCalculator)
 
 # Source
 source("R/mapping.R")
@@ -740,7 +741,7 @@ test_lgi_psy_lobular |>
 
 ### LGI Factors vs Psychosis Factor
 
-#### Factor Analysis
+An initial scree plot of regional LGI measures revealed a dominant first factor, suggesting substantial shared variance across cortical regions. To investigate additional regional variation, global LGI was regressed out of each regional LGI measure, and a second scree plot was generated from the residuals to guide the selection of regional factors. An exploratory bifactor model was then fitted to the original regional LGI measures, consisting of one general factor and eight specific regional factors. Bifactor indices, including factor determinacy (FD), were calculated to assess the suitability of the resulting factor scores for subsequent analyses. Only the general factor demonstrated adequate determinacy (FD = 0.995), while all eight regional factors fell below the selected threshold of FD ≥ 0.80 (range: 0.579–0.764). Consequently, the regional factor scores were not retained for downstream analyses.
 
 ```{r}
 #| label: lgi-factor-analysis
@@ -808,15 +809,17 @@ fa_lgi <-
 
 colnames(fa_lgi$scores) <- colnames(fa_lgi$loadings)
 
-scores_lgi <-
-  bind_cols(select(imaging_wide, bblid), as_tibble(fa_lgi$scores)) |>
-  pivot_longer(
-    cols = -bblid,
-    names_to = "region",
-    values_to = "regional_lgi"
-  ) |>
-  filter(region != "Global") |>
-  mutate(region = factor(region))
+invisible(capture.output(
+  bifactor_indices <- bifactorIndices_expl(fa_lgi)
+))
+
+bifactor_indices |>
+  pluck("FactorLevelIndices") |>
+  rownames_to_column(var = "Factor") |>
+  as_tibble() |>
+  unnest(cols = everything()) |>
+  select(Factor, FD) |>
+  kbl()
 
 loadings_lgi <- fa_lgi$loadings |>
   unclass() |>
@@ -826,7 +829,6 @@ loadings_lgi <- fa_lgi$loadings |>
     names_to = "factor",
     values_to = "loading"
   ) |>
-  filter(factor != "Global") |>
   separate(
     roi,
     into = c("region", "hemi"),
@@ -844,7 +846,7 @@ plot_loadings <- ggplot() +
     mapping = aes(fill = loading),
     position = position_brain(view ~ hemi)
   ) +
-  facet_wrap(~ factor, ncol = 4, nrow = 2) +
+  facet_wrap(~ factor, ncol = 5, nrow = 2) +
   scale_fill_gradient2(
     low = my_red,
     mid = "white",
@@ -852,75 +854,10 @@ plot_loadings <- ggplot() +
     midpoint = 0,
     limits = c(-1, 1)
   ) +
-  theme_void()
+  theme_void() +
+  theme(legend.position = "bottom")
 
 plot_loadings
-```
-
-#### Results
-
-```{r}
-#| label: lgi-factor-results
-#| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: factor analysis
-tmp_clinical <-
-  clinical |>
-  filter(type == "bifactor", str_detect(factor, "psychosis")) |>
-  rename(psychosis = value) |>
-  inner_join(
-    demo |>
-      select(bblid, age, sex),
-    by = "bblid",
-    relationship = "many-to-one"
-  ) |>
-  drop_na() |>
-  group_by(factor) |>
-  mutate(psychosis = residuals(mgcv::gam(psychosis ~ s(age) + sex, data = pick(everything())))) |>
-  ungroup() |>
-  select(bblid, factor, psychosis)
-
-data_lgi_factors <-
-  inner_join(
-    tmp_clinical,
-    scores_lgi,
-    by = "bblid",
-    relationship = "many-to-many"
-  ) |>
-  drop_na()
-
-test_lgi_factors <-
-  data_lgi_factors |>
-  group_by(factor, region) |>
-  summarize(
-    lm(psychosis ~ regional_lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "regional_lgi"),
-    .groups = "drop_last"
-  ) |>
-  rename(b = estimate, p = p_value) |>
-  mutate(
-    factor = str_to_title(str_replace_all(factor, "_", " ")),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  ) |>
-  ungroup()
-
-test_lgi_factors |>
-  select(region, factor, b, ci, p, p_fdr, significance) |>
-  arrange(region, desc(factor)) |>
-  kbl(
-    col.names = c("Region", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
-    align = "llrrrrl",
-    digits = c(NA, NA, 3, NA, 5, 5, NA)
-  )
 ```
 
 ### Differences in Regional LGI between Psychosis and TD
