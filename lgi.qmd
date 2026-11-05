@@ -71,41 +71,34 @@ raw_goassess <- read_csv(path_goassess)
 ```{r}
 #| label: clean-data
 # Demographics
-demo <- raw_sub_ses |>
-  select(bblid, age) |>
+demo <-
   left_join(
-    select(raw_merge, bblid, sex, race, clinical_goassessDxpmr7),
+    raw_sub_ses |>
+      select(bblid, age),
+    raw_merge |>
+      rename(dx = clinical_goassessDxpmr7) |>
+      select(bblid, sex, race, dx),
     by = "bblid"
   ) |>
-  rename(dx = clinical_goassessDxpmr7) |>
   mutate(
     age = age / 12,
-    dx = str_to_lower(dx),
+    dx = factor(dx, levels = c("TD", "PS", "OP")),
     race = factor(
-      case_when(
-        race == 1 ~ "White",
-        race == 2 ~ "Black",
-        race == 3 ~ "Native American",
-        race == 4 ~ "Asian",
-        race == 5 ~ "Biracial",
-        race == 6 ~ "Hawaiian/Pacific Islander",
-        race == 9 ~ "Unknown"
-      ),
-      levels = c(
+      race,
+      levels = c(1, 2, 3, 4, 5, 6, 9),
+      labels = c(
         "White",
         "Black",
         "Native American",
         "Asian",
         "Biracial",
-        "Hawiian/Pacific Islander",
+        "Hawaiian/Pacific Islander",
         "Unknown"
       )
     ),
-    sex = factor(
-      case_when(sex == 1 ~ "Male", sex == 2 ~ "Female"),
-      levels = c("Female", "Male")
-    )
-  )
+    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female"))
+  ) |>
+  arrange(bblid)
 
 # Environment
 env <- full_join(raw_env_ses, raw_env_trauma, by = "bblid") |>
@@ -123,17 +116,18 @@ imaging <- raw_imaging |>
   filter(atlas == "desikan_killiany", !is.na(lobe)) |>
   semi_join(imaging_qc, by = c("bblid", "scanid")) |>
   pivot_wider(values_from = value, names_from = metric) |>
-  select(bblid, scanid, lobe, laterality, region, lgi, area)
+  select(bblid, scanid, lobe, laterality, region, lgi, area) |>
+  drop_na()
 
 global_lgi <- imaging |>
   summarize(lgi = weighted.mean(lgi, area), .by = c(bblid, scanid))
 
 lgi_lobe <- imaging |>
-  summarize(lgi = weighted.mean(lgi, area), .by = c(bblid, scanid, lobe)) |>
-  drop_na()
+  summarize(lgi = weighted.mean(lgi, area), .by = c(bblid, scanid, lobe))
 
 data_etiv <- raw_imaging |>
   filter(region == "EstimatedTotalIntraCranialVol") |>
+  semi_join(imaging_qc, by = c("bblid", "scanid")) |>
   rename(etiv = value) |>
   select(bblid, scanid, etiv)
 
@@ -147,17 +141,18 @@ clinical <- raw_merge |>
   ) |>
   pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
   mutate(
-    type = str_split(name, "_") |>
-      map_chr(3) |>
-      str_to_snake(),
-    factor = str_split(name, "_") |>
-      map_chr(\(x) str_c(x[4:length(x)], collapse = "_")) |>
+    type = name |> str_split("_") |> map_chr(3) |> str_to_snake(),
+    factor = name |>
+      str_replace("General_p", "GeneralP") |>
+      str_split("_") |>
+      map_chr(4) |>
       str_to_snake()
   ) |>
   select(bblid, type, factor, value)
 
 # Cognitive
-cnb <- raw_merge |>
+cnb <-
+  raw_merge |>
   semi_join(demo, by = "bblid") |>
   select(
     bblid,
@@ -166,32 +161,68 @@ cnb <- raw_merge |>
     -contains("discounting")
   ) |>
   pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
-  mutate(
-    domain = factor(
-      str_replace(map_chr(str_split(name, "_"), 2), "socialcog", "social"),
-      levels = c("overall", "executive", "memory", "complex", "social", "motor")
-    ),
-    measure = map_chr(str_split(name, "_"), 3)
+  transmute(
+    bblid,
+    domain = name |>
+      str_split("_") |>
+      map_chr(2) |>
+      str_replace("socialcog", "social") |>
+      str_to_title() |>
+      factor(
+        levels = c(
+          "Overall", "Executive", "Memory", "Complex", "Social", "Motor"
+        )
+      ),
+    measure = name |> str_split("_") |> map_chr(3) |> str_to_title(),
+    value,
   ) |>
-  arrange(bblid, measure, domain) |>
-  select(bblid, measure, domain, value)
+  arrange(bblid, measure, domain)
 
 # GOASSESS
-goassess <-
-  raw_goassess |>
-  semi_join(demo, by = "bblid")
+psy_symptoms <- c(
+  "smry_del", "smry_hal_av", "smry_hal_as", "smry_hal_vh", "smry_hal_oh",
+  "smry_hal_th", "smry_hal"
+)
 
-goassess_bin <-
-  goassess |>
-  mutate(across(
-    starts_with("smry_"),
-    \(x) {
-      factor(
-        case_when(x == 4 ~ TRUE, x %in% 0:3 ~ FALSE),
-        levels = c("FALSE", "TRUE")
-      )
-    }
-  ))
+goassess_disorder <-
+  raw_goassess |>
+  semi_join(demo, by = "bblid") |>
+  pivot_longer(cols = -bblid, names_to = "disorder", values_to = "score") |>
+  filter(!str_ends(disorder, "_cat")) |>
+  mutate(
+    category = case_when(
+      disorder %in% c(
+        "smry_agr", "smry_gad", "smry_ocd", "smry_pan", "smry_phb", "smry_ptd",
+        "smry_sep", "smry_soc"
+      ) ~ "anx",
+      disorder %in% c("smry_add", "smry_odd", "smry_con") ~ "beh",
+      disorder %in% c("smry_ano", "smry_bul") ~ "eat",
+      disorder %in% c("smry_dep", "smry_man") ~ "mood",
+      disorder %in% c(
+        "smry_del", "smry_hal_av", "smry_hal_as", "smry_hal_vh", "smry_hal_oh",
+        "smry_hal_th", "smry_hal"
+      ) ~ "psy"
+    ),
+    status = case_when(
+      score == 4 & category != "psy" ~ TRUE,
+      score == 3 & category == "psy" ~ TRUE,
+      score %in% 0:3 & category != "psy" ~ FALSE,
+      score %in% 0:2 & category == "psy" ~ FALSE,
+    )
+  )
+
+goassess_category <-
+  raw_goassess |>
+  semi_join(demo, by = "bblid") |>
+  select(bblid, ends_with("_cat")) |>
+  pivot_longer(cols = -bblid, names_to = "category", values_to = "score") |>
+  mutate(
+    category = category |> str_split("_") |> map_chr(2),
+    status = case_when(
+      score == 4 ~ TRUE,
+      score %in% 0:3 ~ FALSE,
+    )
+  )
 ```
 
 :::
@@ -206,70 +237,15 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 
 ```{r}
 #| label: subsample
-clean_subsample <- inner_join(demo, data_etiv, by = "bblid")
-  
-median_etiv_sex <- clean_subsample |>
-  summarize(etiv_median = median(etiv), .by = sex)
-  
-clean_subsample <- clean_subsample |>
+clean_subsample <-
+  inner_join(demo, data_etiv, by = "bblid") |>
+  mutate(etiv_median = median(etiv), .by = sex) |>
   semi_join(drop_na(global_lgi), by = "bblid") |>
   semi_join(filter(env, trauma == 0), by = "bblid") |>
-  filter(
-    race == "White",
-    dx == "td"
-  ) |>
-  left_join(median_etiv_sex, by = "sex") |>
+  filter(race == "White", dx == "TD") |>
   slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE, by = sex) |>
   select(bblid) |>
   arrange(bblid)
-```
-
-## LGI-Volume Tertile Groups
-
-```{r}
-#| label: tertile-groups
-#| control: {method: residual, variables: [age, sex]}
-data_lgi_vol_tertile <- demo |>
-  full_join(global_lgi, by = "bblid", relationship = "one-to-one") |>
-  full_join(data_etiv, by = "bblid", relationship = "one-to-one") |>
-  drop_na() |>
-  mutate(
-    across(
-      c(lgi, etiv),
-      \(x) residuals(gam(x ~ s(age) + sex)),
-      .names = "{.col}_reg"
-    ),
-    g = case_when(
-      percent_rank(lgi_reg) >= 0 & percent_rank(lgi_reg) < 1/3 ~ 1,
-      percent_rank(lgi_reg) >= 1/3 & percent_rank(lgi_reg) < 2/3 ~ 2,
-      percent_rank(lgi_reg) >= 2/3 & percent_rank(lgi_reg) <= 1 ~ 3
-    ),
-    v = case_when(
-      percent_rank(etiv_reg) >= 0 & percent_rank(etiv_reg) < 1/3 ~ 1,
-      percent_rank(etiv_reg) >= 1/3 & percent_rank(etiv_reg) < 2/3 ~ 2,
-      percent_rank(etiv_reg) >= 2/3 & percent_rank(etiv_reg) <= 1 ~ 3
-    ),
-    group = str_c("g", g, "v", v)
-  )
-
-plot_lgi_vol_tertile <-
-  ggplot(
-    data = data_lgi_vol_tertile,
-    mapping = aes(x = lgi_reg, y = etiv_reg, color = group)
-  ) +
-  geom_point(alpha = 0.75, size = 1) +
-  scale_color_manual(
-    name = "Group",
-    values = c("g1v1" = my_red, "g1v3" = my_orange, "g3v1" = my_purple, "g3v3" = my_green)
-  ) +
-  labs(
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "eTIV (s(age) + sex regressed)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "bottom")
-
-plot_lgi_vol_tertile
 ```
 
 ## Demographics
@@ -320,63 +296,41 @@ for (i in seq_len(nrow(row_hierarchy))) {
 demo_kable
 ```
 
-## Comorbidities
+## LGI-Volume Tertile Groups
 
 ```{r}
-#| label: comorbidities
-comorbid <- goassess |>
-  select(bblid, ends_with("cat")) |>
-  rename_with(\(x) str_replace_all(x, c("smry_" = "", "_cat" = ""))) |>
-  mutate(across(
-    -bblid,
-    \(x) case_when(x %in% c(0, 1, 2, 3) ~ FALSE, x == 4 ~ TRUE)
-  )) |>
-  left_join(global_lgi, by = "bblid") |>
-  select(-bblid, -scanid) |>
-  drop_na()
+#| label: tertile-groups
+#| control: {method: residual, variables: [age, sex]}
+data_lgi_vol_tertile <-
+  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
+  select(bblid, lgi, etiv, age, sex) |>
+  mutate(
+    across(
+      c(lgi, etiv),
+      \(x) residuals(gam(x ~ s(age) + sex))
+    ),
+    group = str_c("g", ntile(lgi, 3), "v", ntile(etiv, 3))
+  ) |>
+  select(bblid, group, lgi, etiv)
 
-sets <- setdiff(names(comorbid), "lgi")
+lgi_vol_tertile_groups <- data_lgi_vol_tertile |> select(bblid, group)
 
-psy_intersections <- unlist(
-  lapply(
-    seq_along(sets),
-    \(n) combn(sets, n, simplify = FALSE)
-  ),
-  recursive = FALSE
-) |>
-  keep(\(x) "psy" %in% x)
+plot_lgi_vol_tertile <-
+  ggplot(
+    data = data_lgi_vol_tertile,
+    mapping = aes(x = lgi, y = etiv, color = group)
+  ) +
+  geom_point(alpha = 0.75, size = 1) +
+  color_scale_group +
+  labs(
+    x = "Global LGI (s(age) + sex regressed)",
+    y = "eTIV (s(age) + sex regressed)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "bottom")
 
-psy_queries <- map(
-  psy_intersections,
-  \(x) {
-    upset_query(
-      intersect = x,
-      color = "red",
-      fill = "red"
-    )
-  }
-)
-
-plot_comorbid <- upset(
-  comorbid,
-  sets,
-  base_annotations = list(
-    "Intersection size" = intersection_size(
-      counts = FALSE
-    )
-  ),
-  annotations = list(
-    "LGI" = ggplot(mapping = aes(x = intersection, y = lgi, color = psy)) +
-      geom_boxplot() +
-      scale_color_manual(
-        values = c(`TRUE` = "red", `FALSE` = "black"),
-        guide = "none"
-      )
-  ),
-  queries = psy_queries
-)
-
-plot_comorbid
+plot_lgi_vol_tertile
 ```
 
 # Local Gyrification Index
@@ -856,9 +810,9 @@ LGI is significantly lower in those with psychosis, relative to controls, in all
 data_regional_td_psy <-
   inner_join(
     demo |>
-      filter(dx %in% c("td", "ps")) |>
+      filter(dx %in% c("TD", "PS")) |>
       select(bblid, dx) |>
-      mutate(dx = factor(str_to_upper(dx), levels = c("TD", "PS"))),
+      mutate(dx = fct_drop(dx)),
     imaging |>
       mutate(region = str_c(region, laterality, sep = "_")) |>
       select(bblid, region, lgi),
@@ -1094,162 +1048,60 @@ plot_lgi_clinical_controlled
 
 Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh), [eating disorders](#goa-eat), [mood disorders](#goa-mood), and [psychotic disorders](#goa-psy) all had significantly lower global LGI than participants without such disorders.
 
-## Global LGI ~ Anxiety {#goa-anx}
 
-Global LGI is significantly lower in participants with anxiety disorders relative to those without. Significantly lower global LGI was also observed in four of the eight individual anxiety disorders: agoraphobia, OCD, PTSD, and social anxiety. Generalized anxiety, panic disorder, separation anxiety and specific phobias did not exhibit significant differences.
-
-### Sample
+## Comorbidities
 
 ```{r}
-#| label: lgi-anx-sample
-data_lgi_anx <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  rename(anx = smry_anx_cat) |>
-  select(lgi, anx) |>
-  drop_na()
+#| label: comorbidities
+comorbid <-
+  inner_join(goassess_category, global_lgi, by = "bblid") |>
+  select(bblid, category, status, lgi) |>
+  pivot_wider(names_from = category, values_from = status)
 
-kable_lgi_anx <-
-  data_lgi_anx |>
-  summarize(n = n(), .by = anx) |>
-  pivot_wider(names_from = anx, values_from = n) |>
-  mutate(disorder = "Anxiety Disorders") |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Size for Analysis of Anxiety Disorders"
+plot_comorbid <- upset(
+  comorbid,
+  goassess_category |> pull(category) |> unique(),
+  base_annotations = list(
+    "Intersection size" = intersection_size(
+      counts = FALSE
+    )
+  ),
+  annotations = list(
+    "LGI" = ggplot(mapping = aes(x = intersection, y = lgi)) +
+      geom_boxplot()
   )
+)
 
-kable_lgi_anx
+plot_comorbid
 ```
 
-### Hypothesis Test
-
 ```{r}
-#| label: lgi-anx-test
-#| test: {method: t-test, variable: lgi, groups: [smry_anx_cat == 4, smry_anx_cat != 4]}
-#| control: null
-#| scale: global
-test_lgi_anx <- t.test(lgi ~ anx, data = data_lgi_anx)
-
-test_lgi_anx
+data_lgi_goa_cat <-
+  inner_join(goassess_category, global_lgi, by = "bblid") |>
+  mutate(category = goassess_category_mapping[category])
 ```
 
-### Results
-
 ```{r}
-#| label: lgi-anx-final
-summary_lgi_anx <- data_lgi_anx |>
+test_lgi_goa_cat <-
+  data_lgi_goa_cat |>
   summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = anx
-  ) |>
-  mutate(x = as.numeric(anx))
-
-plot_lgi_anx <-
-  ggplot() +
-  geom_jitter(
-    data = data_lgi_anx,
-    mapping = aes(x = anx, y = lgi, color = anx, fill = anx),
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = summary_lgi_anx,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = anx
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_anx,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = anx
-    ),
-    linewidth = 0.75
-  ) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Anxiety",
-    subtitle = report_t_test(test_lgi_anx),
-    x = "Anxiety",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_anx
-```
-
-### Sample - Individual Disorders
-
-```{r}
-#| label: lgi-anx-individual-sample
-map_anx_sub <- goassess_mapping[c(
-  "smry_agr", "smry_gad", "smry_ocd", "smry_pan", "smry_phb", "smry_ptd",
-  "smry_sep", "smry_soc"
-)]
-
-data_lgi_anx_sub <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  select(bblid, lgi, all_of(names(map_anx_sub))) |>
-  pivot_longer(
-    cols = starts_with("smry_"),
-    names_to = "disorder",
-    values_to = "status"
-  ) |>
-  mutate(disorder = str_replace_all(disorder, map_anx_sub)) |>
-  drop_na()
-
-kable_lgi_anx_sub <- 
-  data_lgi_anx_sub |>
-  summarize(n = n(), .by = c(disorder, status)) |>
-  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
-  pivot_wider(names_from = status, values_from = n) |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Sizes for Analyses of Individual Anxiety Disorders"
-  )
-
-kable_lgi_anx_sub
-```
-
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-anx-individual-test
-test_lgi_anx_sub <-
-  data_lgi_anx_sub |>
-  summarize(
+    n_true = sum(status),
+    n_false = sum(!status),
     t.test(lgi ~ status) |>
       tidy() |>
       clean_names(),
     cohens_d = cohens_d(lgi ~ status)$Cohens_d,
-    .by = disorder
+    .by = category
   ) |>
-  rename(
+  transmute(
+    category,
+    n_true,
+    n_false,
     mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
-  mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    cohens_d,
+    t = statistic,
+    p = p_value,
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1259,45 +1111,50 @@ test_lgi_anx_sub <-
     )
   )
 
-test_lgi_anx_sub |>
-  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+test_lgi_goa_cat |>
   kbl(
-    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    align = "lrrrrrrl",
-    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
+    col.names = c("Category", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
+
 ```
 
-### Results - Individual Disorders
+### Results
 
 ```{r}
-#| label: lgi-anx-individual-results
-summary_lgi_anx_sub <-
-  data_lgi_anx_sub |>
+#| label: lgi-anx-final
+summary_lgi_goa_cat <-
+  data_lgi_goa_cat |>
   summarize(
     n = n(),
     fit = mean(lgi),
     se = sd(lgi) / sqrt(n),
     lower = fit - qt(0.975, df = n - 1) * se,
     upper = fit + qt(0.975, df = n - 1) * se,
-    .by = c(disorder, status)
-  ) |>
-  mutate(x = as.numeric(status))
+    .by = c(category, status)
+  )
 
-labeller_lgi_anx_sub <-
-  test_lgi_anx_sub |>
-  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
-  select(disorder, label) |>
+labels_lgi_goa_cat <-
+  test_lgi_goa_cat |>
+  mutate(label = str_trim(str_c(category, significance, sep = " "))) |>
+  select(category, label) |>
   deframe() |>
   as_labeller()
 
-plot_lgi_anx_sub <-
+plot_lgi_goa_cat <-
   ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_cat,
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
   geom_rect(
-    data = summary_lgi_anx_sub,
+    data = summary_lgi_goa_cat,
     mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
+      xmin = status - 0.4,
+      xmax = status + 0.4,
       ymin = lower,
       ymax = upper,
       fill = status
@@ -1306,17 +1163,153 @@ plot_lgi_anx_sub <-
     color = NA
   ) +
   geom_segment(
-    data = summary_lgi_anx_sub,
+    data = summary_lgi_goa_cat,
     mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
+      x = status - 0.4,
+      xend = status + 0.4,
       y = fit,
       yend = fit,
       color = status
     ),
     linewidth = 0.75
   ) +
-  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_anx_sub) +
+  color_scale_dx +
+  fill_scale_dx +
+  scale_x_continuous(
+    breaks = c(0, 1),
+    labels = c("False", "True")
+  ) +
+  facet_wrap(~ category, labeller = labels_lgi_goa_cat) +
+  labs(
+    title = "Differences in Global LGI across GOASSESS Categories",
+    x = "Status",
+    y = "LGI (global)"
+  ) +
+  theme_linedraw() +
+  theme(legend.position = "none")
+
+plot_lgi_goa_cat
+```
+
+
+### Sample - Individual Disorders
+
+```{r}
+#| label: lgi-anx-individual-sample
+data_lgi_goa_dis <-
+  inner_join(goassess_disorder, global_lgi, by = "bblid") |>
+  mutate(disorder = goassess_mapping[disorder]) |>
+  drop_na()
+```
+
+### Hypothesis Test - Individual Disorders
+
+```{r}
+#| label: lgi-anx-individual-test
+test_lgi_goa_dis <-
+  data_lgi_goa_dis |>
+  summarize(
+    n_true = sum(status),
+    n_false = sum(!status),
+    t.test(lgi ~ status) |>
+      tidy() |>
+      clean_names(),
+    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
+    .by = c(disorder, category)
+  ) |>
+  mutate(
+    mean_difference = estimate,
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    t = statistic,
+    p = p_value,
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    ),
+    .by = category
+  ) |>
+  select(
+    category,
+    disorder,
+    n_true,
+    n_false,
+    mean_difference,
+    ci,
+    cohens_d,
+    t,
+    p,
+    p_fdr,
+    significance
+  )
+
+test_lgi_goa_dis |>
+  filter(category == "mood") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+```
+
+### Results - Individual Disorders
+
+```{r}
+#| label: lgi-anx-individual-results
+summary_lgi_goa_dis <-
+  data_lgi_goa_dis |>
+  summarize(
+    n = n(),
+    fit = mean(lgi),
+    se = sd(lgi) / sqrt(n),
+    lower = fit - qt(0.975, df = n - 1) * se,
+    upper = fit + qt(0.975, df = n - 1) * se,
+    .by = c(category, disorder, status)
+  )
+
+labeller_lgi_goa_dis <-
+  test_lgi_goa_dis |>
+  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
+  select(disorder, label) |>
+  deframe() |>
+  as_labeller()
+
+plot_lgi_goa_dis <-
+  ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_dis |> filter(category == "mood"),
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
+  geom_rect(
+    data = summary_lgi_goa_dis |> filter(category == "mood"),
+    mapping = aes(
+      xmin = status - 0.4,
+      xmax = status + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = summary_lgi_goa_dis |> filter(category == "mood"),
+    mapping = aes(
+      x = status - 0.4,
+      xend = status + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_goa_dis) +
   color_scale_dx +
   fill_scale_dx +
   labs(
@@ -1333,980 +1326,13 @@ plot_lgi_anx_sub <-
     plot.caption = element_text(hjust = 0)
   )
 
-plot_lgi_anx_sub
+plot_lgi_goa_dis
 ```
 
-## Global LGI ~ Behavior {#goa-beh}
-
-Global LGI is significantly lower in participants with behavioral disorders relative to those without. Significantly lower global LGI was also observed in two of the three individual behavior disorders: conduct disorder and oppositional defiance disorder. Attention deficit disorder shows significantly higher global LGI relative to those without.
-
-### Sample
-
-```{r}
-#| label: lgi-beh-sample
-data_lgi_beh <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  rename(beh = smry_beh_cat) |>
-  select(lgi, beh) |>
-  drop_na()
-
-kable_lgi_beh <-
-  data_lgi_beh |>
-  summarize(n = n(), .by = beh) |>
-  pivot_wider(names_from = beh, values_from = n) |>
-  mutate(disorder = "Behavior Disorders") |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Size for Analysis of Behavior Disorders"
-  )
-
-kable_lgi_beh
-```
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi-beh-test
-#| test: {method: t-test, variable: lgi, groups: [smry_beh_cat == 4, smry_beh_cat != 4]}
-#| control: null
-#| scale: global
-test_lgi_beh <- t.test(lgi ~ beh, data = data_lgi_beh)
-
-test_lgi_beh
-```
-
-### Results
-
-```{r}
-#| label: lgi-beh-final
-summary_lgi_beh <- data_lgi_beh |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = beh
-  ) |>
-  mutate(x = as.numeric(beh))
-
-plot_lgi_beh <-
-  ggplot() +
-  geom_jitter(
-    data = data_lgi_beh,
-    mapping = aes(x = beh, y = lgi, color = beh, fill = beh),
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = summary_lgi_beh,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = beh
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_beh,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = beh
-    ),
-    linewidth = 0.75
-  ) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Behavior",
-    subtitle = report_t_test(test_lgi_beh),
-    x = "Behavior",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_beh
-```
-
-### Sample - Individual Disorders
-
-```{r}
-#| label: lgi-beh-individual-sample
-map_beh_sub <- goassess_mapping[c("smry_add", "smry_odd", "smry_con")]
-
-data_lgi_beh_sub <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  select(bblid, lgi, all_of(names(map_beh_sub))) |>
-  pivot_longer(
-    cols = starts_with("smry_"),
-    names_to = "disorder",
-    values_to = "status"
-  ) |>
-  mutate(disorder = str_replace_all(disorder, map_beh_sub)) |>
-  drop_na()
-
-kable_lgi_beh_sub <- 
-  data_lgi_beh_sub |>
-  summarize(n = n(), .by = c(disorder, status)) |>
-  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
-  pivot_wider(names_from = status, values_from = n) |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Sizes for Analyses of Individual Behavior Disorders"
-  )
-
-kable_lgi_beh_sub
-```
-
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-beh-individual-test
-test_lgi_beh_sub <-
-  data_lgi_beh_sub |>
-  summarize(
-    t.test(lgi ~ status) |>
-      tidy() |>
-      clean_names(),
-    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
-    .by = disorder
-  ) |>
-  rename(
-    mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
-  mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  )
-
-test_lgi_beh_sub |>
-  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
-  kbl(
-    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    align = "lrrrrrrl",
-    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
-  )
-```
-
-### Results - Individual Disorders
-
-```{r}
-#| label: lgi-beh-individual-results
-summary_lgi_beh_sub <-
-  data_lgi_beh_sub |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = c(disorder, status)
-  ) |>
-  mutate(x = as.numeric(status))
-
-labeller_lgi_beh_sub <-
-  test_lgi_beh_sub |>
-  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
-  select(disorder, label) |>
-  deframe() |>
-  as_labeller()
-
-plot_lgi_beh_sub <-
-  ggplot() +
-  geom_rect(
-    data = summary_lgi_beh_sub,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = status
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_beh_sub,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = status
-    ),
-    linewidth = 0.75
-  ) +
-  facet_wrap(~ disorder, ncol = 3, nrow = 1, labeller = labeller_lgi_beh_sub) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Behavior Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
-  ) +
-  theme_linedraw() +
-  theme(
-    legend.position = "bottom",
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
-  )
-
-plot_lgi_beh_sub
-```
-
-## Global LGI ~ Eating {#goa-eat}
-
-Global LGI is significantly lower in participants with eating disorders relative to those without. Significantly lower global LGI was also observed in both individual anxiety disorders: anorexnia and bulemia.
-
-### Sample
-
-```{r}
-#| label: lgi-eat-sample
-data_lgi_eat <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  rename(eat = smry_eat_cat) |>
-  select(lgi, eat) |>
-  drop_na()
-
-kable_lgi_eat <-
-  data_lgi_eat |>
-  summarize(n = n(), .by = eat) |>
-  pivot_wider(names_from = eat, values_from = n) |>
-  mutate(disorder = "Eating Disorders") |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Size for Analysis of Eating Disorders",
-  )
-
-kable_lgi_eat
-```
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi-eat-test
-#| test: {method: t-test, variable: lgi, groups: [smry_eat_cat == 4, smry_eat_cat != 4]}
-#| control: null
-#| scale: global
-test_lgi_eat <- t.test(lgi ~ eat, data = data_lgi_eat)
-
-test_lgi_eat
-```
-
-### Results
-
-```{r}
-#| label: lgi-eat-final
-summary_lgi_eat <- data_lgi_eat |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = eat
-  ) |>
-  mutate(x = as.numeric(eat))
-
-plot_lgi_eat <-
-  ggplot() +
-  geom_jitter(
-    data = data_lgi_eat,
-    mapping = aes(x = eat, y = lgi, color = eat, fill = eat),
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = summary_lgi_eat,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = eat
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_eat,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = eat
-    ),
-    linewidth = 0.75
-  ) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Eating",
-    subtitle = report_t_test(test_lgi_eat),
-    x = "Eating",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_eat
-```
-
-### Sample - Individual Disorders
-
-```{r}
-#| label: lgi-eat-individual-sample
-map_eat_sub <- goassess_mapping[c("smry_ano", "smry_bul")]
-
-data_lgi_eat_sub <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  select(bblid, lgi, all_of(names(map_eat_sub))) |>
-  pivot_longer(
-    cols = starts_with("smry_"),
-    names_to = "disorder",
-    values_to = "status"
-  ) |>
-  mutate(disorder = str_replace_all(disorder, map_eat_sub)) |>
-  drop_na()
-
-kable_lgi_eat_sub <- 
-  data_lgi_eat_sub |>
-  summarize(n = n(), .by = c(disorder, status)) |>
-  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
-  pivot_wider(names_from = status, values_from = n) |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Sizes for Analyses of Individual Eating Disorders"
-  )
-
-kable_lgi_eat_sub
-```
-
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-eat-individual-test
-test_lgi_eat_sub <-
-  data_lgi_eat_sub |>
-  summarize(
-    t.test(lgi ~ status) |>
-      tidy() |>
-      clean_names(),
-    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
-    .by = disorder
-  ) |>
-  rename(
-    mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
-  mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  )
-
-test_lgi_eat_sub |>
-  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
-  kbl(
-    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    align = "lrrrrrrl",
-    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
-  )
-```
-
-### Results - Individual Disorders
-
-```{r}
-#| label: lgi-eat-individual-results
-summary_lgi_eat_sub <-
-  data_lgi_eat_sub |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = c(disorder, status)
-  ) |>
-  mutate(x = as.numeric(status))
-
-labeller_lgi_eat_sub <-
-  test_lgi_eat_sub |>
-  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
-  select(disorder, label) |>
-  deframe() |>
-  as_labeller()
-
-plot_lgi_eat_sub <-
-  ggplot() +
-  geom_rect(
-    data = summary_lgi_eat_sub,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = status
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_eat_sub,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = status
-    ),
-    linewidth = 0.75
-  ) +
-  facet_wrap(~ disorder, ncol = 2, nrow = 1, labeller = labeller_lgi_eat_sub) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Eating Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
-  ) +
-  theme_linedraw() +
-  theme(
-    legend.position = "bottom",
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
-  )
-
-plot_lgi_eat_sub
-```
-
-## Global LGI ~ Mood {#goa-mood}
-
-Global LGI is significantly lower in participants with mood disorders relative to those without. Significantly lower global LGI was also observed in depression. Mania did not exhibit significant differences.
-
-### Sample
-
-```{r}
-#| label: lgi-mood-sample
-data_lgi_mood <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  rename(mood = smry_mood_cat) |>
-  select(lgi, mood) |>
-  drop_na()
-
-kable_lgi_mood <-
-  data_lgi_mood |>
-  summarize(n = n(), .by = mood) |>
-  pivot_wider(names_from = mood, values_from = n) |>
-  mutate(disorder = "Mood Disorders") |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Size for Analysis of Mood Disorders"
-  )
-
-kable_lgi_mood
-```
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi-mood-test
-#| test: {method: t-test, variable: lgi, groups: [smry_mood_cat == 4, smry_mood_cat != 4]}
-#| control: null
-#| scale: global
-test_lgi_mood <- t.test(lgi ~ mood, data = data_lgi_mood)
-
-test_lgi_mood
-```
-
-### Results
-
-```{r}
-#| label: lgi-mood-final
-summary_lgi_mood <- data_lgi_mood |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = mood
-  ) |>
-  mutate(x = as.numeric(mood))
-
-plot_lgi_mood <-
-  ggplot() +
-  geom_jitter(
-    data = data_lgi_mood,
-    mapping = aes(x = mood, y = lgi, color = mood, fill = mood),
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = summary_lgi_mood,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = mood
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_mood,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = mood
-    ),
-    linewidth = 0.75
-  ) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Mood",
-    subtitle = report_t_test(test_lgi_mood),
-    x = "Mood",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_mood
-```
-
-### Sample - Individual Disorders
-
-```{r}
-#| label: lgi-mood-individual-sample
-map_mood_sub <- goassess_mapping[c("smry_dep", "smry_man")]
-
-data_lgi_mood_sub <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  select(bblid, lgi, all_of(names(map_mood_sub))) |>
-  pivot_longer(
-    cols = starts_with("smry_"),
-    names_to = "disorder",
-    values_to = "status"
-  ) |>
-  mutate(disorder = str_replace_all(disorder, map_mood_sub)) |>
-  drop_na()
-
-kable_lgi_mood_sub <- 
-  data_lgi_mood_sub |>
-  summarize(n = n(), .by = c(disorder, status)) |>
-  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
-  pivot_wider(names_from = status, values_from = n) |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Sizes for Analyses of Individual Mood Disorders"
-  )
-
-kable_lgi_mood_sub
-```
-
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-mood-individual-test
-test_lgi_mood_sub <-
-  data_lgi_mood_sub |>
-  summarize(
-    t.test(lgi ~ status) |>
-      tidy() |>
-      clean_names(),
-    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
-    .by = disorder
-  ) |>
-  rename(
-    mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
-  mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  )
-
-test_lgi_mood_sub |>
-  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
-  kbl(
-    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
-  )
-```
-
-### Results - Individual Disorders
-
-```{r}
-#| label: lgi-mood-individual-results
-summary_lgi_mood_sub <-
-  data_lgi_mood_sub |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = c(disorder, status)
-  ) |>
-  mutate(x = as.numeric(status))
-
-labeller_lgi_mood_sub <-
-  test_lgi_mood_sub |>
-  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
-  select(disorder, label) |>
-  deframe() |>
-  as_labeller()
-
-plot_lgi_mood_sub <-
-  ggplot() +
-  geom_rect(
-    data = summary_lgi_mood_sub,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = status
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_mood_sub,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = status
-    ),
-    linewidth = 0.75
-  ) +
-  facet_wrap(~ disorder, ncol = 2, nrow = 1, labeller = labeller_lgi_mood_sub) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Mood Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
-  ) +
-  theme_linedraw() +
-  theme(
-    legend.position = "bottom",
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
-  )
-
-plot_lgi_mood_sub
-```
-
-## Global LGI ~ Psychosis {#goa-psy}
-
-Global LGI is significantly lower in participants with psychotic disorders relative to those without. Significantly lower global LGI was also observed in three of the seven individual psychotic symptoms: delusions, hallucinations, and tactile hallucinations. Auditory hallucinations (voices), autidory hallucinations (other), olfactory hallucinations, and visual hallucinations did not exhibit significant differences.
-
-### Sample
-
-```{r}
-#| label: lgi-psy-sample
-data_lgi_psy <-
-  inner_join(global_lgi, goassess_bin, by = "bblid") |>
-  rename(psy = smry_psy_cat) |>
-  select(lgi, psy) |>
-  drop_na()
-
-kable_lgi_psy <-
-  data_lgi_psy |>
-  summarize(n = n(), .by = psy) |>
-  pivot_wider(names_from = psy, values_from = n) |>
-  mutate(disorder = "Psychotic Disorders") |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Size for Analysis of Psychotic Disorders",
-  )
-
-kable_lgi_psy
-```
-
-### Hypothesis Test
-
-```{r}
-#| label: lgi-psy-test
-#| test: {method: t-test, variable: lgi, groups: [smry_psy_cat == 4, smry_psy_cat != 4]}
-#| control: null
-#| scale: global
-test_lgi_psy <- t.test(lgi ~ psy, data = data_lgi_psy)
-
-test_lgi_psy
-```
-
-### Results
-
-```{r}
-#| label: lgi-psy-final
-summary_lgi_psy <- data_lgi_psy |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = psy
-  ) |>
-  mutate(x = as.numeric(psy))
-
-plot_lgi_psy <-
-  ggplot() +
-  geom_jitter(
-    data = data_lgi_psy,
-    mapping = aes(x = psy, y = lgi, color = psy, fill = psy),
-    alpha = 0.25,
-    size = 1
-  ) +
-  geom_rect(
-    data = summary_lgi_psy,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = psy
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_psy,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = psy
-    ),
-    linewidth = 0.75
-  ) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Psychosis",
-    subtitle = report_t_test(test_lgi_psy),
-    x = "Psychosis",
-    y = "LGI (global)"
-  ) +
-  theme_linedraw() +
-  theme(legend.position = "none")
-
-plot_lgi_psy
-```
-
-### Sample - Individual Disorders
-
-```{r}
-#| label: lgi-psy-individual-sample
-map_psy_sub <- goassess_mapping[c(
-  "smry_del", "smry_hal_av", "smry_hal_as", "smry_hal_vh", "smry_hal_oh",
-  "smry_hal_th", "smry_hal"
-)]
-
-data_lgi_psy_sub <-
-  goassess |>
-  mutate(across(
-    starts_with("smry_"),
-    \(x) {
-      factor(
-        case_when(x == 3 ~ TRUE, x %in% 0:2 ~ FALSE),
-        levels = c("FALSE", "TRUE")
-      )
-    }
-  )) |>
-  inner_join(global_lgi, by = "bblid") |>
-  select(bblid, lgi, all_of(names(map_psy_sub))) |>
-  pivot_longer(
-    cols = starts_with("smry_"),
-    names_to = "disorder",
-    values_to = "status"
-  ) |>
-  mutate(disorder = str_replace_all(disorder, map_psy_sub)) |>
-  drop_na()
-
-kable_lgi_psy_sub <- 
-  data_lgi_psy_sub |>
-  summarize(n = n(), .by = c(disorder, status)) |>
-  complete(disorder, status = c("FALSE", "TRUE"), fill = list(n = 0)) |>
-  pivot_wider(names_from = status, values_from = n) |>
-  select(disorder, `TRUE`, `FALSE`) |>
-  kbl(
-    col.names = c("", "True", "False"),
-    align = "lcc",
-    caption = "Sample Sizes for Analyses of Individual Psychotic Symptoms",
-  )
-
-kable_lgi_psy_sub
-```
-
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-psy-individual-test
-test_lgi_psy_sub <-
-  data_lgi_psy_sub |>
-  summarize(
-    t.test(lgi ~ status) |>
-      tidy() |>
-      clean_names(),
-    cohens_d = cohens_d(lgi ~ status)$Cohens_d,
-    .by = disorder
-  ) |>
-  rename(
-    mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
-  mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  )
-
-test_lgi_psy_sub |>
-  select(disorder, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
-  kbl(
-    col.names = c("Disorder", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    align = "lrrrrrrl",
-    digits = c(NA, 3, NA, 3, 3, 5, 5, NA)
-  )
-```
-
-### Results - Individual Disorders
-
-```{r}
-#| label: lgi-psy-individual-results
-summary_lgi_psy_sub <-
-  data_lgi_psy_sub |>
-  summarize(
-    n = n(),
-    fit = mean(lgi),
-    se = sd(lgi) / sqrt(n),
-    lower = fit - qt(0.975, df = n - 1) * se,
-    upper = fit + qt(0.975, df = n - 1) * se,
-    .by = c(disorder, status)
-  ) |>
-  mutate(x = as.numeric(status))
-
-facet_labels_lgi_psy_sub <-
-  test_lgi_psy_sub |>
-  mutate(label = str_trim(str_c(disorder, significance, sep = " "))) |>
-  select(disorder, label) |>
-  deframe() |>
-  as_labeller()
-
-plot_lgi_psy_sub <-
-  ggplot() +
-  geom_rect(
-    data = summary_lgi_psy_sub,
-    mapping = aes(
-      xmin = x - 0.4,
-      xmax = x + 0.4,
-      ymin = lower,
-      ymax = upper,
-      fill = status
-    ),
-    alpha = 0.5,
-    color = NA
-  ) +
-  geom_segment(
-    data = summary_lgi_psy_sub,
-    mapping = aes(
-      x = x - 0.4,
-      xend = x + 0.4,
-      y = fit,
-      yend = fit,
-      color = status
-    ),
-    linewidth = 0.75
-  ) +
-  facet_wrap(~ disorder, ncol = 3, nrow = 3, labeller = facet_labels_lgi_psy_sub) +
-  color_scale_dx +
-  fill_scale_dx +
-  labs(
-    title = "Differences in Global LGI across Psychotic Symptoms",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
-  ) +
-  theme_linedraw() +
-  theme(
-    legend.position = "bottom",
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
-  )
-
-plot_lgi_psy_sub
-```
 
 # Cognition
 
-## Full Sample
+## Association of CNB Accuracy and Global LGI
 
 In the full sample, Global LGI is significantly positvely associated with cognitive efficiency in the following domains when controlling for eTIV and after correcting for multiple comparisons: Overall Cognition, Complex Cognition, Motor, Social Cognition. Global LGI was significantly positively associated with Memory Efficiency but this effect did not survive correcting for eTIV.
 
@@ -2319,12 +1345,11 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 #| scale: global
 data_lgi_cnb_acc <-
   cnb |>
-  full_join(global_lgi, by = "bblid") |>
-  full_join(demo, by = "bblid") |>
+  inner_join(global_lgi, by = "bblid") |>
+  inner_join(demo, by = "bblid") |>
   rename(cnb = value) |>
-  filter(measure == "accuracy") |>
+  filter(measure == "Accuracy") |>
   drop_na() |>
-  mutate(domain = fct_relabel(domain, str_to_title)) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
     cnb = residuals(gam(cnb ~ sex)),
@@ -2339,7 +1364,8 @@ test_lgi_cnb_acc <-
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .by = domain) |>
+    .by = domain
+  ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
@@ -2396,6 +1422,179 @@ plot_lgi_cnb_acc <-
 plot_lgi_cnb_acc
 ```
 
+
+## CNB Accuracy Profile of LGI-Volume Tertile Groups
+
+::: {.collapsible-table data-rows="5"}
+
+```{r}
+groups <- c("g1v1", "g1v3", "g3v1", "g3v3")
+
+data_tertile_cnb_acc <-
+  data_lgi_cnb_acc |>
+  inner_join(
+    data_lgi_vol_tertile |>
+      select(bblid, group),
+    by = "bblid",
+    relationship = "many-to-one"
+  ) |>
+  filter(group %in% groups) |>
+  mutate(group = factor(group, levels = groups))
+
+test_tertile_cnb_acc <-
+  data_tertile_cnb_acc |>
+  summarize(model = list(aov(cnb ~ group)), .by = domain)
+
+test_tertile_cnb_acc |>
+  mutate(
+    list_rbind(
+      map(model, \(m) {
+        m |>
+        tidy() |>
+        clean_names() |>
+        filter(term == "group")
+      })
+    ),
+    df_residual = map_dbl(model, df.residual),
+    eta2 = map_dbl(model, \(m) {
+      t <- tidy(m)
+      t$sumsq[t$term == "group"] / sum(t$sumsq)
+    })
+  ) |>
+  mutate(
+    domain,
+    f = statistic,
+    df1 = df,
+    df2 = df_residual,
+    eta2,
+    p = p_value,
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    ),
+    .keep = "none"
+  ) |>
+  kbl(
+    col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
+    digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
+    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+  )
+
+posthoc_tertile_cnb_acc <-
+  test_tertile_cnb_acc |>
+  mutate(
+    posthoc = map(model, \(m) m |> TukeyHSD() |> tidy() |> clean_names()),
+    sigma = map_dbl(model, sigma)
+  ) |>
+  select(domain, posthoc, sigma) |>
+  unnest(posthoc) |>
+  transmute(
+    domain,
+    contrast,
+    mean_difference = estimate,
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    cohens_d = mean_difference / sigma,
+    p_tukey = adj_p_value,
+    significance = case_when(
+      p_tukey < 0.001 ~ "***",
+      p_tukey < 0.01 ~ "**",
+      p_tukey < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  ) |>
+  separate(
+    contrast,
+    into = c("group1", "group2"),
+    sep = "-",
+    remove = FALSE
+  )
+
+posthoc_tertile_cnb_acc |>
+  select(
+    domain, contrast, mean_difference,
+    ci, cohens_d, p_tukey, significance
+  ) |>
+  kbl(
+    col.names = c("Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey", ""),
+    align = "llrrrrl",
+    digits = c(NA, NA, 3, NA, 3, 5, NA),
+    caption = "Tukey's HSD post-hoc comparisons between LGI/volume groups within each cognitive domain. Results include mean differences, 95% confidence intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were performed separately within each domain."
+  )
+
+summary_tertile_cnb_acc <-
+  data_tertile_cnb_acc |>
+  summarize(
+    n = n(),
+    mean = mean(cnb),
+    se = sd(cnb) / sqrt(n),
+    lower = mean - qt(0.975, df = n - 1) * se,
+    upper = mean + qt(0.975, df = n - 1) * se,
+    .by = c(domain, group)
+  )
+
+sig_tertile_cnb_acc <-
+  posthoc_tertile_cnb_acc |>
+  filter(p_tukey < 0.05) |>
+  left_join(
+    summary_tertile_cnb_acc |>
+      select(domain, group, mean) |>
+      rename(group1 = group, y1 = mean),
+    by = c("domain", "group1")
+  ) |>
+  left_join(
+    summary_tertile_cnb_acc |>
+      select(domain, group, mean) |>
+      rename(group2 = group, y2 = mean),
+    by = c("domain", "group2")
+  ) |>
+  group_by(domain) |>
+  arrange(p_tukey, .by_group = TRUE) |>
+  mutate(
+    x = as.numeric(domain) +
+      0.065 * (row_number() - (n() + 1) / 2),
+    ymin = pmin(y1, y2),
+    ymax = pmax(y1, y2)
+  ) |>
+  ungroup()
+
+plot_tertile_cnb_acc <-
+  ggplot(
+    data = summary_tertile_cnb_acc,
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group, fill = group
+    )
+  ) +
+  geom_ribbon(alpha = 0.25, color = NA) +
+  geom_line() +
+  geom_point() +
+  geom_segment(
+    data = sig_tertile_cnb_acc,
+    aes(x = x, xend = x, y = ymin, yend = ymax),
+    inherit.aes = FALSE,
+    color = "black"
+  ) +
+  scale_x_continuous(
+    breaks = seq_along(levels(summary_tertile_cnb_acc$domain)),
+    labels = levels(summary_tertile_cnb_acc$domain)
+  ) +
+  color_scale_group +
+  fill_scale_group +
+  labs(
+    x = "Domain",
+    y = "Accuracy (age + sex regressed)"
+  ) +
+  theme_linedraw()
+
+plot_tertile_cnb_acc
+```
+
+:::
+
 ## Clean Subsample
 
 In the Clean Subsample, Global LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
@@ -2407,30 +1606,30 @@ In the Clean Subsample, Global LGI is significantly positively associated with M
 #| cnb-metric: accuracy
 #| sample: clean subsample
 #| scale: global
-data_lgi_cnb_clean <-
+data_lgi_cnb_acc_clean <-
   cnb |>
-  full_join(data_etiv, by = "bblid") |>
-  full_join(global_lgi, by = "bblid") |>
+  inner_join(global_lgi, by = "bblid") |>
+  inner_join(demo, by = "bblid") |>
   semi_join(clean_subsample, by = "bblid") |>
   rename(cnb = value) |>
-  filter(measure == "accuracy") |>
-  mutate(domain = fct_relabel(domain, str_to_title)) |>
-  select(bblid, lgi, etiv, domain, cnb)
+  filter(measure == "Accuracy") |>
+  drop_na() |>
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    cnb = residuals(gam(cnb ~ sex)),
+    .by = domain
+  ) |>
+  select(bblid, lgi, domain, cnb)
 
-test_lgi_cnb_clean <-
-  data_lgi_cnb_clean |>
-  crossing(controlled = c(TRUE, FALSE)) |>
+test_lgi_cnb_acc_clean <-
+  data_lgi_cnb_acc_clean |>
   summarize(
-    lm(
-      reformulate(
-        termlabels = if(first(controlled)) c("lgi", "etiv") else "lgi",
-        response = "cnb"
-      )
-    ) |>
+    lm(cnb ~ lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .by = c(controlled, domain)) |>
+    .by = domain
+  ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
@@ -2440,18 +1639,17 @@ test_lgi_cnb_clean <-
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    ),
-    .by = controlled
+    )
   )
 
-test_lgi_cnb_clean |>
-  select(domain, controlled, b, ci, p, p_fdr, significance) |>
+test_lgi_cnb_acc_clean |>
+  select(domain, b, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
-    col.names = c("Domain", "Controlled", "b", "95% CI", "p", "pFDR", ""),
-    align = "llrrrrl",
-    digits = c(NA, NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Accuracy with Global LGI with and without Controlling for eTIV"
+    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Accuracy with Global LGI"
   )
 ```
 

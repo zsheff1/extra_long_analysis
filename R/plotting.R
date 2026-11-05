@@ -13,3 +13,9 @@ fill_scale_sex <- scale_fill_manual(name = "Sex", values = colors_sex)
 colors_dx <- c("FALSE" = my_green, "TRUE" = my_red)
 color_scale_dx <- scale_color_manual(values = colors_dx)
 fill_scale_dx <- scale_fill_manual(values = colors_dx)
+
+colors_group <- c(
+  "g1v1" = my_red, "g1v3" = my_orange, "g3v1" = my_purple, "g3v3" = my_green
+)
+color_scale_group <- scale_color_manual(values = colors_group)
+fill_scale_group <- scale_fill_manual(values = colors_group)

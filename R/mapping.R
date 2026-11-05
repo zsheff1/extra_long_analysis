@@ -84,3 +84,11 @@ goassess_mapping <- c(
   smry_hal_th = "Tactile Hallucinations",
   smry_hal = "Hallucinations"
 )
+
+goassess_category_mapping <- c(
+  anx = "Anxiety Disorders",
+  beh = "Behavior Disorders",
+  eat = "Eating Disorders",
+  mood = "Mood Disorders",
+  psy = "Psychotic Disorders"
+)
