@@ -300,6 +300,7 @@ demo_kable
 
 ```{r}
 #| label: tertile-groups
+#| scale: global
 #| control: {method: residual, variables: [age, sex]}
 data_lgi_vol_tertile <-
   inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
@@ -888,14 +889,14 @@ plot_regional_psy
 
 # Psychopathology (Factor Scores)
 
-[General Psychopathology](#factor-general-p), [Depression](#factor-depression), [Psychosis Positive](#factor-psy-pos), and [Psychosis Negative](#factor-psy-neg) all showed a significant negative correlation with Global LGI. No such relationship was observed for [ADHD](#factor-adhd) or [Mania](#factor-mania).
+## Raw Values
 
-When regressing sex and the spline of age from global LGI and the psychopatholgy factor scores [General Psychopathology](#factor-general-p) and [ADHD](#factor-adhd) showed a significant negative correlation with Global LGI. No such relationship was observed for [Depression](#factor-depression), [Mania](#factor-mania), [Psychosis Positive](#factor-psy-pos), or [Psychosis Negative](#factor-psy-neg).
+General Psychopathology, Depression, and Psychosis Positive all showed a significant negative correlation with Global LGI. No such relationship was observed for ADHD, Mania or Psychosis Negative.
 
 ```{r}
-#| label: clinical-factors-sample
+#| label: clinical-factors-raw
 #| test: {method: correlation, variables: [lgi, [general p, adhd, depression, mania, psychosis positive, psychosis negative]]}
-#| control: [null, {method: residual, variables: [age, sex]}]
+#| control: null
 #| scale: global
 tmp_lgi <- 
   inner_join(
@@ -978,7 +979,7 @@ plot_lgi_clinical <-
       filter(!control),
     mapping = aes(x = lgi, y = value)
   ) +
-  geom_point(alpha = 0.25, size = 1) +
+  geom_point(alpha = 0.25, size = 0.25) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
@@ -997,7 +998,17 @@ plot_lgi_clinical <-
   theme_linedraw()
 
 plot_lgi_clinical
+```
 
+## Controlling for Age and Sex
+
+When regressing sex and the spline of age from global LGI and the psychopatholgy factor scores General Psychopathology and ADHD showed a significant negative correlation with Global LGI. No such relationship was observed for Depression, Mania, Psychosis Positive, or Psychosis Negative.
+
+```{r}
+#| label: clinical-factors-controlled
+#| test: {method: correlation, variables: [lgi, [general p, adhd, depression, mania, psychosis positive, psychosis negative]]}
+#| control: {method: residual, variables: [age, sex]}
+#| scale: global
 test_lgi_clinical |>
   filter(control) |>
   select(factor, r, ci, p, p_fdr, significance) |>
@@ -1023,7 +1034,7 @@ plot_lgi_clinical_controlled <-
       filter(control),
     mapping = aes(x = lgi, y = value)
   ) +
-  geom_point(alpha = 0.25, size = 1) +
+  geom_point(alpha = 0.25, size = 0.25) +
   geom_smooth(
     method = "lm",
     formula = y ~ x,
@@ -1075,13 +1086,17 @@ plot_comorbid <- upset(
 plot_comorbid
 ```
 
+## Differences in Global LGI Between GOASSESS Categories
+
 ```{r}
+#| label: lgi-goa-cat
+#| test: {method: t-test, variable: lgi, group across: smry_cat_*}
+#| control: null
+#| scale: global
 data_lgi_goa_cat <-
   inner_join(goassess_category, global_lgi, by = "bblid") |>
   mutate(category = goassess_category_mapping[category])
-```
 
-```{r}
 test_lgi_goa_cat <-
   data_lgi_goa_cat |>
   summarize(
@@ -1118,12 +1133,6 @@ test_lgi_goa_cat |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-```
-
-### Results
-
-```{r}
-#| label: lgi-anx-final
 summary_lgi_goa_cat <-
   data_lgi_goa_cat |>
   summarize(
@@ -1171,7 +1180,7 @@ plot_lgi_goa_cat <-
       yend = fit,
       color = status
     ),
-    linewidth = 0.75
+    linewidth = 0.5
   ) +
   color_scale_dx +
   fill_scale_dx +
@@ -1192,20 +1201,18 @@ plot_lgi_goa_cat
 ```
 
 
-### Sample - Individual Disorders
+## Differences in Global LGI Between GOASSESS Disorders
 
 ```{r}
-#| label: lgi-anx-individual-sample
+#| label: lgi-goa-dis
+#| test: {method: t-test, variable: lgi, group across: smry_*}
+#| control: null
+#| scale: global
 data_lgi_goa_dis <-
   inner_join(goassess_disorder, global_lgi, by = "bblid") |>
   mutate(disorder = goassess_mapping[disorder]) |>
   drop_na()
-```
 
-### Hypothesis Test - Individual Disorders
-
-```{r}
-#| label: lgi-anx-individual-test
 test_lgi_goa_dis <-
   data_lgi_goa_dis |>
   summarize(
@@ -1245,21 +1252,6 @@ test_lgi_goa_dis <-
     significance
   )
 
-test_lgi_goa_dis |>
-  filter(category == "mood") |>
-  select(-category) |>
-  kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
-    align = "lrrrrrrrrl",
-    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
-  )
-
-```
-
-### Results - Individual Disorders
-
-```{r}
-#| label: lgi-anx-individual-results
 summary_lgi_goa_dis <-
   data_lgi_goa_dis |>
   summarize(
@@ -1277,9 +1269,217 @@ labeller_lgi_goa_dis <-
   select(disorder, label) |>
   deframe() |>
   as_labeller()
+```
 
-plot_lgi_goa_dis <-
-  ggplot() +
+### Anxiety Disorders
+
+```{r}
+#| label: lgi-goa-anx
+#| test: {method: t-test, variable: lgi, group across: goa anx disorders}
+#| control: null
+#| scale: global
+test_lgi_goa_dis |>
+  filter(category == "anx") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_dis |> filter(category == "anx"),
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
+  geom_rect(
+    data = summary_lgi_goa_dis |> filter(category == "anx"),
+    mapping = aes(
+      xmin = status - 0.4,
+      xmax = status + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = summary_lgi_goa_dis |> filter(category == "anx"),
+    mapping = aes(
+      x = status - 0.4,
+      xend = status + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_goa_dis) +
+  color_scale_dx +
+  fill_scale_dx +
+  labs(
+    title = "Differences in Global LGI across Anxiety Disorders",
+    x = NULL,
+    y = "LGI (global)",
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
+
+### Behavior Disorders
+
+```{r}
+#| label: lgi-goa-beh
+#| test: {method: t-test, variable: lgi, group across: goa beh disorders}
+#| control: null
+#| scale: global
+test_lgi_goa_dis |>
+  filter(category == "beh") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_dis |> filter(category == "beh"),
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
+  geom_rect(
+    data = summary_lgi_goa_dis |> filter(category == "beh"),
+    mapping = aes(
+      xmin = status - 0.4,
+      xmax = status + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = summary_lgi_goa_dis |> filter(category == "beh"),
+    mapping = aes(
+      x = status - 0.4,
+      xend = status + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_goa_dis) +
+  color_scale_dx +
+  fill_scale_dx +
+  labs(
+    title = "Differences in Global LGI across Behavior Disorders",
+    x = NULL,
+    y = "LGI (global)",
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
+
+### Eating Disorders
+
+```{r}
+#| label: lgi-goa-eat
+#| test: {method: t-test, variable: lgi, group across: goa eat disorders}
+#| control: null
+#| scale: global
+test_lgi_goa_dis |>
+  filter(category == "eat") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_dis |> filter(category == "eat"),
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
+  geom_rect(
+    data = summary_lgi_goa_dis |> filter(category == "eat"),
+    mapping = aes(
+      xmin = status - 0.4,
+      xmax = status + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = summary_lgi_goa_dis |> filter(category == "eat"),
+    mapping = aes(
+      x = status - 0.4,
+      xend = status + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_goa_dis) +
+  color_scale_dx +
+  fill_scale_dx +
+  labs(
+    title = "Differences in Global LGI across Eating Disorders",
+    x = NULL,
+    y = "LGI (global)",
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
+
+### Mood Disorders
+
+```{r}
+#| label: lgi-goa-mood
+#| test: {method: t-test, variable: lgi, group across: goa mood disorders}
+#| control: null
+#| scale: global
+test_lgi_goa_dis |>
+  filter(category == "mood") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "mood"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1313,7 +1513,7 @@ plot_lgi_goa_dis <-
   color_scale_dx +
   fill_scale_dx +
   labs(
-    title = "Differences in Global LGI across Anxiety Disorders",
+    title = "Differences in Global LGI across Mood Disorders",
     x = NULL,
     y = "LGI (global)",
     caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
@@ -1325,14 +1525,77 @@ plot_lgi_goa_dis <-
     axis.ticks.x = element_blank(),
     plot.caption = element_text(hjust = 0)
   )
-
-plot_lgi_goa_dis
 ```
 
+### Psychosis Symptoms
+
+```{r}
+#| label: lgi-goa-psy
+#| test: {method: t-test, variable: lgi, group across: goa psy disorders}
+#| control: null
+#| scale: global
+test_lgi_goa_dis |>
+  filter(category == "psy") |>
+  select(-category) |>
+  kbl(
+    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    align = "lrrrrrrrrl",
+    digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
+  )
+
+ggplot() +
+  geom_jitter(
+    data = data_lgi_goa_dis |> filter(category == "psy"),
+    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    alpha = 0.25,
+    size = 0.25
+  ) +
+  geom_rect(
+    data = summary_lgi_goa_dis |> filter(category == "psy"),
+    mapping = aes(
+      xmin = status - 0.4,
+      xmax = status + 0.4,
+      ymin = lower,
+      ymax = upper,
+      fill = status
+    ),
+    alpha = 0.5,
+    color = NA
+  ) +
+  geom_segment(
+    data = summary_lgi_goa_dis |> filter(category == "psy"),
+    mapping = aes(
+      x = status - 0.4,
+      xend = status + 0.4,
+      y = fit,
+      yend = fit,
+      color = status
+    ),
+    linewidth = 0.75
+  ) +
+  facet_wrap(~ disorder, ncol = 4, nrow = 2, labeller = labeller_lgi_goa_dis) +
+  color_scale_dx +
+  fill_scale_dx +
+  labs(
+    title = "Differences in Global LGI across Psychosis Symptoms",
+    x = NULL,
+    y = "LGI (global)",
+    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+  ) +
+  theme_linedraw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.caption = element_text(hjust = 0)
+  )
+```
 
 # Cognition
 
 ## Association of CNB Accuracy and Global LGI
+
+### Full Sample
 
 In the full sample, Global LGI is significantly positvely associated with cognitive efficiency in the following domains when controlling for eTIV and after correcting for multiple comparisons: Overall Cognition, Complex Cognition, Motor, Social Cognition. Global LGI was significantly positively associated with Memory Efficiency but this effect did not survive correcting for eTIV.
 
@@ -1422,12 +1685,77 @@ plot_lgi_cnb_acc <-
 plot_lgi_cnb_acc
 ```
 
+### Clean Subsample
 
-## CNB Accuracy Profile of LGI-Volume Tertile Groups
+In the Clean Subsample, Global LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
+
+```{r}
+#| label: lgi-cnb-clean-subsample
+#| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
+#| control: {method: residual, variables: [age, sex]}
+#| cnb-metric: accuracy
+#| sample: clean subsample
+#| scale: global
+data_lgi_cnb_acc_clean <-
+  cnb |>
+  inner_join(global_lgi, by = "bblid") |>
+  inner_join(demo, by = "bblid") |>
+  semi_join(clean_subsample, by = "bblid") |>
+  rename(cnb = value) |>
+  filter(measure == "Accuracy") |>
+  drop_na() |>
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    cnb = residuals(gam(cnb ~ sex)),
+    .by = domain
+  ) |>
+  select(bblid, lgi, domain, cnb)
+
+test_lgi_cnb_acc_clean <-
+  data_lgi_cnb_acc_clean |>
+  summarize(
+    lm(cnb ~ lgi) |>
+      tidy(conf.int = TRUE) |>
+      clean_names() |>
+      filter(term == "lgi"),
+    .by = domain
+  ) |>
+  rename(b = estimate, p = p_value) |>
+  mutate(
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    p_fdr = p.adjust(p, method = "fdr"),
+    significance = case_when(
+      p_fdr < 0.001 ~ "***",
+      p_fdr < 0.01 ~ "**",
+      p_fdr < 0.05 ~ "*",
+      TRUE ~ ""
+    )
+  )
+
+test_lgi_cnb_acc_clean |>
+  select(domain, b, ci, p, p_fdr, significance) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Accuracy with Global LGI"
+  )
+```
+
+## Cognitive Profile of LGI-Volume Tertile Groups
+
+### Accuracy
 
 ::: {.collapsible-table data-rows="5"}
 
 ```{r}
+#| label: cnb-profiles-accuracy
+#| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
+#| control: {method: residual, variables: [age, sex], sample: full sample}
+#| cnb-metric: accuracy
+#| sample: tertile groups
+#| scale: global
 groups <- c("g1v1", "g1v3", "g3v1", "g3v3")
 
 data_tertile_cnb_acc <-
@@ -1594,64 +1922,6 @@ plot_tertile_cnb_acc
 ```
 
 :::
-
-## Clean Subsample
-
-In the Clean Subsample, Global LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
-
-```{r}
-#| label: lgi-cnb-clean-subsample
-#| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
-#| control: {method: residual, variables: [age, sex]}
-#| cnb-metric: accuracy
-#| sample: clean subsample
-#| scale: global
-data_lgi_cnb_acc_clean <-
-  cnb |>
-  inner_join(global_lgi, by = "bblid") |>
-  inner_join(demo, by = "bblid") |>
-  semi_join(clean_subsample, by = "bblid") |>
-  rename(cnb = value) |>
-  filter(measure == "Accuracy") |>
-  drop_na() |>
-  mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    cnb = residuals(gam(cnb ~ sex)),
-    .by = domain
-  ) |>
-  select(bblid, lgi, domain, cnb)
-
-test_lgi_cnb_acc_clean <-
-  data_lgi_cnb_acc_clean |>
-  summarize(
-    lm(cnb ~ lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "lgi"),
-    .by = domain
-  ) |>
-  rename(b = estimate, p = p_value) |>
-  mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
-    p_fdr = p.adjust(p, method = "fdr"),
-    significance = case_when(
-      p_fdr < 0.001 ~ "***",
-      p_fdr < 0.01 ~ "**",
-      p_fdr < 0.05 ~ "*",
-      TRUE ~ ""
-    )
-  )
-
-test_lgi_cnb_acc_clean |>
-  select(domain, b, ci, p, p_fdr, significance) |>
-  arrange(domain) |>
-  kbl(
-    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
-    align = "lrrrrl",
-    digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Accuracy with Global LGI"
-  )
-```
 
 # Main Effects
 
