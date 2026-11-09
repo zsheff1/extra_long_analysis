@@ -39,6 +39,11 @@ dir_evolpsy <- file.path(
   "/", "data", "secure", "bit_repo", "pi_repo", "raquel_gur", "evolpsy", "data"
 )
 
+dir_cnb <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
+  "long_cnb"
+)
+
 path_imaging <- file.path(dir_dataset, "imaging_data.csv")
 path_sub_ses <- file.path(dir_dataset, "subjects_sessions.csv")
 
@@ -54,6 +59,19 @@ path_goassess <- file.path(
   "tests", "data", "n9498_goassess_psych_summary_vars_20131014.csv"
 )
 
+path_imglook <-
+  file.path("/", "data", "secure", "bit_dwh", "oracle", "imglook.csv")
+
+path_new_cnb <-
+  file.path(
+    "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
+    "cnb_accuracy_speed_commonsmryscores_allbbl_longform.csv"
+  )
+
+path_cnb_accuracy <- file.path(dir_cnb, "BIG_CNB_Accuracy_Longitudinal_Factor_Scores_FullBattery.csv")
+path_cnb_efficiency <- file.path(dir_cnb, "BIG_CNB_Efficiency_Longitudinal_Factor_Scores_FullBattery.csv")
+path_cnb_speed <- file.path(dir_cnb, "BIG_CNB_Speed_Longitudinal_Factor_Scores_FullBattery.csv")
+
 # Read Data
 raw_imaging <- read_csv(path_imaging)
 raw_sub_ses <- read_csv(path_sub_ses)
@@ -64,6 +82,10 @@ raw_env_ses <- read_csv(path_env_ses)
 raw_env_trauma <- read_csv(path_env_trauma)
 
 raw_goassess <- read_csv(path_goassess)
+
+raw_cnb_accuracy <- read_csv(path_cnb_accuracy)
+raw_cnb_efficiency <- read_csv(path_cnb_efficiency)
+raw_cnb_speed <- read_csv(path_cnb_speed)
 ```
 
 # Clean Data
@@ -74,7 +96,7 @@ raw_goassess <- read_csv(path_goassess)
 demo <-
   left_join(
     raw_sub_ses |>
-      select(bblid, age),
+      select(bblid, scanid, age),
     raw_merge |>
       rename(dx = clinical_goassessDxpmr7) |>
       select(bblid, sex, race, dx),
@@ -98,7 +120,7 @@ demo <-
     ),
     sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female"))
   ) |>
-  arrange(bblid)
+  arrange(bblid, scanid)
 
 # Environment
 env <- full_join(raw_env_ses, raw_env_trauma, by = "bblid") |>
@@ -151,32 +173,75 @@ clinical <- raw_merge |>
   select(bblid, type, factor, value)
 
 # Cognitive
+bblid_doscan <-
+  read_csv(path_imglook) |>
+  clean_names() |>
+  semi_join(demo, by = join_by(bblid, scanid)) |>
+  select(bblid, scanid, doscan) |>
+  mutate(doscan = lubridate::mdy(doscan))
+
+cnb_dump <-
+  read_csv(
+    path_new_cnb,
+    col_select = c(
+      test_sessions.datasetid,
+      test_sessions.bblid,
+      test_sessions_v.dotest
+    )
+  ) |>
+  rename_with(\(x) {map_chr(str_split(x, "\\."), 2)})
+
+datasetid_mapping <-
+  inner_join(bblid_doscan, cnb_dump, by = "bblid", relationship = "one-to-many") |>
+  mutate(time_difference = abs(as.numeric(difftime(doscan, dotest, units = "days")))) |>
+  slice_min(order_by = time_difference, n = 1, by = c(bblid, scanid), with_ties = TRUE) |>
+  filter(time_difference < 30.5 * 6) |>
+  select(bblid, scanid, datasetid)
+
 cnb <-
-  raw_merge |>
-  semi_join(demo, by = "bblid") |>
-  select(
-    bblid,
-    starts_with("cnb") & ends_with("agereg"),
-    -contains("standard_error"),
-    -contains("discounting")
+  full_join(
+    raw_cnb_accuracy |>
+      select(datasetid, ends_with("Accuracy_AgeReg")),
+    raw_cnb_efficiency |>
+      select(datasetid, ends_with("Efficiency_AgeReg")),
+    by = "datasetid",
+    relationship = "one-to-one"
   ) |>
-  pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
-  transmute(
-    bblid,
-    domain = name |>
-      str_split("_") |>
-      map_chr(2) |>
-      str_replace("socialcog", "social") |>
-      str_to_title() |>
-      factor(
-        levels = c(
-          "Overall", "Executive", "Memory", "Complex", "Social", "Motor"
-        )
-      ),
-    measure = name |> str_split("_") |> map_chr(3) |> str_to_title(),
-    value,
+  full_join(
+    raw_cnb_speed |>
+      select(datasetid, ends_with("Speed_AgeReg")),
+    by = "datasetid",
+    relationship = "one-to-one"
   ) |>
-  arrange(bblid, measure, domain)
+  inner_join(
+    datasetid_mapping,
+    by = "datasetid",
+    relationship = "one-to-one"
+  ) |>
+  select(-datasetid) |>
+  pivot_longer(
+    cols = -c(bblid, scanid),
+    names_to = "name",
+    values_to = "value"
+  ) |>
+  separate_wider_delim(
+    name,
+    delim = "_",
+    names = c("domain", "measure", NA)
+  ) |>
+  filter(domain != "Discounting") |>
+  mutate(
+    domain = factor(
+      str_replace(domain, "SocialCog", "Social"),
+      levels = c("Overall", "Executive", "Memory", "Complex", "Social", "Motor")
+    ),
+    measure = factor(
+      replace_when(measure, domain == "Motor" & measure == "Efficiency" ~ "Speed"),
+      levels = c("Accuracy", "Efficiency", "Speed")
+    )
+  ) |>
+  arrange(bblid, scanid, measure, domain) |>
+  drop_na()
 
 # GOASSESS
 psy_symptoms <- c(
@@ -223,6 +288,13 @@ goassess_category <-
       score %in% 0:3 ~ FALSE,
     )
   )
+```
+
+```{r}
+#| eval: false
+
+
+
 ```
 
 :::
@@ -1606,28 +1678,28 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 #| cnb-metric: accuracy
 #| sample: full sample
 #| scale: global
-data_lgi_cnb_acc <-
+data_lgi_cnb <-
   cnb |>
-  inner_join(global_lgi, by = "bblid") |>
-  inner_join(demo, by = "bblid") |>
+  inner_join(global_lgi, by = join_by(bblid, scanid)) |>
+  inner_join(demo, by = join_by(bblid, scanid)) |>
   rename(cnb = value) |>
-  filter(measure == "Accuracy") |>
+  filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
     cnb = residuals(gam(cnb ~ sex)),
-    .by = domain
+    .by = c(domain, measure)
   ) |>
-  select(bblid, lgi, domain, cnb)
+  select(bblid, scanid, domain, measure, cnb, lgi)
 
-test_lgi_cnb_acc <-
-  data_lgi_cnb_acc |>
+test_lgi_cnb <-
+  data_lgi_cnb |>
   summarize(
     lm(cnb ~ lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .by = domain
+    .by = c(domain, measure)
   ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
@@ -1638,10 +1710,12 @@ test_lgi_cnb_acc <-
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    )
+    ),
+    .by = measure
   )
 
-test_lgi_cnb_acc |>
+test_lgi_cnb |>
+  filter(measure == "Accuracy") |>
   select(domain, b, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
@@ -1651,8 +1725,9 @@ test_lgi_cnb_acc |>
     caption = "Association of CNB Accuracy with Global LGI"
   )
 
-facet_labels_lgi_cnb <-
-  test_lgi_cnb_acc |>
+facet_labels_lgi_cnb_acc <-
+  test_lgi_cnb |>
+  filter(measure == "Accuracy") |>
   mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
   select(domain, label) |>
   deframe() |>
@@ -1660,7 +1735,7 @@ facet_labels_lgi_cnb <-
 
 plot_lgi_cnb_acc <-
   ggplot(
-    data = data_lgi_cnb_acc,
+    data = data_lgi_cnb |> filter(measure == "Accuracy"),
     mapping = aes(x = lgi, y = cnb)
   ) +
   geom_point(alpha = 0.1, size = 1) +
@@ -1673,16 +1748,61 @@ plot_lgi_cnb_acc <-
     linewidth = 0.75,
     alpha = 0.5
   ) +
-  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb) +
+  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_acc) +
   labs(
     title = "Relationship Between Global LGI and CNB Accuracy",
     subtitle = "CNB ~ LGI",
     x = "Global LGI",
-    y = "CNB Accuracy (Age Regressed)"
+    y = "CNB Accuracy"
   ) +
   theme_linedraw()
 
 plot_lgi_cnb_acc
+
+test_lgi_cnb |>
+  filter(measure == "Speed") |>
+  select(domain, b, ci, p, p_fdr, significance) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "lrrrrl",
+    digits = c(NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Speed with Global LGI"
+  )
+
+facet_labels_lgi_cnb_spd <-
+  test_lgi_cnb |>
+  filter(measure == "Speed") |>
+  mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
+  select(domain, label) |>
+  deframe() |>
+  as_labeller()
+
+plot_lgi_cnb_spd <-
+  ggplot(
+    data = data_lgi_cnb |> filter(measure == "Speed"),
+    mapping = aes(x = lgi, y = cnb)
+  ) +
+  geom_point(alpha = 0.1, size = 1) +
+  geom_smooth(
+    method = "lm",
+    formula = y ~ x,
+    se = TRUE,
+    color = "black",
+    fill = "black",
+    linewidth = 0.75,
+    alpha = 0.5
+  ) +
+  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_spd) +
+  labs(
+    title = "Relationship Between Global LGI and CNB Speed",
+    subtitle = "CNB ~ LGI",
+    x = "Global LGI",
+    y = "CNB Speed"
+  ) +
+  theme_linedraw()
+
+plot_lgi_cnb_spd
 ```
 
 ### Clean Subsample
@@ -1696,29 +1816,29 @@ In the Clean Subsample, Global LGI is significantly positively associated with M
 #| cnb-metric: accuracy
 #| sample: clean subsample
 #| scale: global
-data_lgi_cnb_acc_clean <-
+data_lgi_cnb_clean <-
   cnb |>
-  inner_join(global_lgi, by = "bblid") |>
-  inner_join(demo, by = "bblid") |>
+  inner_join(global_lgi, by = join_by(bblid, scanid)) |>
+  inner_join(demo, by = join_by(bblid, scanid)) |>
   semi_join(clean_subsample, by = "bblid") |>
   rename(cnb = value) |>
-  filter(measure == "Accuracy") |>
+  filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
     cnb = residuals(gam(cnb ~ sex)),
-    .by = domain
+    .by = c(domain, measure)
   ) |>
-  select(bblid, lgi, domain, cnb)
+  select(bblid, scanid, domain, measure, cnb, lgi)
 
-test_lgi_cnb_acc_clean <-
-  data_lgi_cnb_acc_clean |>
+test_lgi_cnb_clean <-
+  data_lgi_cnb_clean |>
   summarize(
     lm(cnb ~ lgi) |>
       tidy(conf.int = TRUE) |>
       clean_names() |>
       filter(term == "lgi"),
-    .by = domain
+    .by = c(domain, measure)
   ) |>
   rename(b = estimate, p = p_value) |>
   mutate(
@@ -1729,37 +1849,34 @@ test_lgi_cnb_acc_clean <-
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    )
+    ),
+    .by = measure
   )
 
-test_lgi_cnb_acc_clean |>
-  select(domain, b, ci, p, p_fdr, significance) |>
-  arrange(domain) |>
+test_lgi_cnb_clean |>
+  select(measure, domain, b, ci, p, p_fdr, significance) |>
+  arrange(measure, domain) |>
   kbl(
-    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
-    align = "lrrrrl",
-    digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Association of CNB Accuracy with Global LGI"
+    col.names = c("Measure", "Domain", "b", "95% CI", "p", "pFDR", ""),
+    align = "llrrrrl",
+    digits = c(NA, NA, 3, NA, 5, 5, NA),
+    caption = "Association of CNB Performance with Global LGI"
   )
 ```
 
 ## Cognitive Profile of LGI-Volume Tertile Groups
 
-### Accuracy
-
-::: {.collapsible-table data-rows="5"}
-
 ```{r}
-#| label: cnb-profiles-accuracy
+#| label: cnb-profiles
 #| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
 #| control: {method: residual, variables: [age, sex], sample: full sample}
-#| cnb-metric: accuracy
+#| cnb-metric: [accuracy, speed]
 #| sample: tertile groups
 #| scale: global
 groups <- c("g1v1", "g1v3", "g3v1", "g3v3")
 
-data_tertile_cnb_acc <-
-  data_lgi_cnb_acc |>
+data_tertile_cnb <-
+  data_lgi_cnb |>
   inner_join(
     data_lgi_vol_tertile |>
       select(bblid, group),
@@ -1769,11 +1886,12 @@ data_tertile_cnb_acc <-
   filter(group %in% groups) |>
   mutate(group = factor(group, levels = groups))
 
-test_tertile_cnb_acc <-
-  data_tertile_cnb_acc |>
-  summarize(model = list(aov(cnb ~ group)), .by = domain)
+test_tertile_cnb <-
+  data_tertile_cnb |>
+  summarize(model = list(aov(cnb ~ group)), .by = c(domain, measure))
 
-test_tertile_cnb_acc |>
+result_tertile_cnb <-
+  test_tertile_cnb |>
   mutate(
     list_rbind(
       map(model, \(m) {
@@ -1789,13 +1907,13 @@ test_tertile_cnb_acc |>
       t$sumsq[t$term == "group"] / sum(t$sumsq)
     })
   ) |>
-  mutate(
-    domain,
+  rename(
     f = statistic,
     df1 = df,
     df2 = df_residual,
-    eta2,
     p = p_value,
+  ) |>
+  mutate(
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1803,29 +1921,29 @@ test_tertile_cnb_acc |>
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
     ),
-    .keep = "none"
+    .by = measure
   ) |>
-  kbl(
-    col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
-    digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
-    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+  select(
+    measure, domain,
+    f, df1, df2, eta2,
+    p, p_fdr, significance,
   )
 
-posthoc_tertile_cnb_acc <-
-  test_tertile_cnb_acc |>
+posthoc_tertile_cnb <-
+  test_tertile_cnb |>
   mutate(
     posthoc = map(model, \(m) m |> TukeyHSD() |> tidy() |> clean_names()),
     sigma = map_dbl(model, sigma)
   ) |>
-  select(domain, posthoc, sigma) |>
+  select(domain, measure, posthoc, sigma) |>
   unnest(posthoc) |>
-  transmute(
-    domain,
-    contrast,
+  rename(
     mean_difference = estimate,
+    p_tukey = adj_p_value,
+  ) |>
+  mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     cohens_d = mean_difference / sigma,
-    p_tukey = adj_p_value,
     significance = case_when(
       p_tukey < 0.001 ~ "***",
       p_tukey < 0.01 ~ "**",
@@ -1838,9 +1956,69 @@ posthoc_tertile_cnb_acc <-
     into = c("group1", "group2"),
     sep = "-",
     remove = FALSE
+  ) |>
+  select(domain, measure, contrast, mean_difference, ci, cohens_d, p_tukey, significance, group1, group2)
+
+summary_tertile_cnb <-
+  data_tertile_cnb |>
+  summarize(
+    n = n(),
+    mean = mean(cnb),
+    se = sd(cnb) / sqrt(n),
+    lower = mean - qt(0.975, df = n - 1) * se,
+    upper = mean + qt(0.975, df = n - 1) * se,
+    .by = c(domain, measure, group)
   )
 
-posthoc_tertile_cnb_acc |>
+sig_tertile_cnb <-
+  posthoc_tertile_cnb |>
+  filter(p_tukey < 0.05) |>
+  left_join(
+    summary_tertile_cnb |>
+      select(domain, measure, group, mean) |>
+      rename(group1 = group, y1 = mean),
+    by = c("domain", "group1", "measure")
+  ) |>
+  left_join(
+    summary_tertile_cnb |>
+      select(domain, measure, group, mean) |>
+      rename(group2 = group, y2 = mean),
+    by = c("domain", "group2", "measure")
+  ) |>
+  group_by(domain, measure) |>
+  arrange(p_tukey, .by_group = TRUE) |>
+  mutate(
+    x = as.numeric(domain) +
+      0.065 * (row_number() - (n() + 1) / 2),
+    ymin = pmin(y1, y2),
+    ymax = pmax(y1, y2)
+  ) |>
+  ungroup()
+```
+
+### Accuracy
+
+::: {.collapsible-table data-rows="5"}
+
+```{r}
+#| label: cnb-profiles-accuracy
+#| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
+#| control: {method: residual, variables: [age, sex], sample: full sample}
+#| cnb-metric: accuracy
+#| sample: tertile groups
+#| scale: global
+result_tertile_cnb |>
+  filter(measure == "Accuracy") |>
+  select(-measure) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
+    digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
+    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+  )
+
+posthoc_tertile_cnb |>
+  filter(measure == "Accuracy") |>
   select(
     domain, contrast, mean_difference,
     ci, cohens_d, p_tukey, significance
@@ -1852,45 +2030,9 @@ posthoc_tertile_cnb_acc |>
     caption = "Tukey's HSD post-hoc comparisons between LGI/volume groups within each cognitive domain. Results include mean differences, 95% confidence intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were performed separately within each domain."
   )
 
-summary_tertile_cnb_acc <-
-  data_tertile_cnb_acc |>
-  summarize(
-    n = n(),
-    mean = mean(cnb),
-    se = sd(cnb) / sqrt(n),
-    lower = mean - qt(0.975, df = n - 1) * se,
-    upper = mean + qt(0.975, df = n - 1) * se,
-    .by = c(domain, group)
-  )
-
-sig_tertile_cnb_acc <-
-  posthoc_tertile_cnb_acc |>
-  filter(p_tukey < 0.05) |>
-  left_join(
-    summary_tertile_cnb_acc |>
-      select(domain, group, mean) |>
-      rename(group1 = group, y1 = mean),
-    by = c("domain", "group1")
-  ) |>
-  left_join(
-    summary_tertile_cnb_acc |>
-      select(domain, group, mean) |>
-      rename(group2 = group, y2 = mean),
-    by = c("domain", "group2")
-  ) |>
-  group_by(domain) |>
-  arrange(p_tukey, .by_group = TRUE) |>
-  mutate(
-    x = as.numeric(domain) +
-      0.065 * (row_number() - (n() + 1) / 2),
-    ymin = pmin(y1, y2),
-    ymax = pmax(y1, y2)
-  ) |>
-  ungroup()
-
-plot_tertile_cnb_acc <-
-  ggplot(
-    data = summary_tertile_cnb_acc,
+ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Accuracy"),
     mapping = aes(
       x = as.numeric(domain),
       y = mean, ymin = lower, ymax = upper,
@@ -1901,24 +2043,91 @@ plot_tertile_cnb_acc <-
   geom_line() +
   geom_point() +
   geom_segment(
-    data = sig_tertile_cnb_acc,
+    data = sig_tertile_cnb |>
+      filter(measure == "Accuracy"),
     aes(x = x, xend = x, y = ymin, yend = ymax),
     inherit.aes = FALSE,
     color = "black"
   ) +
   scale_x_continuous(
-    breaks = seq_along(levels(summary_tertile_cnb_acc$domain)),
-    labels = levels(summary_tertile_cnb_acc$domain)
+    breaks = seq_along(levels(summary_tertile_cnb$domain)),
+    labels = levels(summary_tertile_cnb$domain)
   ) +
   color_scale_group +
   fill_scale_group +
   labs(
     x = "Domain",
-    y = "Accuracy (age + sex regressed)"
+    y = "Accuracy"
   ) +
   theme_linedraw()
+```
 
-plot_tertile_cnb_acc
+:::
+
+### Speed
+
+::: {.collapsible-table data-rows="5"}
+
+```{r}
+#| label: cnb-profiles-speed
+#| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
+#| control: {method: residual, variables: [age, sex], sample: full sample}
+#| cnb-metric: speed
+#| sample: tertile groups
+#| scale: global
+result_tertile_cnb |>
+  filter(measure == "Speed") |>
+  select(-measure) |>
+  arrange(domain) |>
+  kbl(
+    col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
+    digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
+    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+  )
+
+posthoc_tertile_cnb |>
+  filter(measure == "Speed") |>
+  select(
+    domain, contrast, mean_difference,
+    ci, cohens_d, p_tukey, significance
+  ) |>
+  kbl(
+    col.names = c("Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey", ""),
+    align = "llrrrrl",
+    digits = c(NA, NA, 3, NA, 3, 5, NA),
+    caption = "Tukey's HSD post-hoc comparisons between LGI/volume groups within each cognitive domain. Results include mean differences, 95% confidence intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were performed separately within each domain."
+  )
+
+ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Speed"),
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group, fill = group
+    )
+  ) +
+  geom_ribbon(alpha = 0.25, color = NA) +
+  geom_line() +
+  geom_point() +
+  geom_segment(
+    data = sig_tertile_cnb |>
+      filter(measure == "Speed"),
+    aes(x = x, xend = x, y = ymin, yend = ymax),
+    inherit.aes = FALSE,
+    color = "black"
+  ) +
+  scale_x_continuous(
+    breaks = seq_along(levels(summary_tertile_cnb$domain)),
+    labels = levels(summary_tertile_cnb$domain)
+  ) +
+  color_scale_group +
+  fill_scale_group +
+  labs(
+    x = "Domain",
+    y = "Speed"
+  ) +
+  theme_linedraw()
 ```
 
 :::
