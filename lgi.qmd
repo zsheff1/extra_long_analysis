@@ -290,13 +290,6 @@ goassess_category <-
   )
 ```
 
-```{r}
-#| eval: false
-
-
-
-```
-
 :::
 
 # Sample Description
@@ -320,22 +313,43 @@ clean_subsample <-
   arrange(bblid)
 ```
 
+## Sensitivity Analysis in White Participants
+
+```{r}
+white_participants <-
+  demo |>
+  filter(race == "White") |>
+  select(bblid) |>
+  arrange(bblid)
+```
+
 ## Demographics
 
 ```{r}
 #| label: demos-table
-demo_table <- inner_join(
-  demo |>
-    left_join(env, by = "bblid") |>
-    demo_summarize() |>
-    rename(Overall = Value),
-  demo |>
-    left_join(env, by = "bblid") |>
-    semi_join(clean_subsample, by = "bblid") |>
-    demo_summarize() |>
-    rename(`Clean Subsample` = Value),
-  by = "Characteristic"
-)
+demo_table <-
+  inner_join(
+    demo |>
+      left_join(env, by = "bblid") |>
+      demo_summarize() |>
+      rename(Overall = Value),
+    demo |>
+      left_join(env, by = "bblid") |>
+      semi_join(white_participants, by = "bblid") |>
+      demo_summarize() |>
+      rename(`White Participants` = Value),
+    by = "Characteristic",
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    demo |>
+      left_join(env, by = "bblid") |>
+      semi_join(clean_subsample, by = "bblid") |>
+      demo_summarize() |>
+      rename(`Clean Subsample` = Value),
+    by = "Characteristic",
+    relationship = "one-to-one"
+  )
 
 demo_kable <- demo_table |>
   kbl(

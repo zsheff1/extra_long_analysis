@@ -73,9 +73,9 @@ demo_summarize <- function(raw) {
       age_sd = sd(age, na.rm = TRUE),
       male_n = sum(sex == "Male"),
       female_n = sum(sex == "Female"),
-      dx_td_n = sum(dx == "td", na.rm = TRUE),
-      dx_ps_n = sum(dx == "ps", na.rm = TRUE),
-      dx_op_n = sum(dx == "op", na.rm = TRUE),
+      dx_td_n = sum(dx == "TD", na.rm = TRUE),
+      dx_ps_n = sum(dx == "PS", na.rm = TRUE),
+      dx_op_n = sum(dx == "OP", na.rm = TRUE),
       trauma_mean = mean(trauma, na.rm = TRUE),
       trauma_sd = sd(trauma, na.rm = TRUE),
       ses_mean = mean(ses, na.rm = TRUE),
@@ -85,14 +85,14 @@ demo_summarize <- function(raw) {
       age = sprintf("%.2f (%.2f)", age_mean, age_sd),
       male = sprintf("%d (%.2f%%)", male_n, (male_n * 100 / n)),
       female = sprintf("%d (%.2f%%)", female_n, (female_n * 100 / n)),
-      td = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
-      ps = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
-      op = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n)),
+      TD = sprintf("%d (%.2f%%)", dx_td_n, (dx_td_n * 100 / n)),
+      PS = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
+      OP = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n)),
       trauma = sprintf("%.2f (%.2f)", trauma_mean, trauma_sd),
       ses = sprintf("%.2f (%.2f)", ses_mean, ses_sd)
     ) |>
     dplyr::mutate(n = as.character(n)) |>
-    dplyr::select(n, age, male, female, td, ps, op, trauma, ses) |>
+    dplyr::select(n, age, male, female, TD, PS, OP, trauma, ses) |>
     tidyr::pivot_longer(
       cols = tidyselect::everything(),
       names_to = "Characteristic",
