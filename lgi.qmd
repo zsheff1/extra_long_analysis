@@ -314,6 +314,8 @@ clean_subsample <-
   arrange(bblid)
 ```
 
+::: {.content-visible when-profile="scratch"}
+
 ## Sensitivity Analysis in White Participants
 
 ```{r}
@@ -323,6 +325,8 @@ white_participants <-
   select(bblid) |>
   arrange(bblid)
 ```
+
+:::
 
 ## Demographics
 
@@ -412,8 +416,8 @@ plot_lgi_vol_tertile <-
   geom_point(alpha = 0.75, size = 1) +
   color_scale_group +
   labs(
-    x = "Global LGI (s(age) + sex regressed)",
-    y = "eTIV (s(age) + sex regressed)"
+    x = "Global LGI",
+    y = "eTIV"
   ) +
   theme_linedraw() +
   theme(legend.position = "bottom")
@@ -466,7 +470,7 @@ plot_lgi_etiv <-
     title = "Correlation of Global LGI and eTIV",
     subtitle = report_correlation(test_lgi_etiv),
     x = "eTIV",
-    y = "LGI (global)"
+    y = "Global LGI"
   ) +
   theme_linedraw()
 
@@ -686,7 +690,7 @@ plot_lgi_lobe <-
     mapping = aes(x = lobe, y = lgi)
   ) +
   geom_boxplot() +
-  labs(title = "Distribution of LGI by Lobe", x = "Lobe", y = "LGI") +
+  labs(title = "Distribution of LGI by Lobe", x = "Lobe", y = "Lobular LGI") +
   theme_linedraw()
 
 plot_lgi_lobe
@@ -880,11 +884,13 @@ loadings_lgi <- fa_lgi$loadings |>
 plot_loadings <- ggplot() +
   geom_brain(
     atlas = dk(),
-    data = loadings_lgi |> group_by(factor),
+    data = loadings_lgi |>
+      filter(factor != "Global") |>
+      group_by(factor),
     mapping = aes(fill = loading),
     position = position_brain(view ~ hemi)
   ) +
-  facet_wrap(~ factor, ncol = 5, nrow = 2) +
+  facet_wrap(~ factor, ncol = 4, nrow = 2) +
   scale_fill_gradient2(
     low = my_red,
     mid = "white",
@@ -892,8 +898,7 @@ plot_loadings <- ggplot() +
     midpoint = 0,
     limits = c(-1, 1)
   ) +
-  theme_void() +
-  theme(legend.position = "bottom")
+  theme_void()
 
 plot_loadings
 ```
@@ -974,7 +979,7 @@ plot_regional_psy <-
   ) +
   scale_fill_viridis_c() +
   labs(
-    title = "Standardized Differences in Mean LGI Between TD and PSY",
+    title = "Standardized Differences in Mean LGI Between TD and PS",
     caption = "Only differences with pFDR < 0.05 are shown.",
     fill = "Cohen's d"
   ) +
@@ -1072,7 +1077,7 @@ plot_lgi_clinical <-
   labs(
     title = "Relationship Between Global LGI and Psychopathology Factors",
     x = "Global LGI",
-    y = "Psychopathology (bifactor)"
+    y = "Psychopathology"
   ) +
   theme_linedraw()
 
@@ -1102,7 +1107,7 @@ plot_comorbid <- upset(
     )
   ),
   annotations = list(
-    "LGI" = ggplot(mapping = aes(x = intersection, y = lgi)) +
+    "Global LGI" = ggplot(mapping = aes(x = intersection, y = lgi)) +
       geom_boxplot()
   )
 )
@@ -1158,6 +1163,7 @@ test_lgi_goa_cat <-
   )
 
 test_lgi_goa_cat |>
+  arrange(category) |>
   kbl(
     col.names = c("Category", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1213,20 +1219,24 @@ plot_lgi_goa_cat <-
     ),
     linewidth = 0.5
   ) +
+  facet_wrap(~ category, labeller = labels_lgi_goa_cat) +
   color_scale_dx +
   fill_scale_dx +
-  scale_x_continuous(
-    breaks = c(0, 1),
-    labels = c("False", "True")
-  ) +
-  facet_wrap(~ category, labeller = labels_lgi_goa_cat) +
   labs(
     title = "Differences in Global LGI across GOASSESS Categories",
-    x = "Status",
-    y = "LGI (global)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
-  theme(legend.position = "none")
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
 
 plot_lgi_goa_cat
 ```
@@ -1318,6 +1328,7 @@ labeller_lgi_goa_dis <-
 test_lgi_goa_dis |>
   filter(category == "anx") |>
   select(-category) |>
+  arrange(disorder) |>
   kbl(
     col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1359,16 +1370,18 @@ ggplot() +
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Anxiety Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
   theme(
-    legend.position = "bottom",
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
   )
 ```
 
@@ -1382,6 +1395,7 @@ ggplot() +
 test_lgi_goa_dis |>
   filter(category == "beh") |>
   select(-category) |>
+  arrange(disorder) |>
   kbl(
     col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1423,16 +1437,18 @@ ggplot() +
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Behavior Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
   theme(
-    legend.position = "bottom",
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
   )
 ```
 
@@ -1446,6 +1462,7 @@ ggplot() +
 test_lgi_goa_dis |>
   filter(category == "eat") |>
   select(-category) |>
+  arrange(disorder) |>
   kbl(
     col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1487,16 +1504,18 @@ ggplot() +
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Eating Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
   theme(
-    legend.position = "bottom",
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
   )
 ```
 
@@ -1510,6 +1529,7 @@ ggplot() +
 test_lgi_goa_dis |>
   filter(category == "mood") |>
   select(-category) |>
+  arrange(disorder) |>
   kbl(
     col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1551,16 +1571,18 @@ ggplot() +
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Mood Disorders",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
   theme(
-    legend.position = "bottom",
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
   )
 ```
 
@@ -1574,6 +1596,7 @@ ggplot() +
 test_lgi_goa_dis |>
   filter(category == "psy") |>
   select(-category) |>
+  arrange(disorder) |>
   kbl(
     col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
     align = "lrrrrrrrrl",
@@ -1615,16 +1638,18 @@ ggplot() +
   fill_scale_dx +
   labs(
     title = "Differences in Global LGI across Psychosis Symptoms",
-    x = NULL,
-    y = "LGI (global)",
-    caption = "* p < 0.05; ** p < 0.01; *** p < 0.001 (fdr)"
+    y = "Global LGI",
+    color = "Status",
+    fill = "Status"
   ) +
   theme_linedraw() +
   theme(
-    legend.position = "bottom",
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
-    plot.caption = element_text(hjust = 0)
+    axis.title.x = element_blank(),
+    legend.position = "bottom",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
   )
 ```
 
@@ -1716,9 +1741,8 @@ plot_lgi_cnb_acc <-
   facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_acc) +
   labs(
     title = "Relationship Between Global LGI and CNB Accuracy",
-    subtitle = "CNB ~ LGI",
     x = "Global LGI",
-    y = "CNB Accuracy"
+    y = "Accuracy"
   ) +
   theme_linedraw()
 
@@ -1761,9 +1785,8 @@ plot_lgi_cnb_spd <-
   facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_spd) +
   labs(
     title = "Relationship Between Global LGI and CNB Speed",
-    subtitle = "CNB ~ LGI",
     x = "Global LGI",
-    y = "CNB Speed"
+    y = "Speed"
   ) +
   theme_linedraw()
 

@@ -9,6 +9,7 @@ format:
     toc: true
     toc-depth: 3
     embed-resources: true
+    fig-format: png
 
 bibliography: references.bib
 csl: biological-psychiatry.csl
