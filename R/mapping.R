@@ -86,9 +86,9 @@ goassess_mapping <- c(
 )
 
 goassess_category_mapping <- c(
-  anx = "Anxiety Disorders",
-  beh = "Behavior Disorders",
-  eat = "Eating Disorders",
-  mood = "Mood Disorders",
-  psy = "Psychotic Disorders"
+  smry_anx_cat = "Anxiety Disorders",
+  smry_beh_cat = "Behavior Disorders",
+  smry_eat_cat = "Eating Disorders",
+  smry_mood_cat = "Mood Disorders",
+  smry_psy_cat = "Psychotic Disorders"
 )
