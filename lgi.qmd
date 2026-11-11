@@ -434,11 +434,18 @@ There is a significant positive correlation between Global LGI and estimated tot
 #| label: lgi-etiv
 #| test: {method: correlation, variables: [lgi, etiv]}
 #| scale: global
-#| control: null
-data_lgi_etiv <- left_join(global_lgi, data_etiv, by = c("bblid", "scanid"))
+#| control: {method: residual, variables: [age, sex]}
+data_lgi_etiv <-
+  inner_join(global_lgi, data_etiv, by = c("bblid", "scanid")) |>
+  inner_join(demo, by = c("bblid", "scanid")) |>
+  drop_na(bblid, scanid, lgi, etiv, age, sex) |>
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    etiv = residuals(gam(etiv ~ s(age) + sex))
+  ) |>
+  select(bblid, scanid, lgi, etiv)
 
-test_lgi_etiv <-
-  cor.test(data_lgi_etiv$lgi, data_lgi_etiv$etiv)
+test_lgi_etiv <- cor.test(data_lgi_etiv$lgi, data_lgi_etiv$etiv)
 
 test_lgi_etiv
 
@@ -475,13 +482,20 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 #| label: lgi-volume
 #| test: {method: correlation, variables: [lgi, volume]}
 #| scale: region
-#| control: null
-data_lgi_volume <- raw_imaging |>
-  filter(metric %in% c("area", "lgi", "volume"), atlas == "desikan_killiany") |>
+#| control: {method: residual, variables: [age, sex]}
+data_lgi_volume <-
+  raw_imaging |>
+  filter(metric %in% c("lgi", "volume"), atlas == "desikan_killiany") |>
   pivot_wider(values_from = value, names_from = metric) |>
+  inner_join(demo, by = c("bblid", "scanid"), relationship = "many-to-one") |>
+  drop_na(bblid, scanid, laterality, region, lgi, volume, age, sex) |>
   mutate(region = str_c(laterality, region, sep = "_")) |>
-  select(bblid, region, area, lgi, volume) |>
-  drop_na()
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    volume = residuals(gam(volume ~ s(age) + sex)),
+    .by = region
+  ) |>
+  select(bblid, scanid, region, lgi, volume)
 
 test_lgi_volume <- data_lgi_volume |>
   summarize(
@@ -533,7 +547,7 @@ plot_lgi_volume <-
     mapping = aes(fill = r),
     position = position_brain(view ~ hemi)
   ) +
-  scale_fill_viridis_c(limits = c(0, 1)) +
+  scale_fill_viridis_c() +
   labs(
     title = "Regional Correlations Between LGI and Volume",
     caption = "Only correlations with pFDR < 0.05 are shown.",
@@ -892,20 +906,18 @@ LGI is significantly lower in those with psychosis, relative to controls, in all
 ```{r}
 #| label: lgi-psy-regional-goa
 #| test: {method: t-test, variable: lgi, groups: [dxpmrv7_td, dxpmrv7_ps]}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: region
 data_regional_td_psy <-
-  inner_join(
-    demo |>
-      filter(dx %in% c("TD", "PS")) |>
-      select(bblid, dx) |>
-      mutate(dx = fct_drop(dx)),
-    imaging |>
-      mutate(region = str_c(region, laterality, sep = "_")) |>
-      select(bblid, region, lgi),
-    by = "bblid"
+  inner_join(imaging, demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
+  filter(dx %in% c("TD", "PS")) |>
+  mutate(
+    dx = fct_drop(dx),
+    region = str_c(region, laterality, sep = "_")
   ) |>
-  drop_na()
+  drop_na(bblid, scanid, region, lgi, dx, age, sex) |>
+  mutate(lgi = residuals(gam(lgi ~ s(age) + sex)), .by = region) |>
+  select(bblid, scanid, region, lgi, dx)
 
 test_regional_psy <-
   data_regional_td_psy |>
@@ -982,47 +994,33 @@ General Psychopathology, Depression, and Psychosis Positive all showed a signifi
 ```{r}
 #| label: clinical-factors-raw
 #| test: {method: correlation, variables: [lgi, [general p, adhd, depression, mania, psychosis positive, psychosis negative]]}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
-tmp_lgi <- 
-  inner_join(
-    global_lgi |>
-      select(bblid, lgi),
-    demo |>
-      select(bblid, age, sex),
-    by = "bblid"
-  ) |>
-  drop_na(lgi, age, sex) |>
-  mutate(lgi_reg = residuals(gam(lgi ~ s(age) + sex))) |>
-  pivot_longer(cols = c(lgi, lgi_reg), names_to = "control", values_to = "lgi") |>
-  mutate(control = case_when(control == "lgi_reg" ~ TRUE, control == "lgi" ~ FALSE)) |>
-  select(bblid, control, lgi)
-
-tmp_clinical <-
-  inner_join(
-    clinical |>
-      filter(type == "bifactor") |>
-      select(bblid, factor, value),
-    demo |>
-      select(bblid, age, sex),
-    by = "bblid") |>
-  drop_na(factor, value, age, sex) |>
-  mutate(value_reg = residuals(gam(value ~ s(age) + sex)), .by = factor) |>
-  pivot_longer(cols = c(value, value_reg), names_to = "control", values_to = "value") |>
+data_lgi_clinical <-
+  demo |>
+  inner_join(global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
+  inner_join(clinical, by = "bblid", relationship = "one-to-many") |>
+  rename(clinical = value) |>
+  filter(type == "bifactor") |>
+  drop_na(bblid, scanid, lgi, factor, clinical, age, sex) |>
   mutate(
-    control = case_when(control == "value_reg" ~ TRUE, control == "value" ~ FALSE),
-    factor = if_else(factor == "adhd", str_to_upper(factor), str_to_title(str_replace_all(factor, "_", " ")))
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    clinical = residuals(gam(clinical ~ s(age) + sex)),
+    factor = if_else(
+      factor == "adhd",
+      str_to_upper(factor),
+      str_to_title(str_replace_all(factor, "_", " "))
+    ),
+    .by = factor
   ) |>
-  select(bblid, control, factor, value)
-
-data_lgi_clinical <- inner_join(tmp_lgi, tmp_clinical, by = c("bblid", "control"), relationship = "one-to-many")
+  select(bblid, scanid, lgi, factor, clinical)
 
 test_lgi_clinical <- data_lgi_clinical |>
   summarize(
-    cor.test(lgi, value) |>
+    cor.test(lgi, clinical) |>
       tidy() |>
       clean_names(),
-    .by = c(control, factor)
+    .by = factor
   ) |>
   rename(
     r = estimate,
@@ -1036,12 +1034,10 @@ test_lgi_clinical <- data_lgi_clinical |>
       p_fdr < 0.01 ~ "**",
       p_fdr < 0.05 ~ "*",
       TRUE ~ ""
-    ),
-    .by = control
+    )
   )
 
 test_lgi_clinical |>
-  filter(!control) |>
   select(factor, r, ci, p, p_fdr, significance) |>
   arrange(factor) |>
   kbl(
@@ -1053,7 +1049,6 @@ test_lgi_clinical |>
 
 labeller_lgi_clinical <-
   test_lgi_clinical |>
-  filter(!control) |>
   mutate(label = str_trim(str_c(factor, significance, sep = " "))) |>
   select(factor, label) |>
   deframe() |>
@@ -1061,9 +1056,8 @@ labeller_lgi_clinical <-
 
 plot_lgi_clinical <-
   ggplot(
-    data = data_lgi_clinical |>
-      filter(!control),
-    mapping = aes(x = lgi, y = value)
+    data = data_lgi_clinical,
+    mapping = aes(x = lgi, y = clinical)
   ) +
   geom_point(alpha = 0.25, size = 0.25) +
   geom_smooth(
@@ -1084,61 +1078,6 @@ plot_lgi_clinical <-
   theme_linedraw()
 
 plot_lgi_clinical
-```
-
-## Controlling for Age and Sex
-
-When regressing sex and the spline of age from global LGI and the psychopatholgy factor scores General Psychopathology and ADHD showed a significant negative correlation with Global LGI. No such relationship was observed for Depression, Mania, Psychosis Positive, or Psychosis Negative.
-
-```{r}
-#| label: clinical-factors-controlled
-#| test: {method: correlation, variables: [lgi, [general p, adhd, depression, mania, psychosis positive, psychosis negative]]}
-#| control: {method: residual, variables: [age, sex]}
-#| scale: global
-test_lgi_clinical |>
-  filter(control) |>
-  select(factor, r, ci, p, p_fdr, significance) |>
-  arrange(factor) |>
-  kbl(
-    col.names = c("Clinical Factor", "r", "95% CI", "p", "pFDR", ""),
-    align = "lrrrrl",
-    digits = c(NA, 3, NA, 5, 5, NA),
-    caption = "Relationship Between Global LGI and Psychopathology Factors, Controlling for Age and Sex",
-  )
-
-labeller_lgi_clinical_controlled <-
-  test_lgi_clinical |>
-  filter(control) |>
-  mutate(label = str_trim(str_c(factor, significance, sep = " "))) |>
-  select(factor, label) |>
-  deframe() |>
-  as_labeller()
-
-plot_lgi_clinical_controlled <-
-  ggplot(
-    data = data_lgi_clinical |>
-      filter(control),
-    mapping = aes(x = lgi, y = value)
-  ) +
-  geom_point(alpha = 0.25, size = 0.25) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
-  ) +
-  facet_wrap(~ factor, labeller = labeller_lgi_clinical_controlled) +
-  labs(
-    title = "Relationship Between Global LGI and Psychopathology Factors",
-    x = "Global LGI",
-    y = "Psychopathology (bifactor)"
-  ) +
-  theme_linedraw()
-
-plot_lgi_clinical_controlled
 ```
 
 # Psychopathology (Binary GOASSESS)
@@ -1177,11 +1116,18 @@ plot_comorbid
 ```{r}
 #| label: lgi-goa-cat
 #| test: {method: t-test, variable: lgi, group across: smry_cat_*}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_cat <-
-  inner_join(goassess_category, global_lgi, by = "bblid") |>
-  mutate(category = goassess_category_mapping[category])
+  inner_join(demo, global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
+  inner_join(goassess_category, by = "bblid", relationship = "one-to-many") |>
+  drop_na(bblid, scanid, lgi, category, status, age, sex) |>
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    category = goassess_category_mapping[category],
+    .by = category
+  ) |>
+  select(bblid, scanid, lgi, category, status)
 
 test_lgi_goa_cat <-
   data_lgi_goa_cat |>
@@ -1292,12 +1238,18 @@ plot_lgi_goa_cat
 ```{r}
 #| label: lgi-goa-dis
 #| test: {method: t-test, variable: lgi, group across: smry_*}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_dis <-
-  inner_join(goassess_disorder, global_lgi, by = "bblid") |>
-  mutate(disorder = goassess_mapping[disorder]) |>
-  drop_na()
+  inner_join(demo, global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
+  inner_join(goassess_disorder, by = "bblid", relationship = "one-to-many") |>
+  drop_na(bblid, scanid, lgi, category, disorder, status, age, sex) |>
+  mutate(
+    lgi = residuals(gam(lgi ~ s(age) + sex)),
+    disorder = goassess_mapping[disorder],
+    .by = disorder
+  ) |>
+  select(bblid, scanid, lgi, category, disorder, status)
 
 test_lgi_goa_dis <-
   data_lgi_goa_dis |>
@@ -1362,7 +1314,7 @@ labeller_lgi_goa_dis <-
 ```{r}
 #| label: lgi-goa-anx
 #| test: {method: t-test, variable: lgi, group across: goa anx disorders}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 test_lgi_goa_dis |>
   filter(category == "anx") |>
@@ -1426,7 +1378,7 @@ ggplot() +
 ```{r}
 #| label: lgi-goa-beh
 #| test: {method: t-test, variable: lgi, group across: goa beh disorders}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 test_lgi_goa_dis |>
   filter(category == "beh") |>
@@ -1490,7 +1442,7 @@ ggplot() +
 ```{r}
 #| label: lgi-goa-eat
 #| test: {method: t-test, variable: lgi, group across: goa eat disorders}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 test_lgi_goa_dis |>
   filter(category == "eat") |>
@@ -1554,7 +1506,7 @@ ggplot() +
 ```{r}
 #| label: lgi-goa-mood
 #| test: {method: t-test, variable: lgi, group across: goa mood disorders}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 test_lgi_goa_dis |>
   filter(category == "mood") |>
@@ -1618,7 +1570,7 @@ ggplot() +
 ```{r}
 #| label: lgi-goa-psy
 #| test: {method: t-test, variable: lgi, group across: goa psy disorders}
-#| control: null
+#| control: {method: residual, variables: [age, sex]}
 #| scale: global
 test_lgi_goa_dis |>
   filter(category == "psy") |>
