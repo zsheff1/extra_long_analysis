@@ -100,7 +100,7 @@ demo <-
     raw_merge |>
       rename(dx = clinical_goassessDxpmr7) |>
       select(bblid, sex, race, dx),
-    by = "bblid"
+    by = join_by(bblid)
   ) |>
   mutate(
     age = age / 12,
@@ -123,7 +123,7 @@ demo <-
   arrange(bblid, scanid)
 
 # Environment
-env <- full_join(raw_env_ses, raw_env_trauma, by = "bblid") |>
+env <- full_join(raw_env_ses, raw_env_trauma, by = join_by(bblid)) |>
   clean_names() |>
   rename(trauma = trauma_exposure, ses = env_ses) |>
   select(bblid, trauma, ses)
@@ -136,7 +136,7 @@ imaging_qc <- raw_sub_ses |>
 
 imaging <- raw_imaging |>
   filter(atlas == "desikan_killiany", !is.na(lobe)) |>
-  semi_join(imaging_qc, by = c("bblid", "scanid")) |>
+  semi_join(imaging_qc, by = join_by(bblid, scanid)) |>
   pivot_wider(values_from = value, names_from = metric) |>
   select(bblid, scanid, lobe, laterality, region, lgi, area) |>
   drop_na()
@@ -149,13 +149,13 @@ lgi_lobe <- imaging |>
 
 data_etiv <- raw_imaging |>
   filter(region == "EstimatedTotalIntraCranialVol") |>
-  semi_join(imaging_qc, by = c("bblid", "scanid")) |>
+  semi_join(imaging_qc, by = join_by(bblid, scanid)) |>
   rename(etiv = value) |>
   select(bblid, scanid, etiv)
 
 # Clinical
 clinical <- raw_merge |>
-  semi_join(demo, by = "bblid") |>
+  semi_join(demo, by = join_by(bblid)) |>
   select(
     bblid,
     starts_with("clinical_longfactor") &
@@ -192,7 +192,7 @@ cnb_dump <-
   rename_with(\(x) {map_chr(str_split(x, "\\."), 2)})
 
 datasetid_mapping <-
-  inner_join(bblid_doscan, cnb_dump, by = "bblid", relationship = "one-to-many") |>
+  inner_join(bblid_doscan, cnb_dump, by = join_by(bblid), relationship = "one-to-many") |>
   mutate(time_difference = abs(as.numeric(difftime(doscan, dotest, units = "days")))) |>
   slice_min(order_by = time_difference, n = 1, by = c(bblid, scanid), with_ties = TRUE) |>
   filter(time_difference < 30.5 * 6) |>
@@ -204,18 +204,18 @@ cnb <-
       select(datasetid, ends_with("Accuracy_AgeReg")),
     raw_cnb_efficiency |>
       select(datasetid, ends_with("Efficiency_AgeReg")),
-    by = "datasetid",
+    by = join_by(datasetid),
     relationship = "one-to-one"
   ) |>
   full_join(
     raw_cnb_speed |>
       select(datasetid, ends_with("Speed_AgeReg")),
-    by = "datasetid",
+    by = join_by(datasetid),
     relationship = "one-to-one"
   ) |>
   inner_join(
     datasetid_mapping,
-    by = "datasetid",
+    by = join_by(datasetid),
     relationship = "one-to-one"
   ) |>
   select(-datasetid) |>
@@ -251,7 +251,7 @@ psy_symptoms <- c(
 
 goassess_disorder <-
   raw_goassess |>
-  semi_join(demo, by = "bblid") |>
+  semi_join(demo, by = join_by(bblid)) |>
   pivot_longer(cols = -bblid, names_to = "disorder", values_to = "score") |>
   filter(!str_ends(disorder, "_cat")) |>
   mutate(
@@ -278,7 +278,7 @@ goassess_disorder <-
 
 goassess_category <-
   raw_goassess |>
-  semi_join(demo, by = "bblid") |>
+  semi_join(demo, by = join_by(bblid)) |>
   select(bblid, ends_with("_cat")) |>
   pivot_longer(cols = -bblid, names_to = "category", values_to = "score") |>
   mutate(
@@ -303,10 +303,10 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 ```{r}
 #| label: subsample
 clean_subsample <-
-  inner_join(demo, data_etiv, by = "bblid") |>
+  inner_join(demo, data_etiv, by = join_by(bblid)) |>
   mutate(etiv_median = median(etiv), .by = sex) |>
-  semi_join(drop_na(global_lgi), by = "bblid") |>
-  semi_join(filter(env, trauma == 0), by = "bblid") |>
+  semi_join(drop_na(global_lgi), by = join_by(bblid)) |>
+  semi_join(filter(env, trauma == 0), by = join_by(bblid)) |>
   filter(race == "White", dx == "TD") |>
   slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE, by = sex) |>
   select(bblid) |>
@@ -330,24 +330,24 @@ white_participants <-
 demo_table <-
   inner_join(
     demo |>
-      left_join(env, by = "bblid") |>
+      left_join(env, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(Overall = Value),
     demo |>
-      left_join(env, by = "bblid") |>
-      semi_join(white_participants, by = "bblid") |>
+      left_join(env, by = join_by(bblid)) |>
+      semi_join(white_participants, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(`White Participants` = Value),
-    by = "Characteristic",
+    by = join_by(Characteristic),
     relationship = "one-to-one"
   ) |>
   inner_join(
     demo |>
-      left_join(env, by = "bblid") |>
-      semi_join(clean_subsample, by = "bblid") |>
+      left_join(env, by = join_by(bblid)) |>
+      semi_join(clean_subsample, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(`Clean Subsample` = Value),
-    by = "Characteristic",
+    by = join_by(Characteristic),
     relationship = "one-to-one"
   )
 
@@ -436,8 +436,8 @@ There is a significant positive correlation between Global LGI and estimated tot
 #| scale: global
 #| control: {method: residual, variables: [age, sex]}
 data_lgi_etiv <-
-  inner_join(global_lgi, data_etiv, by = c("bblid", "scanid")) |>
-  inner_join(demo, by = c("bblid", "scanid")) |>
+  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid)) |>
+  inner_join(demo, by = join_by(bblid, scanid)) |>
   drop_na(bblid, scanid, lgi, etiv, age, sex) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
@@ -487,7 +487,7 @@ data_lgi_volume <-
   raw_imaging |>
   filter(metric %in% c("lgi", "volume"), atlas == "desikan_killiany") |>
   pivot_wider(values_from = value, names_from = metric) |>
-  inner_join(demo, by = c("bblid", "scanid"), relationship = "many-to-one") |>
+  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
   drop_na(bblid, scanid, laterality, region, lgi, volume, age, sex) |>
   mutate(region = str_c(laterality, region, sep = "_")) |>
   mutate(
@@ -582,7 +582,7 @@ data_regional_lgi <-
       mutate(region = str_c(region, laterality, sep = "_")) |>
       rename(regional_lgi = lgi) |>
       select(bblid, region, regional_lgi),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-many"    
   ) |>
   drop_na() |>
@@ -603,7 +603,7 @@ data_regional_psy <-
       ) |>
       rename(psychosis = value) |>
       select(bblid, factor, psychosis),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-many"
   ) |>
   drop_na() |>
@@ -618,7 +618,7 @@ data_lgi_psy_regional <-
   inner_join(
     data_regional_lgi,
     data_regional_psy,
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "many-to-many"
   ) |>
   drop_na()
@@ -697,7 +697,7 @@ data_lobular_lgi <-
     lgi_lobe |>
       rename(lobular_lgi = lgi) |>
       select(bblid, lobe, lobular_lgi),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-many"
   ) |>
   drop_na() |>
@@ -722,7 +722,7 @@ data_lobular_psy <-
       ) |>
       rename(psychosis = value) |>
       select(bblid, factor, psychosis),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-many"
   ) |>
   drop_na() |>
@@ -737,7 +737,7 @@ data_lgi_psy_lobular <-
   inner_join(
     data_lobular_lgi,
     data_lobular_psy,
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "many-to-many"
   ) |>
   drop_na()
@@ -791,7 +791,7 @@ imaging_wide <-
   inner_join(
     demo |>
       select(bblid, age, sex),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-one"
   ) |>
   drop_na() |>
@@ -811,14 +811,14 @@ regional_lgi_residuals <-
   inner_join(
     demo |>
       select(bblid, age, sex),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-one"
   ) |>
   inner_join(
     global_lgi |>
       rename(global_lgi = lgi) |>
       select(bblid, global_lgi),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "one-to-one"
   ) |>
   drop_na() |>
@@ -987,8 +987,6 @@ plot_regional_psy
 
 # Psychopathology (Factor Scores)
 
-## Raw Values
-
 General Psychopathology, Depression, and Psychosis Positive all showed a significant negative correlation with Global LGI. No such relationship was observed for ADHD, Mania or Psychosis Negative.
 
 ```{r}
@@ -998,8 +996,8 @@ General Psychopathology, Depression, and Psychosis Positive all showed a signifi
 #| scale: global
 data_lgi_clinical <-
   demo |>
-  inner_join(global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
-  inner_join(clinical, by = "bblid", relationship = "one-to-many") |>
+  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(clinical, by = join_by(bblid), relationship = "one-to-many") |>
   rename(clinical = value) |>
   filter(type == "bifactor") |>
   drop_na(bblid, scanid, lgi, factor, clinical, age, sex) |>
@@ -1090,7 +1088,7 @@ Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh
 ```{r}
 #| label: comorbidities
 comorbid <-
-  inner_join(goassess_category, global_lgi, by = "bblid") |>
+  inner_join(goassess_category, global_lgi, by = join_by(bblid)) |>
   select(bblid, category, status, lgi) |>
   pivot_wider(names_from = category, values_from = status)
 
@@ -1119,8 +1117,8 @@ plot_comorbid
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_cat <-
-  inner_join(demo, global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
-  inner_join(goassess_category, by = "bblid", relationship = "one-to-many") |>
+  inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(goassess_category, by = join_by(bblid), relationship = "one-to-many") |>
   drop_na(bblid, scanid, lgi, category, status, age, sex) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
@@ -1241,8 +1239,8 @@ plot_lgi_goa_cat
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_dis <-
-  inner_join(demo, global_lgi, by = c("bblid", "scanid"), relationship = "one-to-one") |>
-  inner_join(goassess_disorder, by = "bblid", relationship = "one-to-many") |>
+  inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(goassess_disorder, by = join_by(bblid), relationship = "one-to-many") |>
   drop_na(bblid, scanid, lgi, category, disorder, status, age, sex) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
@@ -1786,7 +1784,7 @@ data_lgi_cnb_clean <-
   cnb |>
   inner_join(global_lgi, by = join_by(bblid, scanid)) |>
   inner_join(demo, by = join_by(bblid, scanid)) |>
-  semi_join(clean_subsample, by = "bblid") |>
+  semi_join(clean_subsample, by = join_by(bblid)) |>
   rename(cnb = value) |>
   filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
@@ -1846,7 +1844,7 @@ data_tertile_cnb <-
   inner_join(
     data_lgi_vol_tertile |>
       select(bblid, group),
-    by = "bblid",
+    by = join_by(bblid),
     relationship = "many-to-one"
   ) |>
   filter(group %in% groups) |>
@@ -1943,13 +1941,13 @@ sig_tertile_cnb <-
     summary_tertile_cnb |>
       select(domain, measure, group, mean) |>
       rename(group1 = group, y1 = mean),
-    by = c("domain", "group1", "measure")
+    by = join_by(domain, group1, measure)
   ) |>
   left_join(
     summary_tertile_cnb |>
       select(domain, measure, group, mean) |>
       rename(group2 = group, y2 = mean),
-    by = c("domain", "group2", "measure")
+    by = join_by(domain, group2, measure)
   ) |>
   group_by(domain, measure) |>
   arrange(p_tukey, .by_group = TRUE) |>
@@ -2116,7 +2114,7 @@ Global LGI was significantly negatively associated with age, with evidence that 
 ```{r}
 #| label: lgi-age-data
 data_lgi_age <-
-  inner_join(global_lgi, demo, by = c("bblid")) |>
+  inner_join(global_lgi, demo, by = join_by(bblid)) |>
   select(lgi, age) |>
   drop_na()
 ```
@@ -2257,7 +2255,7 @@ Global LGI was significantly positively associated with SES, with higher SES ass
 ```{r}
 #| label: lgi-ses-data
 data_lgi_ses <-
-  inner_join(global_lgi, env, by = "bblid") |>
+  inner_join(global_lgi, env, by = join_by(bblid)) |>
   select(lgi, ses) |>
   drop_na()
 ```
@@ -2398,7 +2396,7 @@ Global LGI differed significantly between sexes, with males exhibiting higher gl
 ```{r}
 #| label: lgi-sex-data
 data_lgi_sex <-
-  inner_join(global_lgi, demo, by = "bblid") |>
+  inner_join(global_lgi, demo, by = join_by(bblid)) |>
   select(lgi, sex) |>
   drop_na()
 ```
@@ -2503,7 +2501,7 @@ Global LGI was significantly negatively associated with trauma exposure, with ev
 ```{r}
 #| label: lgi-trauma-data
 data_lgi_trauma <-
-  inner_join(global_lgi, env, by = "bblid") |>
+  inner_join(global_lgi, env, by = join_by(bblid)) |>
   select(lgi, trauma) |>
   drop_na()
 ```
@@ -2664,8 +2662,8 @@ Age and SES were not significantly correlated. When modeled together, age showed
 #| label: lgi-age-ses-data
 data_lgi_age_ses <-
   global_lgi |>
-  inner_join(demo, by = "bblid") |>
-  inner_join(env, by = "bblid") |>
+  inner_join(demo, by = join_by(bblid)) |>
+  inner_join(env, by = join_by(bblid)) |>
   select(lgi, age, ses) |>
   drop_na() |>
   mutate(age_c = age - mean(age), ses_c = ses - mean(ses))
@@ -2985,7 +2983,7 @@ Age differed significantly by sex, with females being slightly older than males 
 ```{r}
 #| label: lgi-age-sex-data
 data_lgi_age_sex <-
-  inner_join(global_lgi, demo, by = c("bblid")) |>
+  inner_join(global_lgi, demo, by = join_by(bblid)) |>
   select(lgi, age, sex) |>
   drop_na() |>
   mutate(
@@ -3181,8 +3179,8 @@ Age and trauma exposure were significantly positively correlated. When modeled t
 #| label: lgi-age-trauma-data
 data_lgi_age_trauma <-
   global_lgi |>
-  inner_join(demo, by = "bblid") |>
-  inner_join(env, by = "bblid") |>
+  inner_join(demo, by = join_by(bblid)) |>
+  inner_join(env, by = join_by(bblid)) |>
   select(lgi, age, trauma) |>
   drop_na() |>
   mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma))
@@ -3522,8 +3520,8 @@ SES differed significantly by sex, with males having higher SES than females on 
 #| label: lgi-ses-sex-data
 data_lgi_ses_sex <-
   global_lgi |>
-  inner_join(demo, by = "bblid") |>
-  inner_join(env, by = "bblid") |>
+  inner_join(demo, by = join_by(bblid)) |>
+  inner_join(env, by = join_by(bblid)) |>
   select(lgi, sex, ses) |>
   drop_na() |>
   mutate(
@@ -3767,7 +3765,7 @@ SES and trauma exposure were significantly negatively correlated. When modeled t
 #| label: lgi-ses-trauma-data
 data_lgi_ses_trauma <-
   global_lgi |>
-  inner_join(env, by = "bblid") |>
+  inner_join(env, by = join_by(bblid)) |>
   select(lgi, ses, trauma) |>
   drop_na() |>
   mutate(
@@ -4121,8 +4119,8 @@ Trauma exposure did not differ significantly between females and males. When mod
 #| label: lgi-sex-trauma-data
 data_lgi_sex_trauma <-
   global_lgi |>
-  inner_join(demo, by = "bblid") |>
-  inner_join(env, by = "bblid") |>
+  inner_join(demo, by = join_by(bblid)) |>
+  inner_join(env, by = join_by(bblid)) |>
   select(lgi, sex, trauma) |>
   drop_na() |>
   mutate(
