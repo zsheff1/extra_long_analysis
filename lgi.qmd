@@ -387,8 +387,8 @@ demo_kable
 
 ```{r}
 #| label: tertile-groups
-#| scale: global
 #| control: {method: residual, variables: [age, sex]}
+#| scale: global
 data_lgi_vol_tertile <-
   inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
@@ -434,8 +434,8 @@ There is a significant positive correlation between Global LGI and estimated tot
 ```{r}
 #| label: lgi-etiv
 #| test: {method: correlation, variables: [lgi, etiv]}
-#| scale: global
 #| control: {method: residual, variables: [age, sex]}
+#| scale: global
 data_lgi_etiv <-
   inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(demo, by = join_by(bblid, scanid), relationship = "one-to-one") |>
@@ -482,8 +482,8 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 ```{r}
 #| label: lgi-volume
 #| test: {method: correlation, variables: [lgi, volume]}
-#| scale: region
 #| control: {method: residual, variables: [age, sex]}
+#| scale: region
 data_lgi_volume <-
   raw_imaging |>
   filter(metric %in% c("lgi", "volume"), atlas == "desikan_killiany") |>
@@ -1640,9 +1640,9 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 #| label: lgi-cnb-full-sample
 #| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
-#| cnb-metric: accuracy
 #| sample: full sample
 #| scale: global
+#| cnb-metric: accuracy
 data_lgi_cnb <-
   cnb |>
   inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
@@ -1778,9 +1778,9 @@ In the Clean Subsample, Global LGI is significantly positively associated with M
 #| label: lgi-cnb-clean-subsample
 #| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
-#| cnb-metric: accuracy
 #| sample: clean subsample
 #| scale: global
+#| cnb-metric: accuracy
 data_lgi_cnb_clean <-
   cnb |>
   inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
@@ -1835,9 +1835,9 @@ test_lgi_cnb_clean |>
 #| label: cnb-profiles
 #| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
 #| control: {method: residual, variables: [age, sex], sample: full sample}
-#| cnb-metric: [accuracy, speed]
 #| sample: tertile groups
 #| scale: global
+#| cnb-metric: [accuracy, speed]
 groups <- c("g1v1", "g1v3", "g3v1", "g3v3")
 
 data_tertile_cnb <-
@@ -1971,9 +1971,9 @@ sig_tertile_cnb <-
 #| label: cnb-profiles-accuracy
 #| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
 #| control: {method: residual, variables: [age, sex], sample: full sample}
-#| cnb-metric: accuracy
 #| sample: tertile groups
 #| scale: global
+#| cnb-metric: accuracy
 result_tertile_cnb |>
   filter(measure == "Accuracy") |>
   select(-measure) |>
@@ -2039,9 +2039,9 @@ ggplot(
 #| label: cnb-profiles-speed
 #| test: {method: anova, dv: [overall, executive, memory, complex, social], groups: lgi-volume tertile groups}
 #| control: {method: residual, variables: [age, sex], sample: full sample}
-#| cnb-metric: speed
 #| sample: tertile groups
 #| scale: global
+#| cnb-metric: speed
 result_tertile_cnb |>
   filter(measure == "Speed") |>
   select(-measure) |>
