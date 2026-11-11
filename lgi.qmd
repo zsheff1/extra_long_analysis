@@ -100,7 +100,8 @@ demo <-
     raw_merge |>
       rename(dx = clinical_goassessDxpmr7) |>
       select(bblid, sex, race, dx),
-    by = join_by(bblid)
+    by = join_by(bblid),
+    relationship = "one-to-one"
   ) |>
   mutate(
     age = age / 12,
@@ -123,7 +124,7 @@ demo <-
   arrange(bblid, scanid)
 
 # Environment
-env <- full_join(raw_env_ses, raw_env_trauma, by = join_by(bblid)) |>
+env <- full_join(raw_env_ses, raw_env_trauma, by = join_by(bblid), relationship = "one-to-one") |>
   clean_names() |>
   rename(trauma = trauma_exposure, ses = env_ses) |>
   select(bblid, trauma, ses)
@@ -303,7 +304,7 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 ```{r}
 #| label: subsample
 clean_subsample <-
-  inner_join(demo, data_etiv, by = join_by(bblid)) |>
+  inner_join(demo, data_etiv, by = join_by(bblid), relationship = "one-to-one") |>
   mutate(etiv_median = median(etiv), .by = sex) |>
   semi_join(drop_na(global_lgi), by = join_by(bblid)) |>
   semi_join(filter(env, trauma == 0), by = join_by(bblid)) |>
@@ -330,11 +331,11 @@ white_participants <-
 demo_table <-
   inner_join(
     demo |>
-      left_join(env, by = join_by(bblid)) |>
+      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
       demo_summarize() |>
       rename(Overall = Value),
     demo |>
-      left_join(env, by = join_by(bblid)) |>
+      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
       semi_join(white_participants, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(`White Participants` = Value),
@@ -343,7 +344,7 @@ demo_table <-
   ) |>
   inner_join(
     demo |>
-      left_join(env, by = join_by(bblid)) |>
+      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
       semi_join(clean_subsample, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(`Clean Subsample` = Value),
@@ -436,8 +437,8 @@ There is a significant positive correlation between Global LGI and estimated tot
 #| scale: global
 #| control: {method: residual, variables: [age, sex]}
 data_lgi_etiv <-
-  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid)) |>
-  inner_join(demo, by = join_by(bblid, scanid)) |>
+  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(demo, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   drop_na(bblid, scanid, lgi, etiv, age, sex) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
@@ -1088,7 +1089,7 @@ Participants with [anxiety disorders](#goa-anx), [behavioral disorders](#goa-beh
 ```{r}
 #| label: comorbidities
 comorbid <-
-  inner_join(goassess_category, global_lgi, by = join_by(bblid)) |>
+  inner_join(goassess_category, global_lgi, by = join_by(bblid), relationship = "many-to-one") |>
   select(bblid, category, status, lgi) |>
   pivot_wider(names_from = category, values_from = status)
 
@@ -1644,8 +1645,8 @@ In the full sample, Global LGI is significantly positvely associated with cognit
 #| scale: global
 data_lgi_cnb <-
   cnb |>
-  inner_join(global_lgi, by = join_by(bblid, scanid)) |>
-  inner_join(demo, by = join_by(bblid, scanid)) |>
+  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
+  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
   rename(cnb = value) |>
   filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
@@ -1782,8 +1783,8 @@ In the Clean Subsample, Global LGI is significantly positively associated with M
 #| scale: global
 data_lgi_cnb_clean <-
   cnb |>
-  inner_join(global_lgi, by = join_by(bblid, scanid)) |>
-  inner_join(demo, by = join_by(bblid, scanid)) |>
+  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
+  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
   semi_join(clean_subsample, by = join_by(bblid)) |>
   rename(cnb = value) |>
   filter(measure %in% c("Accuracy", "Speed")) |>
@@ -1941,13 +1942,15 @@ sig_tertile_cnb <-
     summary_tertile_cnb |>
       select(domain, measure, group, mean) |>
       rename(group1 = group, y1 = mean),
-    by = join_by(domain, group1, measure)
+    by = join_by(domain, group1, measure),
+    relationship = "many-to-one"
   ) |>
   left_join(
     summary_tertile_cnb |>
       select(domain, measure, group, mean) |>
       rename(group2 = group, y2 = mean),
-    by = join_by(domain, group2, measure)
+    by = join_by(domain, group2, measure),
+    relationship = "many-to-one"
   ) |>
   group_by(domain, measure) |>
   arrange(p_tukey, .by_group = TRUE) |>
@@ -2114,7 +2117,7 @@ Global LGI was significantly negatively associated with age, with evidence that 
 ```{r}
 #| label: lgi-age-data
 data_lgi_age <-
-  inner_join(global_lgi, demo, by = join_by(bblid)) |>
+  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, age) |>
   drop_na()
 ```
@@ -2255,7 +2258,7 @@ Global LGI was significantly positively associated with SES, with higher SES ass
 ```{r}
 #| label: lgi-ses-data
 data_lgi_ses <-
-  inner_join(global_lgi, env, by = join_by(bblid)) |>
+  inner_join(global_lgi, env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, ses) |>
   drop_na()
 ```
@@ -2396,7 +2399,7 @@ Global LGI differed significantly between sexes, with males exhibiting higher gl
 ```{r}
 #| label: lgi-sex-data
 data_lgi_sex <-
-  inner_join(global_lgi, demo, by = join_by(bblid)) |>
+  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, sex) |>
   drop_na()
 ```
@@ -2501,7 +2504,7 @@ Global LGI was significantly negatively associated with trauma exposure, with ev
 ```{r}
 #| label: lgi-trauma-data
 data_lgi_trauma <-
-  inner_join(global_lgi, env, by = join_by(bblid)) |>
+  inner_join(global_lgi, env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, trauma) |>
   drop_na()
 ```
@@ -2662,8 +2665,8 @@ Age and SES were not significantly correlated. When modeled together, age showed
 #| label: lgi-age-ses-data
 data_lgi_age_ses <-
   global_lgi |>
-  inner_join(demo, by = join_by(bblid)) |>
-  inner_join(env, by = join_by(bblid)) |>
+  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, age, ses) |>
   drop_na() |>
   mutate(age_c = age - mean(age), ses_c = ses - mean(ses))
@@ -2983,7 +2986,7 @@ Age differed significantly by sex, with females being slightly older than males 
 ```{r}
 #| label: lgi-age-sex-data
 data_lgi_age_sex <-
-  inner_join(global_lgi, demo, by = join_by(bblid)) |>
+  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, age, sex) |>
   drop_na() |>
   mutate(
@@ -3179,8 +3182,8 @@ Age and trauma exposure were significantly positively correlated. When modeled t
 #| label: lgi-age-trauma-data
 data_lgi_age_trauma <-
   global_lgi |>
-  inner_join(demo, by = join_by(bblid)) |>
-  inner_join(env, by = join_by(bblid)) |>
+  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, age, trauma) |>
   drop_na() |>
   mutate(age_c = age - mean(age), trauma_c = trauma - mean(trauma))
@@ -3520,8 +3523,8 @@ SES differed significantly by sex, with males having higher SES than females on 
 #| label: lgi-ses-sex-data
 data_lgi_ses_sex <-
   global_lgi |>
-  inner_join(demo, by = join_by(bblid)) |>
-  inner_join(env, by = join_by(bblid)) |>
+  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, sex, ses) |>
   drop_na() |>
   mutate(
@@ -3765,7 +3768,7 @@ SES and trauma exposure were significantly negatively correlated. When modeled t
 #| label: lgi-ses-trauma-data
 data_lgi_ses_trauma <-
   global_lgi |>
-  inner_join(env, by = join_by(bblid)) |>
+  inner_join(env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, ses, trauma) |>
   drop_na() |>
   mutate(
@@ -4119,8 +4122,8 @@ Trauma exposure did not differ significantly between females and males. When mod
 #| label: lgi-sex-trauma-data
 data_lgi_sex_trauma <-
   global_lgi |>
-  inner_join(demo, by = join_by(bblid)) |>
-  inner_join(env, by = join_by(bblid)) |>
+  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(env, by = join_by(bblid), relationship = "one-to-one") |>
   select(lgi, sex, trauma) |>
   drop_na() |>
   mutate(
