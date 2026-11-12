@@ -67,6 +67,9 @@ report_aic <- function(models) {
 
 demo_summarize <- function(raw) {
   raw |>
+    dplyr::mutate(
+      race = forcats::fct_other(race, keep = c("White", "Black"))
+    ) |>
     dplyr::summarize(
       n = dplyr::n(),
       age_mean = mean(age, na.rm = TRUE),
@@ -79,7 +82,10 @@ demo_summarize <- function(raw) {
       trauma_mean = mean(trauma, na.rm = TRUE),
       trauma_sd = sd(trauma, na.rm = TRUE),
       ses_mean = mean(ses, na.rm = TRUE),
-      ses_sd = sd(ses, na.rm = TRUE)
+      ses_sd = sd(ses, na.rm = TRUE),
+      race_w_n = sum(race == "White", na.rm = TRUE),
+      race_b_n = sum(race == "Black", na.rm = TRUE),
+      race_o_n = sum(race == "Other", na.rm = TRUE),
     ) |>
     dplyr::mutate(
       age = sprintf("%.2f (%.2f)", age_mean, age_sd),
@@ -89,10 +95,15 @@ demo_summarize <- function(raw) {
       PS = sprintf("%d (%.2f%%)", dx_ps_n, (dx_ps_n * 100 / n)),
       OP = sprintf("%d (%.2f%%)", dx_op_n, (dx_op_n * 100 / n)),
       trauma = sprintf("%.2f (%.2f)", trauma_mean, trauma_sd),
-      ses = sprintf("%.2f (%.2f)", ses_mean, ses_sd)
+      ses = sprintf("%.2f (%.2f)", ses_mean, ses_sd),
+      White = sprintf("%d (%.2f%%)", race_w_n, (race_w_n * 100 / n)),
+      Black = sprintf("%d (%.2f%%)", race_b_n, (race_b_n * 100 / n)),
+      Other = sprintf("%d (%.2f%%)", race_o_n, (race_o_n * 100 / n))
     ) |>
     dplyr::mutate(n = as.character(n)) |>
-    dplyr::select(n, age, male, female, TD, PS, OP, trauma, ses) |>
+    dplyr::select(
+      n, age, male, female, TD, PS, OP, trauma, ses, White, Black, Other
+    ) |>
     tidyr::pivot_longer(
       cols = tidyselect::everything(),
       names_to = "Characteristic",

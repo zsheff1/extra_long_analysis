@@ -385,7 +385,7 @@ demo_kable <- demo_table |>
 
 row_hierarchy <- demo_table |>
   mutate(
-    Category = c("n", "age", "sex", "sex", "dx", "dx", "dx", "env", "env"),
+    Category = c("n", "age", "sex", "sex", "dx", "dx", "dx", "env", "env", "race", "race", "race"),
     row_number = row_number()
   ) |>
   summarise(
