@@ -453,7 +453,7 @@ Local Gyrification Index (LGI) is a measure of cortical gyrification. Prior to c
 
 ### Global LGI vs Brain Parenchymal Volume
 
-There is a significant positive correlation between Global LGI and Brain Parenchymal Volume $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
+There is a significant positive correlation between Global LGI and Brain Parenchymal Volume.
 
 ```{r}
 #| label: lgi-volume-global
@@ -499,7 +499,7 @@ plot_lgi_volume_global
 
 ### Regional LGI vs Volume
 
-LGI was significantly correlated with volume in all cortical brain regions except the left temporal pole. The strength of the correlation varied widely, from very weak ($r = 0.0832$) in the right temporal pole to very strong ($r = 0.667$) in the right rostral middle frontal area.
+LGI was significantly correlated with volume in all cortical brain regions except the bilateral temporal poles. The strength of the correlation varied widely, from very weak ($r = 0.0877$) in the right frontal pole to very strong ($r = 0.567$) in the left rostral anterior cingulate.
 
 ::: {.collapsible-table data-rows="5"}
 
@@ -590,7 +590,7 @@ plot_lgi_volume
 
 ### Regional LGI vs Psychosis Factor
 
-At the region level in the full sample, after regressing `s(age) + sex` out of regional LGI and psychosis factors, no regions were found where LGI was significantly associated with psychosis.
+No regions were found where LGI was significantly associated with psychosis factors in the full sample when controlling for age and sex.
 
 ::: {.collapsible-table data-rows="5"}
 
@@ -689,7 +689,7 @@ test_lgi_psy_regional |>
 
 ### Lobular LGI vs Psychosis Factor
 
-At the lobe level in the full sample, after regressing `s(age) + sex` out of lobular LGI and psychosis factors, no lobes were found where LGI was significantly associated with psychosis.
+No lobes were found where LGI was significantly associated with psychosis factors in the full sample when controlling for age and sex.
 
 ::: {.collapsible-table data-rows="5"}
 
@@ -868,7 +868,7 @@ bifactor_indices |>
   as_tibble() |>
   unnest(cols = everything()) |>
   select(Factor, FD) |>
-  kbl()
+  kbl(digits = c(NA, 3))
 
 loadings_lgi <- fa_lgi$loadings |>
   unclass() |>
@@ -898,11 +898,9 @@ plot_loadings <- ggplot() +
     position = position_brain(view ~ hemi)
   ) +
   facet_wrap(~ factor, ncol = 4, nrow = 2) +
-  scale_fill_gradient2(
-    low = my_red,
-    mid = "white",
-    high = my_green,
-    midpoint = 0,
+  scale_fill_gradientn(
+    colors = c(my_red, "white", my_green),
+    values = rescale(c(-1, 0, 1)),
     limits = c(-1, 1)
   ) +
   theme_void()
@@ -912,7 +910,7 @@ plot_loadings
 
 ### Differences in Regional LGI between Psychosis and TD
 
-LGI is significantly lower in those with psychosis, relative to controls, in all regions other than the Left Inferior Temporal. Cohen's d, the standardized mean difference, varried widely, from relatively small $(d = 0.148)$ in the Left Lateral Occipital, to relatively large $(d = 0.375)$ in the Right Paracentral.
+LGI is significantly lower in those with psychosis, relative to controls, in 52 of 68 regions. Cohen's d, the standardized mean difference, varried widely, from relatively small $(d = 0.140)$ in the Right Postcentral, to relatively large $(d = 0.284)$ in the Left Lateral Orbitofrontal.
 
 ::: {.collapsible-table data-rows="5"}
 
@@ -1000,7 +998,7 @@ plot_regional_psy
 
 # Psychopathology (Factor Scores)
 
-General Psychopathology, Depression, and Psychosis Positive all showed a significant negative correlation with Global LGI. No such relationship was observed for ADHD, Mania or Psychosis Negative.
+General psychopathology, and ADHD showed a significant negative correlation with Global LGI. No such relationship was observed for depression, mania, psychosis negative, or psychosis positive.
 
 ```{r}
 #| label: clinical-factors-raw
@@ -1088,7 +1086,7 @@ plot_lgi_clinical
 
 # Psychopathology (Binary GOASSESS)
 
-Participants with anxiety disorders, behavioral disorders, eating disorders, mood disorders, and psychotic disorders all had significantly lower global LGI than participants without such disorders.
+At the category level, participants with behavior disorders had significantly lower global LGI than participants without behavior disorders when correcting for age and sex. No such relationship was observed for anxiety disorders, eating disorders, mood disorders, or positive psychosis symptoms. At the individual disorder level, only conduct disorder and oppositional defiance disorder show this significant difference.
 
 ## Comorbidities
 
@@ -1655,7 +1653,7 @@ ggplot() +
 
 ### Full Sample
 
-In the full sample, Global LGI is significantly positvely associated with cognitive efficiency in the following domains when controlling for eTIV and after correcting for multiple comparisons: Overall Cognition, Complex Cognition, Motor, Social Cognition. Global LGI was significantly positively associated with Memory Efficiency but this effect did not survive correcting for eTIV.
+Global LGI is significantly positvely associated with CNB accuracy in all domains when controlling for age and sex in the full sample. Global LGI was also significantly positvely associated with Complex Cognition speed and significantly negatively associated with executive functioning speed and memory speed, when controlling for age and sex in the full sample.
 
 ```{r}
 #| label: lgi-cnb-full-sample
@@ -1791,7 +1789,7 @@ plot_lgi_cnb_spd
 
 ### Clean Subsample
 
-In the Clean Subsample, Global LGI is significantly positively associated with Motor Efficiency. This effect survives multiple comparison correction but is no longer significant when controlling for eTIV.
+Global LGI is not significantly associated with CNB accuracy in the clean subsample when controlling for age and sex. Global LGI was significantly negatively associated with speed in the domains of overall cognition, executive functioning, memory, and motor in the clean subsample when controlling for age and sex.
 
 ```{r}
 #| label: lgi-cnb-clean-subsample
@@ -2105,7 +2103,7 @@ result_tertile_cnb |>
   kbl(
     col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
-    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+    caption = "One-way ANOVAs comparing cognitive speed across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the six domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
   )
 
 ggplot(
