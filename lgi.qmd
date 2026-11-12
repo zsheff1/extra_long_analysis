@@ -1857,7 +1857,7 @@ test_lgi_cnb_clean |>
 #| sample: tertile groups
 #| scale: global
 #| cnb-metric: [accuracy, speed]
-groups <- c("g1v1", "g1v3", "g3v1", "g3v3")
+groups <- c("g1v1", "g3v1", "g1v3", "g3v3")
 
 data_tertile_cnb <-
   data_lgi_cnb |>
@@ -1993,6 +1993,13 @@ sig_tertile_cnb <-
 #| sample: tertile groups
 #| scale: global
 #| cnb-metric: accuracy
+labels_tertile_cnb_acc <-
+  result_tertile_cnb |>
+  filter(measure == "Accuracy") |>
+  mutate(label = str_trim(str_c(domain, significance, sep = "\n"))) |>
+  select(domain, label) |>
+  deframe()
+
 result_tertile_cnb |>
   filter(measure == "Accuracy") |>
   select(-measure) |>
@@ -2002,6 +2009,29 @@ result_tertile_cnb |>
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
     caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
   )
+
+ggplot(
+  data = summary_tertile_cnb |>
+    filter(measure == "Accuracy"),
+  mapping = aes(
+    x = as.numeric(domain),
+    y = mean, ymin = lower, ymax = upper,
+    group = group, color = group
+  )
+) +
+  geom_errorbar(position = position_dodge(width = 0.3), width = 0.1) +
+  geom_line(position = position_dodge(width = 0.3)) +
+  geom_point(position = position_dodge(width = 0.3)) +
+  scale_x_continuous(
+    breaks = seq_along(levels(summary_tertile_cnb$domain)),
+    labels = labels_tertile_cnb_acc[levels(summary_tertile_cnb$domain)]
+  ) +
+  color_scale_group +
+  labs(
+    x = "Domain",
+    y = "Accuracy"
+  ) +
+  theme_linedraw()
 
 posthoc_tertile_cnb |>
   filter(measure == "Accuracy") |>
@@ -2037,7 +2067,7 @@ ggplot(
   ) +
   scale_x_continuous(
     breaks = seq_along(levels(summary_tertile_cnb$domain)),
-    labels = levels(summary_tertile_cnb$domain)
+    labels = labels_tertile_cnb_acc[levels(summary_tertile_cnb$domain)]
   ) +
   color_scale_group +
   fill_scale_group +
@@ -2061,6 +2091,13 @@ ggplot(
 #| sample: tertile groups
 #| scale: global
 #| cnb-metric: speed
+labels_tertile_cnb_spd <-
+  result_tertile_cnb |>
+  filter(measure == "Speed") |>
+  mutate(label = str_trim(str_c(domain, significance, sep = "\n"))) |>
+  select(domain, label) |>
+  deframe()
+
 result_tertile_cnb |>
   filter(measure == "Speed") |>
   select(-measure) |>
@@ -2070,6 +2107,29 @@ result_tertile_cnb |>
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
     caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
   )
+
+ggplot(
+  data = summary_tertile_cnb |>
+    filter(measure == "Speed"),
+  mapping = aes(
+    x = as.numeric(domain),
+    y = mean, ymin = lower, ymax = upper,
+    group = group, color = group
+  )
+) +
+  geom_errorbar(position = position_dodge(width = 0.3), width = 0.1) +
+  geom_line(position = position_dodge(width = 0.3)) +
+  geom_point(position = position_dodge(width = 0.3)) +
+  scale_x_continuous(
+    breaks = seq_along(levels(summary_tertile_cnb$domain)),
+    labels = labels_tertile_cnb_spd[levels(summary_tertile_cnb$domain)]
+  ) +
+  color_scale_group +
+  labs(
+    x = "Domain",
+    y = "Speed"
+  ) +
+  theme_linedraw()
 
 posthoc_tertile_cnb |>
   filter(measure == "Speed") |>
@@ -2105,7 +2165,7 @@ ggplot(
   ) +
   scale_x_continuous(
     breaks = seq_along(levels(summary_tertile_cnb$domain)),
-    labels = levels(summary_tertile_cnb$domain)
+    labels = labels_tertile_cnb_spd[levels(summary_tertile_cnb$domain)]
   ) +
   color_scale_group +
   fill_scale_group +
