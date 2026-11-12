@@ -152,12 +152,12 @@ lgi_lobe <- imaging |>
     levels = c("Frontal", "Parietal", "Occipital", "Temporal", "Cingulate")
   ))
 
-
-data_etiv <- raw_imaging |>
-  filter(region == "EstimatedTotalIntraCranialVol") |>
+global_volume <- raw_imaging |>
+  filter(region == "BrainSegVolNotVent") |>
   semi_join(imaging_qc, by = join_by(bblid, scanid)) |>
-  rename(etiv = value) |>
-  select(bblid, scanid, etiv)
+  rename(volume = value) |>
+  select(bblid, scanid, volume) |>
+  drop_na()
 
 # Clinical
 clinical <- raw_merge |>
@@ -319,17 +319,17 @@ The following analyses use the GO1 imaging sample.
 
 ## Subsample
 
-The "Clean Subsample" consists of people where LGI data is available, who did not endorse any trauma exposures, who reported their race as "White", who are Typically Developing according to `Dxpmrv7`. Within each sex, the 25 eligible individuals with estimated Total Intracranial Volume (eTIV) closest to the sex-specific median eTIV of the full sample were selected.
+The "Clean Subsample" consists of people where LGI data is available, who did not endorse any trauma exposures, who reported their race as "White", who are Typically Developing according to `Dxpmrv7`. Within each sex, the 25 eligible individuals with brain parenchymal volume, `BrainSegVolNotVent`, closest to the sex-specific median volume of the full sample were selected.
 
 ```{r}
 #| label: subsample
 clean_subsample <-
-  inner_join(demo, data_etiv, by = join_by(bblid), relationship = "one-to-one") |>
-  mutate(etiv_median = median(etiv), .by = sex) |>
+  inner_join(demo, global_volume, by = join_by(bblid), relationship = "one-to-one") |>
+  mutate(volume_median = median(volume), .by = sex) |>
   semi_join(drop_na(global_lgi), by = join_by(bblid)) |>
   semi_join(filter(env, trauma == 0), by = join_by(bblid)) |>
   filter(race == "White", dx == "TD") |>
-  slice_min(abs(etiv - etiv_median), n = 25, with_ties = FALSE, by = sex) |>
+  slice_min(abs(volume - volume_median), n = 25, with_ties = FALSE, by = sex) |>
   select(bblid) |>
   arrange(bblid)
 ```
@@ -414,30 +414,30 @@ demo_kable
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_vol_tertile <-
-  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  inner_join(global_lgi, global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
-  select(bblid, lgi, etiv, age, sex) |>
+  select(bblid, lgi, volume, age, sex) |>
   mutate(
     across(
-      c(lgi, etiv),
+      c(lgi, volume),
       \(x) residuals(gam(x ~ s(age) + sex))
     ),
-    group = str_c("g", ntile(lgi, 3), "v", ntile(etiv, 3))
+    group = str_c("g", ntile(lgi, 3), "v", ntile(volume, 3))
   ) |>
-  select(bblid, group, lgi, etiv)
+  select(bblid, group, lgi, volume)
 
 lgi_vol_tertile_groups <- data_lgi_vol_tertile |> select(bblid, group)
 
 plot_lgi_vol_tertile <-
   ggplot(
     data = data_lgi_vol_tertile,
-    mapping = aes(x = lgi, y = etiv, color = group)
+    mapping = aes(x = lgi, y = volume, color = group)
   ) +
   geom_point(alpha = 0.75, size = 1) +
   color_scale_group +
   labs(
     x = "Global LGI",
-    y = "eTIV"
+    y = "Brain Parenchymal Volume"
   ) +
   theme_linedraw() +
   theme(legend.position = "bottom")
@@ -451,31 +451,31 @@ Local Gyrification Index (LGI) is a measure of cortical gyrification. Prior to c
 
 ## Relationship Between LGI and Volume
 
-### Global LGI vs eTIV
+### Global LGI vs Brain Parenchymal Volume
 
-There is a significant positive correlation between Global LGI and estimated total intracranial volume (eTIV) $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
+There is a significant positive correlation between Global LGI and Brain Parenchymal Volume $r = 0.438, 95\% CI [0.397, 0.478], p < .001$.
 
 ```{r}
-#| label: lgi-etiv
-#| test: {method: correlation, variables: [lgi, etiv]}
+#| label: lgi-volume-global
+#| test: {method: correlation, variables: [lgi, volume]}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-data_lgi_etiv <-
-  inner_join(global_lgi, data_etiv, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+data_lgi_volume_global <-
+  inner_join(global_lgi, global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(demo, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  drop_na(bblid, scanid, lgi, etiv, age, sex) |>
+  drop_na(bblid, scanid, lgi, volume, age, sex) |>
   mutate(
     lgi = residuals(gam(lgi ~ s(age) + sex)),
-    etiv = residuals(gam(etiv ~ s(age) + sex))
+    volume = residuals(gam(volume ~ s(age) + sex))
   ) |>
-  select(bblid, scanid, lgi, etiv)
+  select(bblid, scanid, lgi, volume)
 
-test_lgi_etiv <- cor.test(data_lgi_etiv$lgi, data_lgi_etiv$etiv)
+test_lgi_volume_global <- cor.test(data_lgi_volume_global$lgi, data_lgi_volume_global$volume)
 
-test_lgi_etiv
+test_lgi_volume_global
 
-plot_lgi_etiv <-
-  ggplot(data = data_lgi_etiv, mapping = aes(x = etiv, y = lgi)) +
+plot_lgi_volume_global <-
+  ggplot(data = data_lgi_volume_global, mapping = aes(x = volume, y = lgi)) +
   geom_point(alpha = 0.25, size = 1) +
   geom_smooth(
     method = "lm",
@@ -487,14 +487,14 @@ plot_lgi_etiv <-
     alpha = 0.5
   ) +
   labs(
-    title = "Correlation of Global LGI and eTIV",
-    subtitle = report_correlation(test_lgi_etiv),
-    x = "eTIV",
+    title = "Correlation of Global LGI and Brain Parenchymal Volume",
+    subtitle = report_correlation(test_lgi_volume_global),
+    x = "Brain Parenchymal Volume",
     y = "Global LGI"
   ) +
   theme_linedraw()
 
-plot_lgi_etiv
+plot_lgi_volume_global
 ```
 
 ### Regional LGI vs Volume
@@ -504,7 +504,7 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 ::: {.collapsible-table data-rows="5"}
 
 ```{r}
-#| label: lgi-volume
+#| label: lgi-volume-regional
 #| test: {method: correlation, variables: [lgi, volume]}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: region
