@@ -379,7 +379,7 @@ demo_table <-
 demo_kable <- demo_table |>
   kbl(
     col.names = str_replace(names(demo_table), "Characteristic", ""),
-    align = "lcc",
+    align = "lccc",
     caption = "GO1 Imaging Sample Demographics",
   )
 
@@ -420,7 +420,7 @@ data_lgi_vol_tertile <-
   mutate(
     across(
       c(lgi, volume),
-      \(x) residuals(gam(x ~ s(age) + sex))
+      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
     ),
     group = str_c("g", ntile(lgi, 3), "v", ntile(volume, 3))
   ) |>
@@ -464,10 +464,10 @@ data_lgi_volume_global <-
   inner_join(global_lgi, global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(demo, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   drop_na(bblid, scanid, lgi, volume, age, sex) |>
-  mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    volume = residuals(gam(volume ~ s(age) + sex))
-  ) |>
+  mutate(across(
+    c(lgi, volume),
+    \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
+  )) |>
   select(bblid, scanid, lgi, volume)
 
 test_lgi_volume_global <- cor.test(data_lgi_volume_global$lgi, data_lgi_volume_global$volume)
@@ -516,8 +516,10 @@ data_lgi_volume <-
   drop_na(bblid, scanid, laterality, region, lgi, volume, age, sex) |>
   mutate(region = str_c(laterality, region, sep = "_")) |>
   mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    volume = residuals(gam(volume ~ s(age) + sex)),
+    across(
+      c(lgi, volume),
+      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
+    ),
     .by = region
   ) |>
   select(bblid, scanid, region, lgi, volume)
@@ -612,7 +614,10 @@ data_regional_lgi <-
   ) |>
   drop_na() |>
   mutate(
-    regional_lgi = residuals(gam(regional_lgi ~ s(age) + sex)),
+    regional_lgi = gam(regional_lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = region
   ) |>
   select(-age, -sex)
@@ -633,7 +638,10 @@ data_regional_psy <-
   ) |>
   drop_na() |>
   mutate(
-    psychosis = residuals(gam(psychosis ~ s(age) + sex)),
+    psychosis = gam(psychosis ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = factor
   ) |>
   mutate(factor = str_to_title(str_replace_all(factor, "_", " "))) |>
@@ -679,7 +687,7 @@ test_lgi_psy_regional |>
   select(region, laterality, factor, b, ci, p, p_fdr, significance) |>
   arrange(region, laterality, desc(factor)) |>
   kbl(
-    col.names = c("Region", "Laterality", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    col.names = c("Region", "Laterality", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, NA, 3, NA, 5, 5, NA)
   )
@@ -720,7 +728,13 @@ data_lobular_lgi <-
     relationship = "one-to-many"
   ) |>
   drop_na() |>
-  mutate(lobular_lgi = residuals(gam(lobular_lgi ~ s(age) + sex)), .by = lobe) |>
+  mutate(
+    lobular_lgi = gam(lobular_lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    .by = lobe
+  ) |>
   select(-age, -sex)
 
 data_lobular_psy <-
@@ -739,7 +753,10 @@ data_lobular_psy <-
   ) |>
   drop_na() |>
   mutate(
-    psychosis = residuals(gam(psychosis ~ s(age) + sex)),
+    psychosis = gam(psychosis ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     factor = str_to_title(str_replace_all(factor, "_", " ")),
     .by = factor
   ) |>
@@ -780,7 +797,7 @@ test_lgi_psy_lobular |>
   select(lobe, factor, b, ci, p, p_fdr, significance) |>
   arrange(lobe, desc(factor)) |>
   kbl(
-    col.names = c("Lobe", "Clinical Factor", "b", "95% CI", "p", "pFDR", ""),
+    col.names = c("Lobe", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
@@ -809,7 +826,7 @@ imaging_wide <-
   drop_na() |>
   mutate(across(
     c(ends_with("_left"), ends_with("_right")),
-    \(x) residuals(gam(x ~ s(age) + sex))
+    \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
   )) |>
   select(-age, -sex)
 
@@ -836,7 +853,12 @@ regional_lgi_residuals <-
   drop_na() |>
   mutate(across(
     c(ends_with("_left"), ends_with("_right")),
-    \(x) residuals(gam(x ~ s(age) + s(global_lgi) + sex))
+    \(x) {
+      gam(x ~ s(age) + s(global_lgi) + sex) |>
+        residuals() |>
+        scale() |>
+        as.numeric()
+    }
   )) |>
   select(-age, -sex, -global_lgi)
 
@@ -927,7 +949,13 @@ data_regional_td_psy <-
     region = str_c(region, laterality, sep = "_")
   ) |>
   drop_na(bblid, scanid, region, lgi, dx, age, sex) |>
-  mutate(lgi = residuals(gam(lgi ~ s(age) + sex)), .by = region) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    .by = region
+  ) |>
   select(bblid, scanid, region, lgi, dx)
 
 test_regional_psy <-
@@ -1013,8 +1041,10 @@ data_lgi_clinical <-
   filter(type == "bifactor") |>
   drop_na(bblid, scanid, lgi, factor, clinical, age, sex) |>
   mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    clinical = residuals(gam(clinical ~ s(age) + sex)),
+    across(
+      c(lgi, clinical),
+      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
+    ),
     .by = factor
   ) |>
   select(bblid, scanid, lgi, factor, clinical)
@@ -1096,7 +1126,10 @@ comorbid <-
   inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(goassess_category, by = join_by(bblid), relationship = "one-to-many") |>
   drop_na(bblid, scanid, lgi, category, status, age, sex) |>
-  mutate(lgi = residuals(gam(lgi ~ s(age) + sex)), .by = category) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    .by = category
+  ) |>
   select(bblid, scanid, lgi, category, status) |>
   pivot_wider(names_from = category, values_from = status)
 
@@ -1128,7 +1161,10 @@ data_lgi_goa_cat <-
   inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(goassess_category, by = join_by(bblid), relationship = "one-to-many") |>
   drop_na(bblid, scanid, lgi, category, status, age, sex) |>
-  mutate(lgi = residuals(gam(lgi ~ s(age) + sex)), .by = category) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    .by = category
+  ) |>
   select(bblid, scanid, lgi, category, status)
 
 test_lgi_goa_cat <-
@@ -1251,7 +1287,10 @@ data_lgi_goa_dis <-
   inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
   inner_join(goassess_disorder, by = join_by(bblid), relationship = "one-to-many") |>
   drop_na(bblid, scanid, lgi, category, disorder, status, age, sex) |>
-  mutate(lgi = residuals(gam(lgi ~ s(age) + sex)), .by = disorder) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    .by = disorder
+  ) |>
   select(bblid, scanid, lgi, category, disorder, status)
 
 test_lgi_goa_dis <-
@@ -1670,8 +1709,8 @@ data_lgi_cnb <-
   filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
   mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    cnb = residuals(gam(cnb ~ sex)),
+    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    cnb = gam(cnb ~ sex) |> residuals() |> scale() |> as.numeric(),
     .by = c(domain, measure)
   ) |>
   select(bblid, scanid, domain, measure, cnb, lgi)
@@ -1703,7 +1742,7 @@ test_lgi_cnb |>
   select(domain, b, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
-    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    col.names = c("Domain", "β", "95% CI", "p", "pFDR", ""),
     align = "lrrrrl",
     digits = c(NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Accuracy with Global LGI"
@@ -1747,7 +1786,7 @@ test_lgi_cnb |>
   select(domain, b, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
-    col.names = c("Domain", "b", "95% CI", "p", "pFDR", ""),
+    col.names = c("Domain", "β", "95% CI", "p", "pFDR", ""),
     align = "lrrrrl",
     digits = c(NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Speed with Global LGI"
@@ -1807,8 +1846,8 @@ data_lgi_cnb_clean <-
   filter(measure %in% c("Accuracy", "Speed")) |>
   drop_na() |>
   mutate(
-    lgi = residuals(gam(lgi ~ s(age) + sex)),
-    cnb = residuals(gam(cnb ~ sex)),
+    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    cnb = gam(cnb ~ sex) |> residuals() |> scale() |> as.numeric(),
     .by = c(domain, measure)
   ) |>
   select(bblid, scanid, domain, measure, cnb, lgi)
@@ -1839,7 +1878,7 @@ test_lgi_cnb_clean |>
   select(measure, domain, b, ci, p, p_fdr, significance) |>
   arrange(measure, domain) |>
   kbl(
-    col.names = c("Measure", "Domain", "b", "95% CI", "p", "pFDR", ""),
+    col.names = c("Measure", "Domain", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Performance with Global LGI"
