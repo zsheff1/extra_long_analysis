@@ -23,65 +23,105 @@ library(ggseg)
 library(BifactorIndicesCalculator)
 library(effectsize)
 library(scales)
+library(lubridate)
 
 # Source
 source("R/mapping.R")
 source("R/plotting.R")
 source("R/reporting.R")
 
+# Define Function
+match_visits <- function(df, key, id_col) {
+  edges <- df |>
+    mutate(
+      from = paste0("scan_", scanid),
+      to = paste0("test_", .data[[id_col]]),
+      weight = n_distinct(scanid) * max(time_difference) +
+        1 - time_difference
+    )
+
+  graph <- igraph::graph_from_data_frame(
+    edges |> select(from, to, weight),
+    directed = FALSE
+  )
+
+  matching <- igraph::max_bipartite_match(
+    graph,
+    types = startsWith(igraph::V(graph)$name, "test_")
+  )$matching
+
+  edges |>
+    filter(to == matching[from]) |>
+    select(-from, -to, -weight)
+}
+
 # Define Paths
-dir_dataset <- file.path(
+path_new_cnb <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
-  "dataset_pnc_cross"
+  "cnb_accuracy_speed_commonsmryscores_allbbl_longform.csv"
 )
-
-dir_evolpsy <- file.path(
-  "/", "data", "secure", "bit_repo", "pi_repo", "raquel_gur", "evolpsy", "data"
-)
-
-dir_cnb <- file.path(
-  "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
-  "long_cnb"
-)
-
-path_imaging <- file.path(dir_dataset, "imaging_data.csv")
-path_sub_ses <- file.path(dir_dataset, "subjects_sessions.csv")
-
-path_merge <- file.path(
-  dir_evolpsy, "go1_files", "pncgo1_data_merge_mar2025.csv"
-)
-
-path_env_ses <- file.path(dir_evolpsy, "zac_data", "env_scores.csv")
-path_env_trauma <- file.path(dir_evolpsy, "zac_data", "env_for_zac.csv")
-
 path_goassess <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "goassess_scoring",
   "tests", "data", "n9498_goassess_psych_summary_vars_20131014.csv"
 )
+path_imglook <- file.path("/", "data", "secure", "bit_dwh", "oracle", "imglook.csv")
+path_clinical <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "goassess_capa",
+  "goa_capa_longitudinal_clinical_factor_scores_13april2026.csv"
+)
+path_dx <- file.path("/", "data", "secure", "bit_repo", "derivatives", "diagnosis", "diagnosis_wsmryvars.csv")
+path_dxpmr7 <- file.path("/", "data", "secure", "bit_repo", "projects_repo", "pnc", "n9498_diagnosis_dxpmr7_20170509.csv")
 
-path_imglook <-
-  file.path("/", "data", "secure", "bit_dwh", "oracle", "imglook.csv")
+dir_dataset <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
+  "dataset"
+)
+path_imaging <- file.path(dir_dataset, "imaging_data.csv")
+path_sub <- file.path(dir_dataset, "subjects.csv")
+path_ses <- file.path(dir_dataset, "sessions.csv")
+path_qc <- file.path(dir_dataset, "qc.csv")
 
-path_new_cnb <-
-  file.path(
-    "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
-    "cnb_accuracy_speed_commonsmryscores_allbbl_longform.csv"
-  )
+dir_evolpsy <- file.path(
+  "/", "data", "secure", "bit_repo", "pi_repo", "raquel_gur", "evolpsy", "data"
+)
+path_env_ses <- file.path(dir_evolpsy, "zac_data", "env_scores.csv")
+path_env_trauma <- file.path(dir_evolpsy, "zac_data", "env_for_zac.csv")
 
-path_cnb_accuracy <- file.path(dir_cnb, "BIG_CNB_Accuracy_Longitudinal_Factor_Scores_FullBattery.csv")
-path_cnb_efficiency <- file.path(dir_cnb, "BIG_CNB_Efficiency_Longitudinal_Factor_Scores_FullBattery.csv")
-path_cnb_speed <- file.path(dir_cnb, "BIG_CNB_Speed_Longitudinal_Factor_Scores_FullBattery.csv")
+dir_cnb <- file.path(
+  "/", "data", "secure", "bit_repo", "derivatives", "cnb"
+)
+path_cnb_accuracy <- file.path(
+  dir_cnb, "BIG_CNB_Accuracy_Longitudinal_Factor_Scores_FullBattery.csv"
+)
+path_cnb_efficiency <- file.path(
+  dir_cnb, "BIG_CNB_Efficiency_Longitudinal_Factor_Scores_FullBattery.csv"
+)
+path_cnb_speed <- file.path(
+  dir_cnb, "BIG_CNB_Speed_Longitudinal_Factor_Scores_FullBattery.csv"
+)
 
 # Read Data
-raw_imaging <- read_csv(path_imaging)
-raw_sub_ses <- read_csv(path_sub_ses)
+raw_goassess <- read_csv(path_goassess)
+raw_imglook <- read_csv(path_imglook)
+raw_new_cnb <- read_csv(
+  path_new_cnb,
+  col_select = c(
+    test_sessions.datasetid,
+    test_sessions.bblid,
+    test_sessions_v.dotest
+  )
+)
+raw_clinical <- read_csv(path_clinical)
+raw_dx <- read_csv(path_dx)
+raw_dxpmr7 <- read_csv(path_dxpmr7)
 
-raw_merge <- read_csv(path_merge)
+raw_imaging <- read_csv(path_imaging)
+raw_sub <- read_csv(path_sub)
+raw_ses <- read_csv(path_ses)
+raw_qc <- read_csv(path_qc)
 
 raw_env_ses <- read_csv(path_env_ses)
 raw_env_trauma <- read_csv(path_env_trauma)
-
-raw_goassess <- read_csv(path_goassess)
 
 raw_cnb_accuracy <- read_csv(path_cnb_accuracy)
 raw_cnb_efficiency <- read_csv(path_cnb_efficiency)
@@ -94,43 +134,60 @@ raw_cnb_speed <- read_csv(path_cnb_speed)
 #| label: clean-data
 # Demographics
 demo <-
-  left_join(
-    raw_sub_ses |>
-      select(bblid, scanid, age),
-    raw_merge |>
-      rename(dx = clinical_goassessDxpmr7) |>
-      select(bblid, sex, race, dx),
+  full_join(
+    raw_sub,
+    raw_ses,
     by = join_by(bblid),
-    relationship = "one-to-one"
+    relationship = "one-to-many"
   ) |>
   mutate(
     age = age / 12,
-    dx = factor(dx, levels = c("TD", "PS", "OP")),
+    ethnic = factor(
+      ethnic |> str_replace_all("_", " ") |> str_to_title(),
+      levels = c("Not Hispanic", "Hispanic")
+    ),
+    handedness = factor(
+      handedness |> str_to_title(),
+      levels = c("Right", "Left", "Ambidextrous")
+    ),
     race = factor(
-      race,
-      levels = c(1, 2, 3, 4, 5, 6, 9),
-      labels = c(
+      race |> str_replace_all("_", " ") |> str_to_title(),
+      levels = c(
         "White",
         "Black",
         "Native American",
         "Asian",
         "Biracial",
-        "Hawaiian/Pacific Islander",
-        "Unknown"
+        "Hawaiian Pacific Islander"
       )
     ),
-    sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female"))
+    sex = factor(sex |> str_to_title(), levels = c("Male", "Female")),
   ) |>
+  select(bblid, scanid, age, sex, race, ethnic, handedness) |>
   arrange(bblid, scanid)
 
-# Environment
-env <- full_join(raw_env_ses, raw_env_trauma, by = join_by(bblid), relationship = "one-to-one") |>
+bblid_doscan <-
+  raw_imglook |>
   clean_names() |>
-  rename(trauma = trauma_exposure, ses = env_ses) |>
-  select(bblid, trauma, ses)
+  semi_join(demo, by = join_by(bblid, scanid)) |>
+  select(bblid, scanid, doscan) |>
+  mutate(doscan = lubridate::mdy(doscan))
+
+# Environment
+env <-
+  full_join(
+    raw_env_ses,
+    raw_env_trauma,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
+  rename(trauma = Trauma_Exposure, ses = envSES) |>
+  select(bblid, trauma, ses) |>
+  arrange(bblid)
 
 # Imaging
-imaging_qc <- raw_sub_ses |>
+imaging_qc <- raw_qc |>
+  summarize(euler = mean(euler), .by = c(bblid, scanid)) |>
   mutate(qc = cume_dist(euler)) |>
   filter(qc > 0.01) |>
   select(bblid, scanid)
@@ -159,47 +216,7 @@ global_volume <- raw_imaging |>
   select(bblid, scanid, volume) |>
   drop_na()
 
-# Clinical
-clinical <- raw_merge |>
-  semi_join(demo, by = join_by(bblid)) |>
-  select(
-    bblid,
-    starts_with("clinical_longfactor") &
-      (contains("bifactor") | contains("corrTraits"))
-  ) |>
-  pivot_longer(cols = -bblid, names_to = "name", values_to = "value") |>
-  mutate(
-    type = name |> str_split("_") |> map_chr(3) |> str_to_snake(),
-    factor = factor(
-      name |>
-        str_replace("General_p", "GeneralP") |>
-        str_split("_") |>
-        map_chr(4) |>
-        str_to_snake() |>
-        str_replace_all("_", " ") |>
-        str_to_title() |>
-        str_replace_all("Adhd", "ADHD"),
-      levels = c(
-        "General P",
-        "ADHD",
-        "Depression",
-        "Mania",
-        "Psychosis Negative",
-        "Psychosis Positive"
-      )
-    )
-      
-  ) |>
-  select(bblid, type, factor, value)
-
 # Cognitive
-bblid_doscan <-
-  read_csv(path_imglook) |>
-  clean_names() |>
-  semi_join(demo, by = join_by(bblid, scanid)) |>
-  select(bblid, scanid, doscan) |>
-  mutate(doscan = lubridate::mdy(doscan))
-
 cnb_dump <-
   read_csv(
     path_new_cnb,
@@ -212,10 +229,22 @@ cnb_dump <-
   rename_with(\(x) {map_chr(str_split(x, "\\."), 2)})
 
 datasetid_mapping <-
-  inner_join(bblid_doscan, cnb_dump, by = join_by(bblid), relationship = "one-to-many") |>
-  mutate(time_difference = abs(as.numeric(difftime(doscan, dotest, units = "days")))) |>
-  slice_min(order_by = time_difference, n = 1, by = c(bblid, scanid), with_ties = TRUE) |>
-  filter(time_difference < 30.5 * 6) |>
+  inner_join(
+    bblid_doscan,
+    cnb_dump,
+    by = join_by(bblid),
+    relationship = "many-to-many"
+  ) |>
+  filter(
+    dotest >= doscan %m-% months(6),
+    dotest <= doscan %m+% months(6)
+  ) |>
+  mutate(
+    time_difference = abs(as.numeric(difftime(doscan, dotest, units = "days")))
+  ) |>
+  group_by(bblid) |>
+  group_modify(match_visits, id_col = "datasetid") |>
+  ungroup() |>
   select(bblid, scanid, datasetid)
 
 cnb <-
@@ -249,11 +278,10 @@ cnb <-
     delim = "_",
     names = c("domain", "measure", NA)
   ) |>
-  filter(domain != "Discounting") |>
   mutate(
     domain = factor(
       str_replace(domain, "SocialCog", "Social"),
-      levels = c("Overall", "Executive", "Memory", "Complex", "Social", "Motor")
+      levels = c("Overall", "Executive", "Memory", "Complex", "Social", "Discounting", "Motor")
     ),
     measure = factor(
       replace_when(measure, domain == "Motor" & measure == "Efficiency" ~ "Speed"),
@@ -262,6 +290,95 @@ cnb <-
   ) |>
   arrange(bblid, scanid, measure, domain) |>
   drop_na()
+
+# Clinical
+clinical <-
+  raw_clinical |>
+  mutate(clinical_row = row_number()) |>
+  inner_join(
+    bblid_doscan,
+    by = join_by(bblid),
+    relationship = "many-to-many"
+  ) |>
+  filter(
+    date >= doscan %m-% months(6),
+    date <= doscan %m+% months(6)
+  ) |>
+  mutate(
+    time_difference = abs(as.numeric(difftime(doscan, date, units = "days")))
+  ) |>
+  group_by(bblid) |>
+  group_modify(match_visits, id_col = "clinical_row") |>
+  ungroup() |>
+  select(bblid, scanid, starts_with("bifactor"), starts_with("corrTraits")) |>
+  pivot_longer(cols = -c(bblid, scanid), names_to = "name", values_to = "value") |>
+  mutate(name = str_replace_all(name, "General_p", "GeneralP")) |>
+  separate_wider_delim(name, delim = "_", names = c("type", "factor")) |>
+  mutate(
+    type = str_to_snake(type),
+    factor = factor(
+      factor |>
+        str_to_snake() |>
+        str_replace_all("_", " ") |>
+        str_to_title() |>
+        str_replace_all("Adhd", "ADHD"),
+      levels = c(
+        "General P",
+        "ADHD",
+        "Depression",
+        "Mania",
+        "Psychosis Negative",
+        "Psychosis Positive"
+      )
+    )
+  ) |>
+  arrange(bblid, scanid, type, factor) |>
+  drop_na()
+
+# Diagnosis
+dx_rough <-
+  inner_join(
+    raw_dx |>
+      clean_names() |> 
+      select(bblid, dodiagnosis, dx_pscat),
+    bblid_doscan,
+    by = join_by(bblid),
+    relationship = "many-to-many"
+  ) |>
+  mutate(
+    dodiagnosis = mdy(dodiagnosis),
+    time_difference = abs(as.numeric(difftime(doscan, dodiagnosis, units = "days"))),
+    dx_row = row_number(),
+    dx_3 = factor(
+      dx_pscat,
+      levels = c("noDSMdx", "psy", "pro", "other"),
+      labels = c("TD", "PS", "PS", "OP")
+    ),
+    dx_4 = factor(
+      dx_pscat,
+      levels = c("noDSMdx", "psy", "pro", "other"),
+      labels = c("TD", "PSY", "PS", "OP")
+    )
+  ) |>
+  filter(dodiagnosis >= doscan %m-% months(6), dodiagnosis <= doscan %m+% months(6)) |>
+  group_by(bblid) |>
+  group_modify(match_visits, id_col = "dx_row") |>
+  ungroup() |>
+  select(bblid, scanid, dx_3, dx_4)
+
+dx_go1 <-
+  bblid_doscan |>
+  slice_min(doscan, n=1, by = bblid) |>
+  left_join(raw_dxpmr7, by = join_by(bblid), relationship = "one-to-one") |>
+  mutate(
+    dx_3 = factor(goassessDxpmr7, levels = c("TD", "PS", "OP")),
+    dx_4 = factor(goassessDxpmr7, levels = c("TD", "PSY", "PS", "OP"))
+  ) |>
+  select(bblid, scanid, dx_3, dx_4)
+
+dx <-
+  bind_rows(dx_go1, dx_rough |> anti_join(dx_go1, by = join_by(bblid, scanid))) |>
+  arrange(bblid, scanid)
 
 # GOASSESS
 psy_symptoms <- c(
