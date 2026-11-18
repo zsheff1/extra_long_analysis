@@ -24,36 +24,13 @@ library(BifactorIndicesCalculator)
 library(effectsize)
 library(scales)
 library(lubridate)
+library(ggeffects)
 
 # Source
 source("R/mapping.R")
 source("R/plotting.R")
+source("R/processing.R")
 source("R/reporting.R")
-
-# Define Function
-match_visits <- function(df, key, id_col) {
-  edges <- df |>
-    mutate(
-      from = paste0("scan_", scanid),
-      to = paste0("test_", .data[[id_col]]),
-      weight = n_distinct(scanid) * max(time_difference) +
-        1 - time_difference
-    )
-
-  graph <- igraph::graph_from_data_frame(
-    edges |> select(from, to, weight),
-    directed = FALSE
-  )
-
-  matching <- igraph::max_bipartite_match(
-    graph,
-    types = startsWith(igraph::V(graph)$name, "test_")
-  )$matching
-
-  edges |>
-    filter(to == matching[from]) |>
-    select(-from, -to, -weight)
-}
 
 # Define Paths
 path_new_cnb <- file.path(
@@ -196,7 +173,7 @@ imaging <- raw_imaging |>
   filter(atlas == "desikan_killiany", !is.na(lobe)) |>
   semi_join(imaging_qc, by = join_by(bblid, scanid)) |>
   pivot_wider(values_from = value, names_from = metric) |>
-  select(bblid, scanid, lobe, laterality, region, lgi, area) |>
+  select(bblid, scanid, lobe, laterality, region, lgi, area, volume) |>
   drop_na()
 
 global_lgi <- imaging |>
@@ -441,14 +418,18 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 ```{r}
 #| label: subsample
 clean_subsample <-
-  inner_join(demo, global_volume, by = join_by(bblid), relationship = "one-to-one") |>
+  demo |>
+  full_join(dx, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  full_join(global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  drop_na(volume) |>
   mutate(volume_median = median(volume), .by = sex) |>
-  semi_join(drop_na(global_lgi), by = join_by(bblid)) |>
+  semi_join(drop_na(global_lgi), by = join_by(bblid, scanid)) |>
   semi_join(filter(env, trauma == 0), by = join_by(bblid)) |>
-  filter(race == "White", dx == "TD") |>
+  filter(race == "White", dx_3 == "TD") |>
+  slice_min(abs(volume - volume_median), n = 1, with_ties = FALSE, by = bblid) |>
   slice_min(abs(volume - volume_median), n = 25, with_ties = FALSE, by = sex) |>
-  select(bblid) |>
-  arrange(bblid)
+  select(bblid, scanid) |>
+  arrange(bblid, scanid)
 ```
 
 ::: {.content-visible when-profile="scratch"}
@@ -460,6 +441,7 @@ white_participants <-
   demo |>
   filter(race == "White") |>
   select(bblid) |>
+  distinct() |>
   arrange(bblid)
 ```
 
@@ -472,11 +454,11 @@ white_participants <-
 demo_table <-
   inner_join(
     demo |>
-      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
+      left_join(env, by = join_by(bblid), relationship = "many-to-one") |>
       demo_summarize() |>
       rename(Overall = Value),
     demo |>
-      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
+      left_join(env, by = join_by(bblid), relationship = "many-to-one") |>
       semi_join(white_participants, by = join_by(bblid)) |>
       demo_summarize() |>
       rename(`White Participants` = Value),
@@ -485,8 +467,8 @@ demo_table <-
   ) |>
   inner_join(
     demo |>
-      left_join(env, by = join_by(bblid), relationship = "one-to-one") |>
-      semi_join(clean_subsample, by = join_by(bblid)) |>
+      left_join(env, by = join_by(bblid), relationship = "many-to-one") |>
+      semi_join(clean_subsample, by = join_by(bblid, scanid)) |>
       demo_summarize() |>
       rename(`Clean Subsample` = Value),
     by = join_by(Characteristic),
@@ -531,19 +513,32 @@ demo_kable
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_vol_tertile <-
-  inner_join(global_lgi, global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(demo, by = join_by(bblid), relationship = "one-to-one") |>
-  select(bblid, lgi, volume, age, sex) |>
+  demo |>
+  inner_join(
+    global_volume,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  drop_na(bblid, scanid, lgi, volume, age, sex) |>
   mutate(
     across(
       c(lgi, volume),
-      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
+      \(x) {residualize_gamm(
+        x,
+        data = pick(everything()),
+        termlabels = c("s(age)", "sex")
+      )}
     ),
     group = str_c("g", ntile(lgi, 3), "v", ntile(volume, 3))
   ) |>
-  select(bblid, group, lgi, volume)
+  select(bblid, scanid, group, lgi, volume)
 
-lgi_vol_tertile_groups <- data_lgi_vol_tertile |> select(bblid, group)
+lgi_vol_tertile_groups <- data_lgi_vol_tertile |> select(bblid, scanid, group)
 
 plot_lgi_vol_tertile <-
   ggplot(
@@ -554,7 +549,7 @@ plot_lgi_vol_tertile <-
   color_scale_group +
   labs(
     x = "Global LGI",
-    y = "Brain Parenchymal Volume"
+    y = "Brain Volume"
   ) +
   theme_linedraw() +
   theme(legend.position = "bottom")
@@ -574,39 +569,70 @@ There is a significant positive correlation between Global LGI and Brain Parench
 
 ```{r}
 #| label: lgi-volume-global
-#| test: {method: correlation, variables: [lgi, volume]}
+#| test: {method: lme, dv: lgi, iv: volume, random: bblid}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_volume_global <-
-  inner_join(global_lgi, global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(demo, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  demo |>
+  inner_join(
+    global_volume,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
   drop_na(bblid, scanid, lgi, volume, age, sex) |>
-  mutate(across(
-    c(lgi, volume),
-    \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
-  )) |>
+  mutate(
+    across(
+      c(lgi, volume),
+      \(x) {residualize_gamm(
+        x,
+        data = pick(everything()),
+        termlabels = c("s(age)", "sex")
+      )}
+    )
+  ) |>
   select(bblid, scanid, lgi, volume)
 
-test_lgi_volume_global <- cor.test(data_lgi_volume_global$lgi, data_lgi_volume_global$volume)
+test_lgi_volume_global <- lme(
+  lgi ~ volume,
+  random = ~ 1 | bblid,
+  data = data_lgi_volume_global,
+  method = "REML"
+)
 
-test_lgi_volume_global
+summary(test_lgi_volume_global)
+
+predictions_lgi_volume_global <-
+  predict_response(
+    test_lgi_volume_global,
+    terms = "volume [n=200]",
+    type = "fixed"
+  ) |>
+  as_tibble() |>
+  transmute(
+    volume = x,
+    lgi = predicted,
+    lower = conf.low,
+    upper = conf.high
+  )
 
 plot_lgi_volume_global <-
-  ggplot(data = data_lgi_volume_global, mapping = aes(x = volume, y = lgi)) +
-  geom_point(alpha = 0.25, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
+  ggplot(mapping = aes(x = volume, y = lgi)) +
+  geom_point(data = data_lgi_volume_global, alpha = 0.25, size = 1) +
+  geom_ribbon(
+    data = predictions_lgi_volume_global,
+    mapping = aes(ymin = lower, ymax = upper),
     alpha = 0.5
   ) +
+  geom_line(data = predictions_lgi_volume_global, linewidth = 0.75) +
   labs(
-    title = "Correlation of Global LGI and Brain Parenchymal Volume",
-    subtitle = report_correlation(test_lgi_volume_global),
-    x = "Brain Parenchymal Volume",
+    title = "Correlation of Global LGI and Brain Volume",
+    subtitle = report_lme(test = test_lgi_volume_global, term = "volume"),
+    x = "Brain Volume",
     y = "Global LGI"
   ) +
   theme_linedraw()

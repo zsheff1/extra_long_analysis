@@ -65,6 +65,25 @@ report_aic <- function(models) {
     dplyr::arrange(delta_aic)
 }
 
+report_lme <- function(test, term) {
+  x <- test |>
+    broom.mixed::tidy(effect = "fixed", conf.int = TRUE) |>
+    janitor::clean_names() |>
+    dplyr::filter(term == .env$term)
+
+  sprintf(
+    "β = %.3f, 95%% CI [%.3f, %.3f], %s",
+    x$estimate,
+    x$conf_low,
+    x$conf_high,
+    ifelse(
+      x$p_value < 0.001,
+      "p < .001",
+      sprintf("p = %.3f", x$p_value)
+    )
+  )
+}
+
 demo_summarize <- function(raw) {
   raw |>
     dplyr::mutate(
