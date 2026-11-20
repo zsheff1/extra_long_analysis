@@ -25,12 +25,16 @@ library(effectsize)
 library(scales)
 library(lubridate)
 library(ggeffects)
+library(furrr)
 
 # Source
 source("R/mapping.R")
 source("R/plotting.R")
 source("R/processing.R")
 source("R/reporting.R")
+
+# Set Parallelization Strategy
+future::plan(future::multisession, workers = 4)
 
 # Define Paths
 path_new_cnb <- file.path(
@@ -345,7 +349,7 @@ dx_rough <-
 
 dx_go1 <-
   bblid_doscan |>
-  slice_min(doscan, n=1, by = bblid) |>
+  slice_min(doscan, n = 1, by = bblid) |>
   left_join(raw_dxpmr7, by = join_by(bblid), relationship = "one-to-one") |>
   mutate(
     dx_3 = factor(goassessDxpmr7, levels = c("TD", "PS", "OP")),
@@ -528,11 +532,12 @@ data_lgi_vol_tertile <-
   mutate(
     across(
       c(lgi, volume),
-      \(x) {residualize_gamm(
-        x,
-        data = pick(everything()),
-        termlabels = c("s(age)", "sex")
-      )}
+      \(x) {
+        gam(x ~ s(age) + sex) |>
+          residuals() |>
+          scale() |>
+          as.numeric()
+      }
     ),
     group = str_c("g", ntile(lgi, 3), "v", ntile(volume, 3))
   ) |>
@@ -570,7 +575,7 @@ There is a significant positive correlation between Global LGI and Brain Parench
 ```{r}
 #| label: lgi-volume-global
 #| test: {method: lme, dv: lgi, iv: volume, random: bblid}
-#| control: {method: residual, variables: [age, sex]}
+#| control: {method: residual, variables: [s(age), sex]}
 #| scale: global
 data_lgi_volume_global <-
   demo |>
@@ -588,11 +593,12 @@ data_lgi_volume_global <-
   mutate(
     across(
       c(lgi, volume),
-      \(x) {residualize_gamm(
-        x,
-        data = pick(everything()),
-        termlabels = c("s(age)", "sex")
-      )}
+      \(x) {
+        gam(x ~ s(age) + sex) |>
+          residuals() |>
+          scale() |>
+          as.numeric()
+      }
     )
   ) |>
   select(bblid, scanid, lgi, volume)
@@ -613,11 +619,12 @@ predictions_lgi_volume_global <-
     type = "fixed"
   ) |>
   as_tibble() |>
+  clean_names() |>
   transmute(
     volume = x,
     lgi = predicted,
-    lower = conf.low,
-    upper = conf.high
+    lower = conf_low,
+    upper = conf_high
   )
 
 plot_lgi_volume_global <-
@@ -652,33 +659,51 @@ LGI was significantly correlated with volume in all cortical brain regions excep
 #| control: {method: residual, variables: [age, sex]}
 #| scale: region
 data_lgi_volume <-
-  raw_imaging |>
-  filter(metric %in% c("lgi", "volume"), atlas == "desikan_killiany") |>
-  pivot_wider(values_from = value, names_from = metric) |>
-  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
+  inner_join(
+    demo,
+    imaging,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
   drop_na(bblid, scanid, laterality, region, lgi, volume, age, sex) |>
   mutate(region = str_c(laterality, region, sep = "_")) |>
   mutate(
     across(
       c(lgi, volume),
-      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
+      \(x) {
+        gam(x ~ s(age) + sex) |>
+          residuals() |>
+          scale() |>
+          as.numeric()
+      }
     ),
     .by = region
   ) |>
   select(bblid, scanid, region, lgi, volume)
 
-test_lgi_volume <- data_lgi_volume |>
-  summarize(
-    cor.test(lgi, volume) |>
-      tidy() |>
-      clean_names(),
-    .by = region
+test_lgi_volume <-
+  data_lgi_volume |>
+  nest(.by = region) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        lgi ~ volume,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "volume") |>
+        select(-effect, -term)
+    })
   ) |>
+  unnest(result) |>
   separate(region, into = c("laterality", "region"), sep = "_") |>
-  rename(
-    r = estimate,
-    p = p_value
-  ) |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
@@ -692,11 +717,12 @@ test_lgi_volume <- data_lgi_volume |>
     )
   )
 
-test_lgi_volume |>
-  select(region, laterality, r, ci, p, p_fdr, significance) |>
+results_lgi_volume <-
+  test_lgi_volume |>
+  select(region, laterality, beta, ci, p, p_fdr, significance) |>
   arrange(region, laterality) |>
   kbl(
-    col.names = c("Region", "Laterality", "r", "95% CI", "p", "pFDR", ""),
+    col.names = c("Region", "Laterality", "beta", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
@@ -712,20 +738,21 @@ plot_lgi_volume <-
           ggseg_mapping
         ),
         hemi = str_to_lower(laterality),
-        r = replace_when(r, p_fdr >= 0.05 ~ NA)
+        beta = replace_when(beta, p_fdr >= 0.05 ~ NA)
       ),
-    mapping = aes(fill = r),
+    mapping = aes(fill = beta),
     position = position_brain(view ~ hemi)
   ) +
   scale_fill_viridis_c() +
   labs(
-    title = "Regional Correlations Between LGI and Volume",
-    caption = "Only correlations with pFDR < 0.05 are shown.",
-    fill = "Pearson's r"
+    title = "Regional Associations Between LGI and Volume",
+    caption = "Only associations with pFDR < 0.05 are shown.",
+    fill = expression(beta)
   ) +
   theme_void() +
   theme(plot.caption = element_text(hjust = 0))
 
+results_lgi_volume
 plot_lgi_volume
 ```
 
@@ -744,78 +771,66 @@ No regions were found where LGI was significantly associated with psychosis fact
 #| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: region
-data_regional_lgi <-
-  full_join(
-    demo |>
-      select(bblid, age, sex),
-    imaging |>
-      mutate(region = str_c(region, laterality, sep = "_")) |>
-      rename(regional_lgi = lgi) |>
-      select(bblid, region, regional_lgi),
-    by = join_by(bblid),
-    relationship = "one-to-many"    
-  ) |>
-  drop_na() |>
-  mutate(
-    regional_lgi = gam(regional_lgi ~ s(age) + sex) |>
-      residuals() |>
-      scale() |>
-      as.numeric(),
-    .by = region
-  ) |>
-  select(-age, -sex)
-
-data_regional_psy <-
-  full_join(
-    demo |>
-      select(bblid, age, sex),
-    clinical |>
-      filter(
-        type == "bifactor",
-        factor %in% c("Psychosis Positive", "Psychosis Negative")
-      ) |>
-      rename(psychosis = value) |>
-      select(bblid, factor, psychosis),
-    by = join_by(bblid),
+data_lgi_psy_regional <- 
+  demo |>
+  inner_join(
+    imaging,
+    by = join_by(bblid, scanid),
     relationship = "one-to-many"
   ) |>
-  drop_na() |>
-  mutate(
-    psychosis = gam(psychosis ~ s(age) + sex) |>
-      residuals() |>
-      scale() |>
-      as.numeric(),
-    .by = factor
-  ) |>
-  mutate(factor = str_to_title(str_replace_all(factor, "_", " "))) |>
-  select(-age, -sex)
-
-data_lgi_psy_regional <-
   inner_join(
-    data_regional_lgi,
-    data_regional_psy,
-    by = join_by(bblid),
+    clinical,
+    by = join_by(bblid, scanid),
     relationship = "many-to-many"
   ) |>
-  drop_na()
+  filter(
+    type == "bifactor",
+    factor %in% c("Psychosis Positive", "Psychosis Negative")
+  ) |>
+  rename(psychosis = value) |>
+  mutate(region = str_c(laterality, region, sep = "_")) |>
+  drop_na(bblid, scanid, region, lgi, factor, psychosis, age, sex) |>
+  mutate(
+    across(
+      c(lgi, psychosis),
+      \(x) {
+        gam(x ~ s(age) + sex) |>
+          residuals() |>
+          scale() |>
+          as.numeric()
+      }
+    ),
+    .by = c(factor, region)
+  ) |>
+  select(bblid, scanid, region, lgi, factor, psychosis)
 
 test_lgi_psy_regional <-
   data_lgi_psy_regional |>
-  summarize(
-    lm(psychosis ~ regional_lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "regional_lgi"),
-    .by = c(factor, region)
+  nest(.by = c(factor, region)) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        psychosis ~ lgi,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-effect, -term)
+    })
   ) |>
-  separate(region, into = c("region", "laterality"), sep = "_") |>
-  rename(b = estimate, p = p_value) |>
+  unnest(result) |>
+  separate(region, into = c("laterality", "region"), sep = "_") |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high)
-  ) |>
-  mutate(
+    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -826,14 +841,17 @@ test_lgi_psy_regional <-
     .by = factor
   )
 
-test_lgi_psy_regional |>
-  select(region, laterality, factor, b, ci, p, p_fdr, significance) |>
+results_lgi_psy_regional <-
+  test_lgi_psy_regional |>
+  select(region, laterality, factor, beta, ci, p, p_fdr, significance) |>
   arrange(region, laterality, desc(factor)) |>
   kbl(
     col.names = c("Region", "Laterality", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, NA, 3, NA, 5, 5, NA)
   )
+
+results_lgi_psy_regional
 ```
 
 :::
@@ -849,6 +867,7 @@ No lobes were found where LGI was significantly associated with psychosis factor
 #| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: lobe
+# Exploratory
 plot_lgi_lobe <-
   ggplot(
     data = lgi_lobe,
@@ -860,70 +879,62 @@ plot_lgi_lobe <-
 
 plot_lgi_lobe
 
-data_lobular_lgi <-
-  full_join(
-    demo |>
-      select(bblid, age, sex),
-    lgi_lobe |>
-      rename(lobular_lgi = lgi) |>
-      select(bblid, lobe, lobular_lgi),
-    by = join_by(bblid),
-    relationship = "one-to-many"
-  ) |>
-  drop_na() |>
-  mutate(
-    lobular_lgi = gam(lobular_lgi ~ s(age) + sex) |>
-      residuals() |>
-      scale() |>
-      as.numeric(),
-    .by = lobe
-  ) |>
-  select(-age, -sex)
-
-data_lobular_psy <-
-  full_join(
-    demo |>
-      select(bblid, age, sex),
-    clinical |>
-      filter(
-        type == "bifactor",
-        factor %in% c("Psychosis Positive", "Psychosis Negative")
-      ) |>
-      rename(psychosis = value) |>
-      select(bblid, factor, psychosis),
-    by = join_by(bblid),
-    relationship = "one-to-many"
-  ) |>
-  drop_na() |>
-  mutate(
-    psychosis = gam(psychosis ~ s(age) + sex) |>
-      residuals() |>
-      scale() |>
-      as.numeric(),
-    factor = str_to_title(str_replace_all(factor, "_", " ")),
-    .by = factor
-  ) |>
-  select(-age, -sex)
-
-data_lgi_psy_lobular <-
+# Clean Data
+data_lgi_psy_lobular <- 
+  demo |>
   inner_join(
-    data_lobular_lgi,
-    data_lobular_psy,
-    by = join_by(bblid),
+    lgi_lobe,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
+  inner_join(
+    clinical,
+    by = join_by(bblid, scanid),
     relationship = "many-to-many"
   ) |>
-  drop_na()
-
-test_lgi_psy_lobular <-
-  data_lgi_psy_lobular |>
-  summarize(
-    lm(psychosis ~ lobular_lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "lobular_lgi"),
+  filter(
+    type == "bifactor",
+    factor %in% c("Psychosis Positive", "Psychosis Negative")
+  ) |>
+  rename(psychosis = value) |>
+  drop_na(bblid, scanid, lobe, lgi, factor, psychosis, age, sex) |>
+  mutate(
+    across(
+      c(lgi, psychosis),
+      \(x) {
+        gam(x ~ s(age) + sex) |>
+          residuals() |>
+          scale() |>
+          as.numeric()
+      }
+    ),
     .by = c(factor, lobe)
   ) |>
-  rename(b = estimate, p = p_value) |>
+  select(bblid, scanid, lobe, lgi, factor, psychosis)
+
+# Test
+test_lgi_psy_lobular <-
+  data_lgi_psy_lobular |>
+  nest(.by = c(factor, lobe)) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        psychosis ~ lgi,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-effect, -term)
+    })
+  ) |>
+  unnest(result) |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
@@ -936,14 +947,18 @@ test_lgi_psy_lobular <-
     .by = factor
   )
 
-test_lgi_psy_lobular |>
-  select(lobe, factor, b, ci, p, p_fdr, significance) |>
-  arrange(lobe, desc(factor)) |>
+# Report
+results_lgi_psy_lobular <-
+  test_lgi_psy_lobular |>
+  select(factor, lobe, beta, ci, p, p_fdr, significance) |>
+  arrange(desc(factor), lobe) |>
   kbl(
-    col.names = c("Lobe", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
+    col.names = c("Clinical Factor", "Lobe", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
+
+results_lgi_psy_lobular
 ```
 
 :::
@@ -956,62 +971,66 @@ An initial scree plot of regional LGI measures revealed a dominant first factor,
 #| label: lgi-factor-analysis
 #| control: {method: residual, variables: [age, sex]}
 imaging_wide <-
-  imaging |>
-  mutate(region = str_c(region, laterality, sep = "_")) |>
-  select(bblid, region, lgi) |>
-  pivot_wider(names_from = region, values_from = lgi) |>
   inner_join(
-    demo |>
-      select(bblid, age, sex),
-    by = join_by(bblid),
-    relationship = "one-to-one"
+    demo,
+    imaging,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
   ) |>
-  drop_na() |>
-  mutate(across(
-    c(ends_with("_left"), ends_with("_right")),
-    \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
-  )) |>
-  select(-age, -sex)
+  mutate(region = str_c(laterality, region, sep = "_")) |>
+  drop_na(bblid, scanid, region, lgi, age, sex) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    .by = region
+  ) |>
+  select(bblid, scanid, region, lgi) |>
+  pivot_wider(
+    id_cols = c(bblid, scanid),
+    names_from = region,
+    values_from = lgi
+  )
 
-scree(select(imaging_wide, -bblid), factors = TRUE)
+scree(select(imaging_wide, -bblid, -scanid), factors = TRUE)
 
 regional_lgi_residuals <-
-  imaging |>
-  mutate(region = str_c(region, laterality, sep = "_")) |>
-  select(bblid, region, lgi) |>
-  pivot_wider(names_from = region, values_from = lgi) |>
-  inner_join(
-    demo |>
-      select(bblid, age, sex),
-    by = join_by(bblid),
-    relationship = "one-to-one"
-  ) |>
+  demo |>
   inner_join(
     global_lgi |>
-      rename(global_lgi = lgi) |>
-      select(bblid, global_lgi),
-    by = join_by(bblid),
+      rename(global_lgi = lgi),
+    by = join_by(bblid, scanid),
     relationship = "one-to-one"
   ) |>
-  drop_na() |>
-  mutate(across(
-    c(ends_with("_left"), ends_with("_right")),
-    \(x) {
-      gam(x ~ s(age) + s(global_lgi) + sex) |>
-        residuals() |>
-        scale() |>
-        as.numeric()
-    }
-  )) |>
-  select(-age, -sex, -global_lgi)
+  inner_join(
+    imaging,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
+  mutate(region = str_c(laterality, region, sep = "_")) |>
+  drop_na(bblid, scanid, region, lgi, age, sex, global_lgi) |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex + s(global_lgi)) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    .by = region
+  ) |>
+  select(bblid, scanid, region, lgi) |>
+  pivot_wider(
+    id_cols = c(bblid, scanid),
+    names_from = region,
+    values_from = lgi
+  )
 
-scree(select(regional_lgi_residuals, -bblid), factors = TRUE)
+scree(select(regional_lgi_residuals, -bblid, -scanid), factors = TRUE)
 
 n_factors <- 9
 
 fa_lgi <-
   fa(
-    select(imaging_wide, -bblid),
+    select(imaging_wide, -bblid, -scanid),
     nfactors = n_factors,
     fm = "minres",
     rotate = "bifactor",
@@ -1027,10 +1046,10 @@ invisible(capture.output(
   bifactor_indices <- bifactorIndices_expl(fa_lgi)
 ))
 
-bifactor_indices |>
+results_factor_determinacy <-
+  bifactor_indices |>
   pluck("FactorLevelIndices") |>
-  rownames_to_column(var = "Factor") |>
-  as_tibble() |>
+  as_tibble(rownames = "Factor") |>
   unnest(cols = everything()) |>
   select(Factor, FD) |>
   kbl(digits = c(NA, 3))
@@ -1045,7 +1064,7 @@ loadings_lgi <- fa_lgi$loadings |>
   ) |>
   separate(
     roi,
-    into = c("region", "hemi"),
+    into = c("hemi", "region"),
     sep = "_(?=[^_]+$)"
   ) |>
   mutate(
@@ -1070,6 +1089,7 @@ plot_loadings <- ggplot() +
   ) +
   theme_void()
 
+results_factor_determinacy
 plot_loadings
 ```
 
@@ -1085,11 +1105,21 @@ LGI is significantly lower in those with psychosis, relative to controls, in 52 
 #| control: {method: residual, variables: [age, sex]}
 #| scale: region
 data_regional_td_psy <-
-  inner_join(imaging, demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
-  filter(dx %in% c("TD", "PS")) |>
+  demo |>
+  inner_join(
+    dx,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    imaging,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
+  filter(dx_3 %in% c("TD", "PS")) |>
   mutate(
-    dx = fct_drop(dx),
-    region = str_c(region, laterality, sep = "_")
+    dx = fct_drop(dx_3),
+    region = str_c(laterality, region, sep = "_")
   ) |>
   drop_na(bblid, scanid, region, lgi, dx, age, sex) |>
   mutate(
@@ -1103,19 +1133,27 @@ data_regional_td_psy <-
 
 test_regional_psy <-
   data_regional_td_psy |>
-  summarize(
-    t.test(lgi ~ dx) |>
-      tidy() |>
-      clean_names(),
-    cohens_d = cohens_d(lgi ~ dx)$Cohens_d,
-    .by = region
+  nest(.by = region) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        lgi ~ dx,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "dxPS") |>
+        select(-effect, -term)
+    })
   ) |>
-  separate(region, into = c("region", "laterality"), sep = "_") |>
-  rename(
-    mean_difference = estimate,
-    t = statistic,
-    p = p_value
-  ) |>
+  unnest(result) |>
+  separate(region, into = c("laterality", "region"), sep = "_") |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
@@ -1129,10 +1167,11 @@ test_regional_psy <-
     )
   )
 
-test_regional_psy |>
-  select(region, laterality, mean_difference, ci, cohens_d, t, p, p_fdr, significance) |>
+results_regional_psy <- 
+  test_regional_psy |>
+  select(region, laterality, beta, ci, p, p_fdr, significance) |>
   kbl(
-    col.names = c("Region", "Laterality", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c("Region", "Laterality", "β", "95% CI", "p", "pFDR", ""),
     align = "llrrrrrrl",
     digits = c(NA, NA, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1148,20 +1187,21 @@ plot_regional_psy <-
           ggseg_mapping
         ),
         hemi = str_to_lower(laterality),
-        cohens_d = replace_when(cohens_d, p_fdr >= 0.05 ~ NA)
+        beta = replace_when(beta, p_fdr >= 0.05 ~ NA)
       ),
-    mapping = aes(fill = cohens_d),
+    mapping = aes(fill = beta),
     position = position_brain(view ~ hemi)
   ) +
-  scale_fill_viridis_c() +
+  scale_fill_viridis_c(direction = -1) +
   labs(
-    title = "Standardized Differences in Mean LGI Between TD and PS",
+    title = "Regional Differences in Mean LGI Between TD and PS",
     caption = "Only differences with pFDR < 0.05 are shown.",
-    fill = "Cohen's d"
+    fill = "β (PS − TD)"
   ) +
   theme_void() +
   theme(plot.caption = element_text(hjust = 0))
 
+results_regional_psy
 plot_regional_psy
 ```
 
@@ -1178,31 +1218,52 @@ General psychopathology, and ADHD showed a significant negative correlation with
 #| scale: global
 data_lgi_clinical <-
   demo |>
-  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(clinical, by = join_by(bblid), relationship = "one-to-many") |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    clinical,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
   rename(clinical = value) |>
   filter(type == "bifactor") |>
   drop_na(bblid, scanid, lgi, factor, clinical, age, sex) |>
   mutate(
-    across(
-      c(lgi, clinical),
-      \(x) gam(x ~ s(age) + sex) |> residuals() |> scale() |> as.numeric()
-    ),
+    across(c(lgi, clinical), \(x) {
+      gam(x ~ s(age) + sex) |>
+        residuals() |>
+        scale() |>
+        as.numeric()
+    }),
     .by = factor
   ) |>
   select(bblid, scanid, lgi, factor, clinical)
 
-test_lgi_clinical <- data_lgi_clinical |>
-  summarize(
-    cor.test(lgi, clinical) |>
-      tidy() |>
-      clean_names(),
-    .by = factor
+test_lgi_clinical <-
+  data_lgi_clinical |>
+  nest(.by = factor) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        clinical ~ lgi,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-effect, -term)
+    })
   ) |>
-  rename(
-    r = estimate,
-    p = p_value
-  ) |>
+  unnest(result) |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
@@ -1214,11 +1275,12 @@ test_lgi_clinical <- data_lgi_clinical |>
     )
   )
 
-test_lgi_clinical |>
-  select(factor, r, ci, p, p_fdr, significance) |>
+results_lgi_clinical <-
+  test_lgi_clinical |>
+  select(factor, beta, ci, p, p_fdr, significance) |>
   arrange(factor) |>
   kbl(
-    col.names = c("Clinical Factor", "r", "95% CI", "p", "pFDR", ""),
+    col.names = c("Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
     align = "lrrrrl",
     digits = c(NA, 3, NA, 5, 5, NA),
     caption = "Relationship Between Global LGI and Psychopathology Factors",
@@ -1231,21 +1293,36 @@ labeller_lgi_clinical <-
   deframe() |>
   as_labeller()
 
+predictions_lgi_clinical <-
+  test_lgi_clinical |>
+  select(factor, test) |>
+  mutate(
+    prediction = map(test, \(t) {
+      predict_response(
+        t,
+        terms = "lgi [n=200]",
+        type = "fixed")
+    })
+  ) |>
+  unnest(prediction) |>
+  clean_names() |>
+  transmute(
+    factor,
+    lgi = x,
+    clinical = predicted,
+    lower = conf_low,
+    upper = conf_high
+  )
+
 plot_lgi_clinical <-
-  ggplot(
-    data = data_lgi_clinical,
-    mapping = aes(x = lgi, y = clinical)
-  ) +
-  geom_point(alpha = 0.25, size = 0.25) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
+  ggplot(mapping = aes(x = lgi, y = clinical)) +
+  geom_point(data = data_lgi_clinical, alpha = 0.25, size = 0.25) +
+  geom_ribbon(
+    data = predictions_lgi_clinical,
+    mapping = aes(ymin = lower, ymax = upper),
     alpha = 0.5
   ) +
+  geom_line(data = predictions_lgi_clinical, linewidth = 0.75) +
   facet_wrap(~ factor, labeller = labeller_lgi_clinical) +
   labs(
     title = "Relationship Between Global LGI and Psychopathology Factors",
@@ -1254,6 +1331,7 @@ plot_lgi_clinical <-
   ) +
   theme_linedraw()
 
+results_lgi_clinical
 plot_lgi_clinical
 ```
 
@@ -1266,15 +1344,27 @@ At the category level, participants with behavior disorders had significantly lo
 ```{r}
 #| label: comorbidities
 comorbid <-
-  inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(goassess_category, by = join_by(bblid), relationship = "one-to-many") |>
-  drop_na(bblid, scanid, lgi, category, status, age, sex) |>
-  mutate(
-    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
-    .by = category
+  demo |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
   ) |>
-  select(bblid, scanid, lgi, category, status) |>
-  pivot_wider(names_from = category, values_from = status)
+  slice_min(scanid, n = 1, by = bblid) |>
+  inner_join(
+    goassess_category,
+    by = join_by(bblid),
+    relationship = "one-to-many"
+  ) |>
+  select(bblid, scanid, lgi, category, status, age, sex) |>
+  pivot_wider(names_from = category, values_from = status) |>
+  drop_na() |>
+  mutate(
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric()
+  )
 
 plot_comorbid <- upset(
   comorbid,
@@ -1301,11 +1391,24 @@ plot_comorbid
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_cat <-
-  inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(goassess_category, by = join_by(bblid), relationship = "one-to-many") |>
+  demo |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  slice_min(scanid, n = 1, by = bblid) |>
+  inner_join(
+    goassess_category,
+    by = join_by(bblid),
+    relationship = "one-to-many"
+  ) |>
   drop_na(bblid, scanid, lgi, category, status, age, sex) |>
   mutate(
-    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = category
   ) |>
   select(bblid, scanid, lgi, category, status)
@@ -1339,7 +1442,8 @@ test_lgi_goa_cat <-
     )
   )
 
-test_lgi_goa_cat |>
+results_lgi_goa_cat <-
+  test_lgi_goa_cat |>
   arrange(category) |>
   kbl(
     col.names = c("Category", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
@@ -1415,6 +1519,7 @@ plot_lgi_goa_cat <-
     panel.grid.minor.x = element_blank()
   )
 
+results_lgi_goa_cat
 plot_lgi_goa_cat
 ```
 
@@ -1427,11 +1532,24 @@ plot_lgi_goa_cat
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
 data_lgi_goa_dis <-
-  inner_join(demo, global_lgi, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  inner_join(goassess_disorder, by = join_by(bblid), relationship = "one-to-many") |>
+  demo |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  slice_min(scanid, n = 1, by = bblid) |>
+  inner_join(
+    goassess_disorder,
+    by = join_by(bblid),
+    relationship = "one-to-many"
+  ) |>
   drop_na(bblid, scanid, lgi, category, disorder, status, age, sex) |>
   mutate(
-    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = disorder
   ) |>
   select(bblid, scanid, lgi, category, disorder, status)
@@ -1845,29 +1963,55 @@ Global LGI is significantly positvely associated with CNB accuracy in all domain
 #| scale: global
 #| cnb-metric: accuracy
 data_lgi_cnb <-
-  cnb |>
-  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
-  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
+  demo |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    cnb,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
   rename(cnb = value) |>
   filter(measure %in% c("Accuracy", "Speed")) |>
-  drop_na() |>
+  drop_na(bblid, scanid, domain, measure, cnb, lgi, age, sex) |>
   mutate(
-    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
-    cnb = gam(cnb ~ sex) |> residuals() |> scale() |> as.numeric(),
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    cnb = gam(cnb ~ sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = c(domain, measure)
   ) |>
   select(bblid, scanid, domain, measure, cnb, lgi)
 
 test_lgi_cnb <-
   data_lgi_cnb |>
-  summarize(
-    lm(cnb ~ lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "lgi"),
-    .by = c(domain, measure)
+  nest(.by = c(domain, measure)) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        cnb ~ lgi,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-effect, -term)
+    })
   ) |>
-  rename(b = estimate, p = p_value) |>
+  unnest(result) |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
@@ -1880,9 +2024,10 @@ test_lgi_cnb <-
     .by = measure
   )
 
-test_lgi_cnb |>
+results_lgi_cnb_acc <-
+  test_lgi_cnb |>
   filter(measure == "Accuracy") |>
-  select(domain, b, ci, p, p_fdr, significance) |>
+  select(domain, beta, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
     col.names = c("Domain", "β", "95% CI", "p", "pFDR", ""),
@@ -1891,7 +2036,7 @@ test_lgi_cnb |>
     caption = "Association of CNB Accuracy with Global LGI"
   )
 
-facet_labels_lgi_cnb_acc <-
+labeller_lgi_cnb_acc <-
   test_lgi_cnb |>
   filter(measure == "Accuracy") |>
   mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
@@ -1899,22 +2044,42 @@ facet_labels_lgi_cnb_acc <-
   deframe() |>
   as_labeller()
 
+predictions_lgi_cnb_acc <-
+  test_lgi_cnb |>
+  filter(measure == "Accuracy") |>
+  select(domain, test) |>
+  mutate(
+    prediction = map(test, \(t) {
+      predict_response(
+        t,
+        terms = "lgi [n=200]",
+        type = "fixed")
+    })
+  ) |>
+  unnest(prediction) |>
+  clean_names() |>
+  transmute(
+    domain,
+    lgi = x,
+    cnb = predicted,
+    lower = conf_low,
+    upper = conf_high
+  )
+
 plot_lgi_cnb_acc <-
-  ggplot(
+  ggplot(mapping = aes(x = lgi, y = cnb)) +
+  geom_point(
     data = data_lgi_cnb |> filter(measure == "Accuracy"),
-    mapping = aes(x = lgi, y = cnb)
+    alpha = 0.1,
+    size = 1
   ) +
-  geom_point(alpha = 0.1, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
+  geom_ribbon(
+    data = predictions_lgi_cnb_acc,
+    mapping = aes(ymin = lower, ymax = upper),
     alpha = 0.5
   ) +
-  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_acc) +
+  geom_line(data = predictions_lgi_cnb_acc, linewidth = 0.75) +
+  facet_wrap(~ domain, labeller = labeller_lgi_cnb_acc) +
   labs(
     title = "Relationship Between Global LGI and CNB Accuracy",
     x = "Global LGI",
@@ -1922,11 +2087,13 @@ plot_lgi_cnb_acc <-
   ) +
   theme_linedraw()
 
+results_lgi_cnb_acc
 plot_lgi_cnb_acc
 
-test_lgi_cnb |>
+results_lgi_cnb_spd <-
+  test_lgi_cnb |>
   filter(measure == "Speed") |>
-  select(domain, b, ci, p, p_fdr, significance) |>
+  select(domain, beta, ci, p, p_fdr, significance) |>
   arrange(domain) |>
   kbl(
     col.names = c("Domain", "β", "95% CI", "p", "pFDR", ""),
@@ -1935,7 +2102,7 @@ test_lgi_cnb |>
     caption = "Association of CNB Speed with Global LGI"
   )
 
-facet_labels_lgi_cnb_spd <-
+labeller_lgi_cnb_spd <-
   test_lgi_cnb |>
   filter(measure == "Speed") |>
   mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
@@ -1943,22 +2110,42 @@ facet_labels_lgi_cnb_spd <-
   deframe() |>
   as_labeller()
 
+predictions_lgi_cnb_spd <-
+  test_lgi_cnb |>
+  filter(measure == "Speed") |>
+  select(domain, test) |>
+  mutate(
+    prediction = map(test, \(t) {
+      predict_response(
+        t,
+        terms = "lgi [n=200]",
+        type = "fixed")
+    })
+  ) |>
+  unnest(prediction) |>
+  clean_names() |>
+  transmute(
+    domain,
+    lgi = x,
+    cnb = predicted,
+    lower = conf_low,
+    upper = conf_high
+  )
+
 plot_lgi_cnb_spd <-
-  ggplot(
+  ggplot(mapping = aes(x = lgi, y = cnb)) +
+  geom_point(
     data = data_lgi_cnb |> filter(measure == "Speed"),
-    mapping = aes(x = lgi, y = cnb)
+    alpha = 0.1,
+    size = 1
   ) +
-  geom_point(alpha = 0.1, size = 1) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
+  geom_ribbon(
+    data = predictions_lgi_cnb_spd,
+    mapping = aes(ymin = lower, ymax = upper),
     alpha = 0.5
   ) +
-  facet_wrap(~ domain, labeller = facet_labels_lgi_cnb_spd) +
+  geom_line(data = predictions_lgi_cnb_spd, linewidth = 0.75) +
+  facet_wrap(~ domain, labeller = labeller_lgi_cnb_spd) +
   labs(
     title = "Relationship Between Global LGI and CNB Speed",
     x = "Global LGI",
@@ -1966,6 +2153,7 @@ plot_lgi_cnb_spd <-
   ) +
   theme_linedraw()
 
+results_lgi_cnb_spd
 plot_lgi_cnb_spd
 ```
 
@@ -1981,30 +2169,56 @@ Global LGI is not significantly associated with CNB accuracy in the clean subsam
 #| scale: global
 #| cnb-metric: accuracy
 data_lgi_cnb_clean <-
-  cnb |>
-  inner_join(global_lgi, by = join_by(bblid, scanid), relationship = "many-to-one") |>
-  inner_join(demo, by = join_by(bblid, scanid), relationship = "many-to-one") |>
-  semi_join(clean_subsample, by = join_by(bblid)) |>
+  demo |>
+  inner_join(
+    global_lgi,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
+  inner_join(
+    cnb,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-many"
+  ) |>
+  semi_join(clean_subsample, by = join_by(bblid, scanid)) |>
   rename(cnb = value) |>
   filter(measure %in% c("Accuracy", "Speed")) |>
-  drop_na() |>
+  drop_na(bblid, scanid, domain, measure, cnb, lgi, age, sex) |>
   mutate(
-    lgi = gam(lgi ~ s(age) + sex) |> residuals() |> scale() |> as.numeric(),
-    cnb = gam(cnb ~ sex) |> residuals() |> scale() |> as.numeric(),
+    lgi = gam(lgi ~ s(age) + sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
+    cnb = gam(cnb ~ sex) |>
+      residuals() |>
+      scale() |>
+      as.numeric(),
     .by = c(domain, measure)
   ) |>
   select(bblid, scanid, domain, measure, cnb, lgi)
 
 test_lgi_cnb_clean <-
   data_lgi_cnb_clean |>
-  summarize(
-    lm(cnb ~ lgi) |>
-      tidy(conf.int = TRUE) |>
-      clean_names() |>
-      filter(term == "lgi"),
-    .by = c(domain, measure)
+  nest(.by = c(domain, measure)) |>
+  mutate(
+    test = future_map(data, \(d) {
+      lme(
+        cnb ~ lgi,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(test, \(t) {
+      t |>
+        broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+        clean_names() |>
+        filter(term == "lgi") |>
+        select(-effect, -term)
+    })
   ) |>
-  rename(b = estimate, p = p_value) |>
+  unnest(result) |>
+  rename(beta = estimate, p = p_value) |>
   mutate(
     ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
@@ -2017,8 +2231,9 @@ test_lgi_cnb_clean <-
     .by = measure
   )
 
-test_lgi_cnb_clean |>
-  select(measure, domain, b, ci, p, p_fdr, significance) |>
+results_lgi_cnb_clean <-
+  test_lgi_cnb_clean |>
+  select(measure, domain, beta, ci, p, p_fdr, significance) |>
   arrange(measure, domain) |>
   kbl(
     col.names = c("Measure", "Domain", "β", "95% CI", "p", "pFDR", ""),
@@ -2026,6 +2241,8 @@ test_lgi_cnb_clean |>
     digits = c(NA, NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Performance with Global LGI"
   )
+
+results_lgi_cnb_clean
 ```
 
 ## Cognitive Profile of LGI-Volume Tertile Groups

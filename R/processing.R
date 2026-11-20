@@ -21,21 +21,3 @@ match_visits <- function(df, key, id_col) {
     filter(to == matching[from]) |>
     select(-from, -to, -weight)
 }
-
-residualize_gamm <- function(x, data, termlabels) {
-  data$.response <- x
-
-  mgcv::gamm(
-    reformulate(
-      response = ".response",
-      termlabels = termlabels
-    ),
-    random = list(bblid = ~ 1),
-    data = data,
-    method = "REML"
-  ) |>
-    purrr::pluck("gam") |>
-    residuals() |>
-    scale() |>
-    as.numeric()
-}
