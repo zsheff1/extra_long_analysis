@@ -45,13 +45,21 @@ path_goassess <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "goassess_scoring",
   "tests", "data", "n9498_goassess_psych_summary_vars_20131014.csv"
 )
-path_imglook <- file.path("/", "data", "secure", "bit_dwh", "oracle", "imglook.csv")
+path_imglook <- file.path(
+  "/", "data", "secure", "bit_dwh", "oracle", "imglook.csv"
+)
 path_clinical <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "goassess_capa",
   "goa_capa_longitudinal_clinical_factor_scores_13april2026.csv"
 )
-path_dx <- file.path("/", "data", "secure", "bit_repo", "derivatives", "diagnosis", "diagnosis_wsmryvars.csv")
-path_dxpmr7 <- file.path("/", "data", "secure", "bit_repo", "projects_repo", "pnc", "n9498_diagnosis_dxpmr7_20170509.csv")
+path_dx <- file.path(
+  "/", "data", "secure", "bit_repo", "derivatives", "diagnosis",
+  "diagnosis_wsmryvars.csv"
+)
+path_dxpmr7 <- file.path(
+  "/", "data", "secure", "bit_repo", "projects_repo", "pnc",
+  "n9498_diagnosis_dxpmr7_20170509.csv"
+)
 
 dir_dataset <- file.path(
   "/", "data", "secure", "bit_repo", "projects_repo", "ExtraLong", "data",
@@ -207,7 +215,7 @@ cnb_dump <-
       test_sessions_v.dotest
     )
   ) |>
-  rename_with(\(x) {map_chr(str_split(x, "\\."), 2)})
+  rename_with(\(x) map_chr(str_split(x, "\\."), 2))
 
 datasetid_mapping <-
   inner_join(
@@ -262,10 +270,16 @@ cnb <-
   mutate(
     domain = factor(
       str_replace(domain, "SocialCog", "Social"),
-      levels = c("Overall", "Executive", "Memory", "Complex", "Social", "Discounting", "Motor")
+      levels = c(
+        "Overall", "Executive", "Memory", "Complex", "Social", "Discounting",
+        "Motor"
+      )
     ),
     measure = factor(
-      replace_when(measure, domain == "Motor" & measure == "Efficiency" ~ "Speed"),
+      replace_when(
+        measure,
+        domain == "Motor" & measure == "Efficiency" ~ "Speed"
+      ),
       levels = c("Accuracy", "Efficiency", "Speed")
     )
   ) |>
@@ -292,7 +306,11 @@ clinical <-
   group_modify(match_visits, id_col = "clinical_row") |>
   ungroup() |>
   select(bblid, scanid, starts_with("bifactor"), starts_with("corrTraits")) |>
-  pivot_longer(cols = -c(bblid, scanid), names_to = "name", values_to = "value") |>
+  pivot_longer(
+    cols = -c(bblid, scanid),
+    names_to = "name",
+    values_to = "value"
+  ) |>
   mutate(name = str_replace_all(name, "General_p", "GeneralP")) |>
   separate_wider_delim(name, delim = "_", names = c("type", "factor")) |>
   mutate(
@@ -320,7 +338,7 @@ clinical <-
 dx_rough <-
   inner_join(
     raw_dx |>
-      clean_names() |> 
+      clean_names() |>
       select(bblid, dodiagnosis, dx_pscat),
     bblid_doscan,
     by = join_by(bblid),
@@ -328,7 +346,13 @@ dx_rough <-
   ) |>
   mutate(
     dodiagnosis = mdy(dodiagnosis),
-    time_difference = abs(as.numeric(difftime(doscan, dodiagnosis, units = "days"))),
+    time_difference = difftime(
+      time1 = doscan,
+      time2 = dodiagnosis,
+      units = "days"
+    ) |>
+      as.numeric() |>
+      abs(),
     dx_row = row_number(),
     dx_3 = factor(
       dx_pscat,
@@ -341,7 +365,10 @@ dx_rough <-
       labels = c("TD", "PSY", "PS", "OP")
     )
   ) |>
-  filter(dodiagnosis >= doscan %m-% months(6), dodiagnosis <= doscan %m+% months(6)) |>
+  filter(
+    dodiagnosis >= doscan %m-% months(6),
+    dodiagnosis <= doscan %m+% months(6)
+  ) |>
   group_by(bblid) |>
   group_modify(match_visits, id_col = "dx_row") |>
   ungroup() |>
@@ -358,7 +385,11 @@ dx_go1 <-
   select(bblid, scanid, dx_3, dx_4)
 
 dx <-
-  bind_rows(dx_go1, dx_rough |> anti_join(dx_go1, by = join_by(bblid, scanid))) |>
+  bind_rows(
+    dx_go1,
+    dx_rough |>
+      anti_join(dx_go1, by = join_by(bblid, scanid))
+  ) |>
   arrange(bblid, scanid)
 
 # GOASSESS
@@ -424,13 +455,22 @@ The "Clean Subsample" consists of people where LGI data is available, who did no
 clean_subsample <-
   demo |>
   full_join(dx, by = join_by(bblid, scanid), relationship = "one-to-one") |>
-  full_join(global_volume, by = join_by(bblid, scanid), relationship = "one-to-one") |>
+  full_join(
+    global_volume,
+    by = join_by(bblid, scanid),
+    relationship = "one-to-one"
+  ) |>
   drop_na(volume) |>
   mutate(volume_median = median(volume), .by = sex) |>
   semi_join(drop_na(global_lgi), by = join_by(bblid, scanid)) |>
   semi_join(filter(env, trauma == 0), by = join_by(bblid)) |>
   filter(race == "White", dx_3 == "TD") |>
-  slice_min(abs(volume - volume_median), n = 1, with_ties = FALSE, by = bblid) |>
+  slice_min(
+    abs(volume - volume_median),
+    n = 1,
+    with_ties = FALSE,
+    by = bblid
+  ) |>
   slice_min(abs(volume - volume_median), n = 25, with_ties = FALSE, by = sex) |>
   select(bblid, scanid) |>
   arrange(bblid, scanid)
@@ -488,7 +528,14 @@ demo_kable <- demo_table |>
 
 row_hierarchy <- demo_table |>
   mutate(
-    Category = c("n", "age", "sex", "sex", "dx", "dx", "dx", "env", "env", "race", "race", "race"),
+    Category = c(
+      "n",
+      "age",
+      "sex", "sex",
+      "dx", "dx", "dx",
+      "env", "env",
+      "race", "race", "race"
+    ),
     row_number = row_number()
   ) |>
   summarise(
@@ -773,7 +820,7 @@ No regions were found where LGI was significantly associated with psychosis fact
 #| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: region
-data_lgi_psy_regional <- 
+data_lgi_psy_regional <-
   demo |>
   inner_join(
     imaging,
@@ -832,7 +879,7 @@ test_lgi_psy_regional <-
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -848,7 +895,9 @@ results_lgi_psy_regional <-
   select(region, laterality, factor, beta, ci, p, p_fdr, significance) |>
   arrange(region, laterality, desc(factor)) |>
   kbl(
-    col.names = c("Region", "Laterality", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""),
+    col.names = c(
+      "Region", "Laterality", "Clinical Factor", "β", "95% CI", "p", "pFDR", ""
+    ),
     align = "llrrrrl",
     digits = c(NA, NA, NA, 3, NA, 5, 5, NA)
   )
@@ -884,7 +933,7 @@ plot_lgi_lobe
 #| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: lobe
-data_lgi_psy_lobular <- 
+data_lgi_psy_lobular <-
   demo |>
   inner_join(
     lgi_lobe,
@@ -939,7 +988,7 @@ test_lgi_psy_lobular <-
   unnest(result) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1171,7 +1220,7 @@ test_regional_psy <-
   mutate(
     region = roi_mapping[region],
     laterality = str_to_title(laterality),
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -1181,7 +1230,7 @@ test_regional_psy <-
     )
   )
 
-results_regional_psy <- 
+results_regional_psy <-
   test_regional_psy |>
   select(region, laterality, beta, ci, p, p_fdr, significance) |>
   kbl(
@@ -1212,7 +1261,7 @@ plot_regional_psy <-
   labs(
     title = "Regional Differences in Mean LGI Between TD and PS",
     caption = "Only differences with pFDR < 0.05 are shown.",
-    fill = "β (PS − TD)"
+    fill = "β (PS - TD)"
   ) +
   theme_void() +
   theme(plot.caption = element_text(hjust = 0))
@@ -1314,12 +1363,10 @@ predictions_lgi_clinical <-
   test_lgi_clinical |>
   select(factor, test) |>
   mutate(
-    prediction = map(test, \(t) {
-      predict_response(
-        t,
-        terms = "lgi [n=200]",
-        type = "fixed")
-    })
+    prediction = map(
+      test,
+      \(t) predict_response(t, terms = "lgi [n=200]", type = "fixed")
+    )
   ) |>
   unnest(prediction) |>
   clean_names() |>
@@ -1462,7 +1509,10 @@ results_lgi_goa_cat <-
   test_lgi_goa_cat |>
   arrange(category) |>
   kbl(
-    col.names = c("Category", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Category", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1491,7 +1541,9 @@ plot_lgi_goa_cat <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_cat,
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -1584,7 +1636,7 @@ test_lgi_goa_dis <-
   ) |>
   mutate(
     mean_difference = estimate,
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     t = statistic,
     p = p_value,
     p_fdr = p.adjust(p, method = "fdr"),
@@ -1642,7 +1694,10 @@ results_lgi_goa_anx <-
   select(-category) |>
   arrange(disorder) |>
   kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1653,7 +1708,9 @@ plot_lgi_goa_anx <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "anx"),
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -1715,7 +1772,10 @@ results_lgi_goa_beh <-
   select(-category) |>
   arrange(disorder) |>
   kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1726,7 +1786,9 @@ plot_lgi_goa_beh <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "beh"),
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -1788,7 +1850,10 @@ results_lgi_goa_eat <-
   select(-category) |>
   arrange(disorder) |>
   kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1799,7 +1864,9 @@ plot_lgi_goa_eat <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "eat"),
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -1861,7 +1928,10 @@ results_lgi_goa_mood <-
   select(-category) |>
   arrange(disorder) |>
   kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1872,7 +1942,9 @@ plot_lgi_goa_mood <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "mood"),
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -1934,7 +2006,10 @@ results_lgi_goa_psy <-
   select(-category) |>
   arrange(disorder) |>
   kbl(
-    col.names = c("Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d", "t", "p", "pFDR", ""),
+    col.names = c(
+      "Disorder", "n True", "n False", "Mean Difference", "95% CI", "Cohen's d",
+      "t", "p", "pFDR", ""
+    ),
     align = "lrrrrrrrrl",
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
@@ -1945,7 +2020,9 @@ plot_lgi_goa_psy <-
   ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "psy"),
-    mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
+    mapping = aes(
+      x = as.numeric(status), y = lgi, color = status, fill = status
+    ),
     alpha = 0.25,
     size = 0.25
   ) +
@@ -2060,7 +2137,7 @@ test_lgi_cnb <-
   unnest(result) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -2109,12 +2186,10 @@ predictions_lgi_cnb_acc <-
   filter(measure == "Accuracy") |>
   select(domain, test) |>
   mutate(
-    prediction = map(test, \(t) {
-      predict_response(
-        t,
-        terms = "lgi [n=200]",
-        type = "fixed")
-    })
+    prediction = map(
+      test,
+      \(t) predict_response(t, terms = "lgi [n=200]", type = "fixed")
+    )
   ) |>
   unnest(prediction) |>
   clean_names() |>
@@ -2186,12 +2261,10 @@ predictions_lgi_cnb_spd <-
   filter(measure == "Speed") |>
   select(domain, test) |>
   mutate(
-    prediction = map(test, \(t) {
-      predict_response(
-        t,
-        terms = "lgi [n=200]",
-        type = "fixed")
-    })
+    prediction = map(
+      test,
+      \(t) predict_response(t, terms = "lgi [n=200]", type = "fixed")
+    )
   ) |>
   unnest(prediction) |>
   clean_names() |>
@@ -2291,7 +2364,7 @@ test_lgi_cnb_clean <-
   unnest(result) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -2399,7 +2472,10 @@ posthoc_tertile_cnb <-
     sep = "-",
     remove = FALSE
   ) |>
-  select(domain, measure, contrast, mean_difference, ci, cohens_d, p_tukey, significance, group1, group2)
+  select(
+    domain, measure, contrast, mean_difference, ci, cohens_d, p_tukey,
+    significance, group1, group2
+  )
 
 summary_tertile_cnb <-
   data_tertile_cnb |>
@@ -2465,7 +2541,12 @@ result_tertile_cnb |>
   kbl(
     col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
-    caption = "One-way ANOVAs comparing cognitive accuracy across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the five domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+    caption = str_c(
+      "One-way ANOVAs comparing cognitive accuracy across four LGI/volume ",
+      "groups for each cognitive domain. Effect sizes are reported as ",
+      "eta-squared (η²). P-values were adjusted across the five domains using ",
+      "the Benjamini-Hochberg false discovery rate (FDR) procedure."
+    )
   )
 
 ggplot(
@@ -2498,21 +2579,29 @@ posthoc_tertile_cnb |>
     ci, cohens_d, p_tukey, significance
   ) |>
   kbl(
-    col.names = c("Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey", ""),
+    col.names = c(
+      "Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey",
+      ""
+    ),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 3, 5, NA),
-    caption = "Tukey's HSD post-hoc comparisons between LGI/volume groups within each cognitive domain. Results include mean differences, 95% confidence intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were performed separately within each domain."
+    caption = str_c(
+      "Tukey's HSD post-hoc comparisons between LGI/volume groups within each ",
+      "cognitive domain. Results include mean differences, 95% confidence ",
+      "intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were ",
+      "performed separately within each domain."
+    )
   )
 
 ggplot(
-    data = summary_tertile_cnb |>
-      filter(measure == "Accuracy"),
-    mapping = aes(
-      x = as.numeric(domain),
-      y = mean, ymin = lower, ymax = upper,
-      group = group, color = group, fill = group
-    )
-  ) +
+  data = summary_tertile_cnb |>
+    filter(measure == "Accuracy"),
+  mapping = aes(
+    x = as.numeric(domain),
+    y = mean, ymin = lower, ymax = upper,
+    group = group, color = group, fill = group
+  )
+) +
   geom_ribbon(alpha = 0.25, color = NA) +
   geom_line() +
   geom_point() +
@@ -2534,6 +2623,7 @@ ggplot(
     y = "Accuracy"
   ) +
   theme_linedraw()
+
 ```
 
 :::
@@ -2563,7 +2653,12 @@ result_tertile_cnb |>
   kbl(
     col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
-    caption = "One-way ANOVAs comparing cognitive speed across four LGI/volume groups for each cognitive domain. Effect sizes are reported as eta-squared (η²). P-values were adjusted across the six domains using the Benjamini–Hochberg false discovery rate (FDR) procedure."
+    caption = str_c(
+      "One-way ANOVAs comparing cognitive speed across four LGI/volume groups ",
+      "for each cognitive domain. Effect sizes are reported as eta-squared ",
+      "(η²). P-values were adjusted across the six domains using the ",
+      "Benjamini-Hochberg false discovery rate (FDR) procedure."
+    )
   )
 
 ggplot(
@@ -2596,21 +2691,29 @@ posthoc_tertile_cnb |>
     ci, cohens_d, p_tukey, significance
   ) |>
   kbl(
-    col.names = c("Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey", ""),
+    col.names = c(
+      "Domain", "Contrast", "Mean Difference", "95% CI", "Cohen's d", "p Tukey",
+      ""
+    ),
     align = "llrrrrl",
     digits = c(NA, NA, 3, NA, 3, 5, NA),
-    caption = "Tukey's HSD post-hoc comparisons between LGI/volume groups within each cognitive domain. Results include mean differences, 95% confidence intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were performed separately within each domain."
+    caption = str_c(
+      "Tukey's HSD post-hoc comparisons between LGI/volume groups within each ",
+      "cognitive domain. Results include mean differences, 95% confidence ",
+      "intervals, Cohen's d, and Tukey-adjusted p-values. Adjustments were ",
+      "performed separately within each domain."
+    )
   )
 
 ggplot(
-    data = summary_tertile_cnb |>
-      filter(measure == "Speed"),
-    mapping = aes(
-      x = as.numeric(domain),
-      y = mean, ymin = lower, ymax = upper,
-      group = group, color = group, fill = group
-    )
-  ) +
+  data = summary_tertile_cnb |>
+    filter(measure == "Speed"),
+  mapping = aes(
+    x = as.numeric(domain),
+    y = mean, ymin = lower, ymax = upper,
+    group = group, color = group, fill = group
+  )
+) +
   geom_ribbon(alpha = 0.25, color = NA) +
   geom_line() +
   geom_point() +
@@ -2654,7 +2757,12 @@ Global LGI was significantly negatively associated with age, with evidence that 
 ```{r}
 #| label: lgi-age-data
 data_lgi_age <-
-  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(
+    demo,
+    global_lgi,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
   select(lgi, age) |>
   drop_na()
 ```
@@ -2795,7 +2903,12 @@ Global LGI was significantly positively associated with SES, with higher SES ass
 ```{r}
 #| label: lgi-ses-data
 data_lgi_ses <-
-  inner_join(global_lgi, env, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(
+    env,
+    global_lgi,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
   select(lgi, ses) |>
   drop_na()
 ```
@@ -2936,7 +3049,12 @@ Global LGI differed significantly between sexes, with males exhibiting higher gl
 ```{r}
 #| label: lgi-sex-data
 data_lgi_sex <-
-  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(
+    demo,
+    global_lgi,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
   select(lgi, sex) |>
   drop_na()
 ```
@@ -3041,7 +3159,12 @@ Global LGI was significantly negatively associated with trauma exposure, with ev
 ```{r}
 #| label: lgi-trauma-data
 data_lgi_trauma <-
-  inner_join(global_lgi, env, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(
+    env,
+    global_lgi,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
   select(lgi, trauma) |>
   drop_na()
 ```
@@ -3050,7 +3173,7 @@ data_lgi_trauma <-
 
 #### Model 1: Linear Trauma Effect
 
-This model tests whether trauma exposure has a significant linear association with global LGI. Trauma exposure was a significant predictor, with greater trauma exposure associated with lower global LGI. The model explained approximately 3.90% of the deviance.
+This model tests whether trauma exposure has a significant linear association with global LGI. Trauma exposure was a significant pedictor, with greater trauma exposure associated with lower global LGI. The model explained approximately 3.90% of the deviance.
 
 ```{r}
 #| label: lgi-trauma-1
@@ -3523,7 +3646,12 @@ Age differed significantly by sex, with females being slightly older than males 
 ```{r}
 #| label: lgi-age-sex-data
 data_lgi_age_sex <-
-  inner_join(global_lgi, demo, by = join_by(bblid), relationship = "one-to-one") |>
+  inner_join(
+    demo,
+    global_lgi,
+    by = join_by(bblid),
+    relationship = "one-to-one"
+  ) |>
   select(lgi, age, sex) |>
   drop_na() |>
   mutate(
@@ -4037,7 +4165,7 @@ plot_lgi_age_trauma_2 <-
     color = "Age",
     fill = "Age",
     caption = str_c(
-      "*Trauma exposure is a discrete variable (0–9).",
+      "*Trauma exposure is a discrete variable (0-9).",
       "Jitter is applied solely for visualization.",
       sep = " "
     )
@@ -4347,7 +4475,7 @@ plot_ses_trauma <-
     x = "SES",
     y = "Trauma*",
     caption = str_c(
-      "*Trauma exposure is a discrete variable (0–9).",
+      "*Trauma exposure is a discrete variable (0-9).",
       "Jitter is applied solely for visualization.",
       sep = " "
     )
