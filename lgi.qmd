@@ -543,7 +543,8 @@ data_lgi_vol_tertile <-
   ) |>
   select(bblid, scanid, group, lgi, volume)
 
-lgi_vol_tertile_groups <- data_lgi_vol_tertile |> select(bblid, scanid, group)
+lgi_vol_tertile_groups <- data_lgi_vol_tertile |>
+  select(bblid, scanid, group)
 
 plot_lgi_vol_tertile <-
   ggplot(
@@ -727,6 +728,8 @@ results_lgi_volume <-
     digits = c(NA, NA, 3, NA, 5, 5, NA)
   )
 
+results_lgi_volume
+
 plot_lgi_volume <-
   ggplot() +
   geom_brain(
@@ -752,7 +755,6 @@ plot_lgi_volume <-
   theme_void() +
   theme(plot.caption = element_text(hjust = 0))
 
-results_lgi_volume
 plot_lgi_volume
 ```
 
@@ -860,14 +862,9 @@ results_lgi_psy_regional
 
 No lobes were found where LGI was significantly associated with psychosis factors in the full sample when controlling for age and sex.
 
-::: {.collapsible-table data-rows="5"}
-
 ```{r}
-#| label: lgi-psy-lobular-factor
-#| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
-#| control: {method: residual, variables: [age, sex]}
+#| label: lgi-lobular-exploratory
 #| scale: lobe
-# Exploratory
 plot_lgi_lobe <-
   ggplot(
     data = lgi_lobe,
@@ -878,8 +875,15 @@ plot_lgi_lobe <-
   theme_linedraw()
 
 plot_lgi_lobe
+```
 
-# Clean Data
+::: {.collapsible-table data-rows="5"}
+
+```{r}
+#| label: lgi-psy-lobular-factor
+#| test: {method: lm, dv: [psychosis positive, psychosis negative], iv: lgi}
+#| control: {method: residual, variables: [age, sex]}
+#| scale: lobe
 data_lgi_psy_lobular <- 
   demo |>
   inner_join(
@@ -912,7 +916,6 @@ data_lgi_psy_lobular <-
   ) |>
   select(bblid, scanid, lobe, lgi, factor, psychosis)
 
-# Test
 test_lgi_psy_lobular <-
   data_lgi_psy_lobular |>
   nest(.by = c(factor, lobe)) |>
@@ -947,7 +950,6 @@ test_lgi_psy_lobular <-
     .by = factor
   )
 
-# Report
 results_lgi_psy_lobular <-
   test_lgi_psy_lobular |>
   select(factor, lobe, beta, ci, p, p_fdr, significance) |>
@@ -993,7 +995,12 @@ imaging_wide <-
     values_from = lgi
   )
 
-scree(select(imaging_wide, -bblid, -scanid), factors = TRUE)
+plot_scree <-
+  imaging_wide |>
+  select(-bblid, -scanid) |>
+  scree(factors = TRUE)
+
+plot_scree
 
 regional_lgi_residuals <-
   demo |>
@@ -1024,13 +1031,19 @@ regional_lgi_residuals <-
     values_from = lgi
   )
 
-scree(select(regional_lgi_residuals, -bblid, -scanid), factors = TRUE)
+plot_scree_bifactor <-
+  regional_lgi_residuals |>
+  select(-bblid, -scanid) |>
+  scree(factors = TRUE)
+
+plot_scree_bifactor
 
 n_factors <- 9
 
 fa_lgi <-
+  imaging_wide |>
+  select(-bblid, -scanid) |>
   fa(
-    select(imaging_wide, -bblid, -scanid),
     nfactors = n_factors,
     fm = "minres",
     rotate = "bifactor",
@@ -1053,6 +1066,8 @@ results_factor_determinacy <-
   unnest(cols = everything()) |>
   select(Factor, FD) |>
   kbl(digits = c(NA, 3))
+
+results_factor_determinacy
 
 loadings_lgi <- fa_lgi$loadings |>
   unclass() |>
@@ -1089,7 +1104,6 @@ plot_loadings <- ggplot() +
   ) +
   theme_void()
 
-results_factor_determinacy
 plot_loadings
 ```
 
@@ -1176,6 +1190,8 @@ results_regional_psy <-
     digits = c(NA, NA, 3, NA, 3, 3, 5, 5, NA)
   )
 
+results_regional_psy
+
 plot_regional_psy <-
   ggplot() +
   geom_brain(
@@ -1201,7 +1217,6 @@ plot_regional_psy <-
   theme_void() +
   theme(plot.caption = element_text(hjust = 0))
 
-results_regional_psy
 plot_regional_psy
 ```
 
@@ -1286,6 +1301,8 @@ results_lgi_clinical <-
     caption = "Relationship Between Global LGI and Psychopathology Factors",
   )
 
+results_lgi_clinical
+
 labeller_lgi_clinical <-
   test_lgi_clinical |>
   mutate(label = str_trim(str_c(factor, significance, sep = " "))) |>
@@ -1331,7 +1348,6 @@ plot_lgi_clinical <-
   ) +
   theme_linedraw()
 
-results_lgi_clinical
 plot_lgi_clinical
 ```
 
@@ -1451,6 +1467,8 @@ results_lgi_goa_cat <-
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
+results_lgi_goa_cat
+
 summary_lgi_goa_cat <-
   data_lgi_goa_cat |>
   summarize(
@@ -1519,7 +1537,6 @@ plot_lgi_goa_cat <-
     panel.grid.minor.x = element_blank()
   )
 
-results_lgi_goa_cat
 plot_lgi_goa_cat
 ```
 
@@ -1619,7 +1636,8 @@ labeller_lgi_goa_dis <-
 #| test: {method: t-test, variable: lgi, group across: goa anx disorders}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-test_lgi_goa_dis |>
+results_lgi_goa_anx <-
+  test_lgi_goa_dis |>
   filter(category == "anx") |>
   select(-category) |>
   arrange(disorder) |>
@@ -1629,7 +1647,10 @@ test_lgi_goa_dis |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-ggplot() +
+results_lgi_goa_anx
+
+plot_lgi_goa_anx <-
+  ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "anx"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1677,6 +1698,8 @@ ggplot() +
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
+plot_lgi_goa_anx
 ```
 
 ### Behavior Disorders
@@ -1686,7 +1709,8 @@ ggplot() +
 #| test: {method: t-test, variable: lgi, group across: goa beh disorders}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-test_lgi_goa_dis |>
+results_lgi_goa_beh <-
+  test_lgi_goa_dis |>
   filter(category == "beh") |>
   select(-category) |>
   arrange(disorder) |>
@@ -1696,7 +1720,10 @@ test_lgi_goa_dis |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-ggplot() +
+results_lgi_goa_beh
+
+plot_lgi_goa_beh <-
+  ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "beh"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1744,6 +1771,8 @@ ggplot() +
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
+plot_lgi_goa_beh
 ```
 
 ### Eating Disorders
@@ -1753,7 +1782,8 @@ ggplot() +
 #| test: {method: t-test, variable: lgi, group across: goa eat disorders}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-test_lgi_goa_dis |>
+results_lgi_goa_eat <-
+  test_lgi_goa_dis |>
   filter(category == "eat") |>
   select(-category) |>
   arrange(disorder) |>
@@ -1763,7 +1793,10 @@ test_lgi_goa_dis |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-ggplot() +
+results_lgi_goa_eat
+
+plot_lgi_goa_eat <-
+  ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "eat"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1811,6 +1844,8 @@ ggplot() +
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
+plot_lgi_goa_eat
 ```
 
 ### Mood Disorders
@@ -1820,7 +1855,8 @@ ggplot() +
 #| test: {method: t-test, variable: lgi, group across: goa mood disorders}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-test_lgi_goa_dis |>
+results_lgi_goa_mood <-
+  test_lgi_goa_dis |>
   filter(category == "mood") |>
   select(-category) |>
   arrange(disorder) |>
@@ -1830,7 +1866,10 @@ test_lgi_goa_dis |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-ggplot() +
+results_lgi_goa_mood
+
+plot_lgi_goa_mood <-
+  ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "mood"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1878,6 +1917,8 @@ ggplot() +
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
+plot_lgi_goa_mood
 ```
 
 ### Psychosis Symptoms
@@ -1887,7 +1928,8 @@ ggplot() +
 #| test: {method: t-test, variable: lgi, group across: goa psy disorders}
 #| control: {method: residual, variables: [age, sex]}
 #| scale: global
-test_lgi_goa_dis |>
+results_lgi_goa_psy <-
+  test_lgi_goa_dis |>
   filter(category == "psy") |>
   select(-category) |>
   arrange(disorder) |>
@@ -1897,7 +1939,10 @@ test_lgi_goa_dis |>
     digits = c(NA, 0, 0, 3, NA, 3, 3, 5, 5, NA)
   )
 
-ggplot() +
+results_lgi_goa_psy
+
+plot_lgi_goa_psy <-
+  ggplot() +
   geom_jitter(
     data = data_lgi_goa_dis |> filter(category == "psy"),
     mapping = aes(x = as.numeric(status), y = lgi, color = status, fill = status),
@@ -1945,23 +1990,25 @@ ggplot() +
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
+plot_lgi_goa_psy
 ```
 
 # Cognition
 
-## Association of CNB Accuracy and Global LGI
+## Association of CNB Performance and Global LGI
 
 ### Full Sample
 
 Global LGI is significantly positvely associated with CNB accuracy in all domains when controlling for age and sex in the full sample. Global LGI was also significantly positvely associated with Complex Cognition speed and significantly negatively associated with executive functioning speed and memory speed, when controlling for age and sex in the full sample.
 
 ```{r}
-#| label: lgi-cnb-full-sample
-#| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
+#| label: lgi-cnb-full
+#| test: {method: lm, dv: [overall, executive, memory, complex, social, discounting, motor], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| sample: full sample
 #| scale: global
-#| cnb-metric: accuracy
+#| cnb-metric: [accuracy, speed]
 data_lgi_cnb <-
   demo |>
   inner_join(
@@ -2023,7 +2070,18 @@ test_lgi_cnb <-
     ),
     .by = measure
   )
+```
 
+
+#### Accuracy
+
+```{r}
+#| label: lgi-cnb-full-acc
+#| test: {method: lm, dv: [overall, executive, memory, complex, social, discounting], iv: lgi}
+#| control: {method: residual, variables: [age, sex]}
+#| sample: full sample
+#| scale: global
+#| cnb-metric: accuracy
 results_lgi_cnb_acc <-
   test_lgi_cnb |>
   filter(measure == "Accuracy") |>
@@ -2035,6 +2093,8 @@ results_lgi_cnb_acc <-
     digits = c(NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Accuracy with Global LGI"
   )
+
+results_lgi_cnb_acc
 
 labeller_lgi_cnb_acc <-
   test_lgi_cnb |>
@@ -2087,9 +2147,18 @@ plot_lgi_cnb_acc <-
   ) +
   theme_linedraw()
 
-results_lgi_cnb_acc
 plot_lgi_cnb_acc
+```
 
+#### Speed
+
+```{r}
+#| label: lgi-cnb-full-spd
+#| test: {method: lm, dv: [overall, executive, memory, complex, social, discounting, motor], iv: lgi}
+#| control: {method: residual, variables: [age, sex]}
+#| sample: full sample
+#| scale: global
+#| cnb-metric: speed
 results_lgi_cnb_spd <-
   test_lgi_cnb |>
   filter(measure == "Speed") |>
@@ -2101,6 +2170,8 @@ results_lgi_cnb_spd <-
     digits = c(NA, 3, NA, 5, 5, NA),
     caption = "Association of CNB Speed with Global LGI"
   )
+
+results_lgi_cnb_spd
 
 labeller_lgi_cnb_spd <-
   test_lgi_cnb |>
@@ -2145,7 +2216,7 @@ plot_lgi_cnb_spd <-
     alpha = 0.5
   ) +
   geom_line(data = predictions_lgi_cnb_spd, linewidth = 0.75) +
-  facet_wrap(~ domain, labeller = labeller_lgi_cnb_spd) +
+  facet_wrap(~ domain, ncol = 4, labeller = labeller_lgi_cnb_spd) +
   labs(
     title = "Relationship Between Global LGI and CNB Speed",
     x = "Global LGI",
@@ -2153,21 +2224,21 @@ plot_lgi_cnb_spd <-
   ) +
   theme_linedraw()
 
-results_lgi_cnb_spd
 plot_lgi_cnb_spd
 ```
+
 
 ### Clean Subsample
 
 Global LGI is not significantly associated with CNB accuracy in the clean subsample when controlling for age and sex. Global LGI was significantly negatively associated with speed in the domains of overall cognition, executive functioning, memory, and motor in the clean subsample when controlling for age and sex.
 
 ```{r}
-#| label: lgi-cnb-clean-subsample
-#| test: {method: lm, dv: [overall, executive, memory, complex, social], iv: lgi}
+#| label: lgi-cnb-clean
+#| test: {method: lm, dv: [overall, executive, memory, complex, social, motor], iv: lgi}
 #| control: {method: residual, variables: [age, sex]}
 #| sample: clean subsample
 #| scale: global
-#| cnb-metric: accuracy
+#| cnb-metric: [accuracy, speed]
 data_lgi_cnb_clean <-
   demo |>
   inner_join(
@@ -2259,42 +2330,37 @@ groups <- c("g1v1", "g3v1", "g1v3", "g3v3")
 data_tertile_cnb <-
   data_lgi_cnb |>
   inner_join(
-    data_lgi_vol_tertile |>
-      select(bblid, group),
-    by = join_by(bblid),
+    data_lgi_vol_tertile,
+    by = join_by(bblid, scanid),
     relationship = "many-to-one"
   ) |>
   filter(group %in% groups) |>
-  mutate(group = factor(group, levels = groups))
+  mutate(group = factor(group, levels = groups)) |>
+  select(bblid, scanid, group, domain, measure, cnb)
 
 test_tertile_cnb <-
   data_tertile_cnb |>
-  summarize(model = list(aov(cnb ~ group)), .by = c(domain, measure))
-
-result_tertile_cnb <-
-  test_tertile_cnb |>
+  nest(.by = c(domain, measure)) |>
   mutate(
-    list_rbind(
-      map(model, \(m) {
-        m |>
-        tidy() |>
+    model = future_map(data, \(d) {
+      lme(
+        cnb ~ group,
+        random = ~ 1 | bblid,
+        data = d,
+        method = "REML"
+      )
+    }),
+    result = map(model, \(m) {
+      anova(m) |>
+        as_tibble(rownames = "term") |>
         clean_names() |>
         filter(term == "group")
-      })
-    ),
-    df_residual = map_dbl(model, df.residual),
-    eta2 = map_dbl(model, \(m) {
-      t <- tidy(m)
-      t$sumsq[t$term == "group"] / sum(t$sumsq)
     })
   ) |>
-  rename(
-    f = statistic,
-    df1 = df,
-    df2 = df_residual,
-    p = p_value,
-  ) |>
+  unnest(result) |>
+  rename(f = f_value, df1 = num_df, df2 = den_df, p = p_value) |>
   mutate(
+    eta2_partial = (f * df1) / (f * df1 + df2),
     p_fdr = p.adjust(p, method = "fdr"),
     significance = case_when(
       p_fdr < 0.001 ~ "***",
@@ -2303,11 +2369,6 @@ result_tertile_cnb <-
       TRUE ~ ""
     ),
     .by = measure
-  ) |>
-  select(
-    measure, domain,
-    f, df1, df2, eta2,
-    p, p_fdr, significance,
   )
 
 posthoc_tertile_cnb <-
