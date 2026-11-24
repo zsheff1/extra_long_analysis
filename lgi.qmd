@@ -745,7 +745,11 @@ test_lgi_volume <-
     })
   ) |>
   unnest(result) |>
-  separate(region, into = c("laterality", "region"), sep = "_") |>
+  separate_wider_delim(
+    region,
+    delim = "_",
+    names = c("laterality", "region")
+  ) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
@@ -869,7 +873,11 @@ test_lgi_psy_regional <-
     })
   ) |>
   unnest(result) |>
-  separate(region, into = c("laterality", "region"), sep = "_") |>
+  separate_wider_delim(
+    region,
+    delim = "_",
+    names = c("laterality", "region")
+  ) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
@@ -1121,10 +1129,10 @@ loadings_lgi <- fa_lgi$loadings |>
     names_to = "factor",
     values_to = "loading"
   ) |>
-  separate(
+  separate_wider_delim(
     roi,
-    into = c("hemi", "region"),
-    sep = "_(?=[^_]+$)"
+    delim = regex("_(?=[^_]+$)"),
+    names = c("hemi", "region")
   ) |>
   mutate(
     region = str_replace_all(region, ggseg_mapping),
@@ -1210,7 +1218,11 @@ test_regional_psy <-
     })
   ) |>
   unnest(result) |>
-  separate(region, into = c("laterality", "region"), sep = "_") |>
+  separate_wider_delim(
+    region,
+    delim = "_",
+    names = c("laterality", "region")
+  ) |>
   rename(beta = estimate, p = p_value) |>
   mutate(
     region = roi_mapping[region],
@@ -2449,11 +2461,11 @@ posthoc_tertile_cnb <-
       TRUE ~ ""
     )
   ) |>
-  separate(
+  separate_wider_delim(
     contrast,
-    into = c("group1", "group2"),
-    sep = "-",
-    remove = FALSE
+    delim = "_",
+    names = c("group1", "group2"),
+    cols_remove = FALSE
   ) |>
   select(
     domain, measure, contrast, mean_difference, ci, cohens_d, p_tukey,
