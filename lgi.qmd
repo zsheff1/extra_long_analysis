@@ -2381,6 +2381,54 @@ results_lgi_cnb_clean <-
   )
 
 results_lgi_cnb_clean
+
+labeller_lgi_cnb_clean <-
+  test_lgi_cnb_clean |>
+  filter(measure == "Speed") |>
+  mutate(label = str_trim(str_c(domain, significance, sep = " "))) |>
+  select(domain, label) |>
+  deframe() |>
+  as_labeller()
+
+predictions_lgi_cnb_clean <-
+  test_lgi_cnb_clean |>
+  filter(measure == "Speed") |>
+  reframe(
+    predict_response(test[[1]], terms = "lgi [n=200]") |>
+      as_tibble(),
+    .by = domain
+  ) |>
+  transmute(
+    domain,
+    lgi = x,
+    cnb = predicted,
+    lower = conf.low,
+    upper = conf.high
+  )
+
+plot_lgi_cnb_clean <-
+  ggplot(mapping = aes(x = lgi, y = cnb)) +
+  geom_point(
+    data = data_lgi_cnb_clean |> filter(measure == "Speed"),
+    alpha = 0.1,
+    size = 1
+  ) +
+  geom_ribbon(
+    data = predictions_lgi_cnb_clean,
+    mapping = aes(ymin = lower, ymax = upper),
+    alpha = 0.5
+  ) +
+  geom_line(data = predictions_lgi_cnb_clean, linewidth = 0.75) +
+  facet_wrap(~ domain, ncol = 4, labeller = labeller_lgi_cnb_clean) +
+  labs(
+    title =
+      "Relationship Between Global LGI and CNB Speed in the Clean Subsample",
+    x = "Global LGI",
+    y = "Speed"
+  ) +
+  theme_linedraw()
+
+plot_lgi_cnb_clean
 ```
 
 ## Cognitive Profile of LGI-Volume Tertile Groups
