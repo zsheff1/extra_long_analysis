@@ -26,6 +26,7 @@ library(scales)
 library(lubridate)
 library(ggeffects)
 library(furrr)
+library(emmeans)
 
 # Source
 source("R/mapping.R")
@@ -1047,12 +1048,9 @@ imaging_wide <-
     values_from = lgi
   )
 
-plot_scree <-
-  imaging_wide |>
+imaging_wide |>
   select(-bblid, -scanid) |>
   scree(factors = TRUE)
-
-plot_scree
 
 regional_lgi_residuals <-
   demo |>
@@ -1083,12 +1081,9 @@ regional_lgi_residuals <-
     values_from = lgi
   )
 
-plot_scree_bifactor <-
-  regional_lgi_residuals |>
+regional_lgi_residuals |>
   select(-bblid, -scanid) |>
   scree(factors = TRUE)
-
-plot_scree_bifactor
 
 n_factors <- 9
 
@@ -2449,8 +2444,14 @@ data_tertile_cnb <-
     by = join_by(bblid, scanid),
     relationship = "many-to-one"
   ) |>
-  filter(group %in% groups) |>
-  mutate(group = factor(group, levels = groups)) |>
+  filter(
+    group %in% groups,
+    domain != "Discounting"
+  ) |>
+  mutate(
+    group = factor(group, levels = groups),
+    domain = fct_drop(domain)
+  ) |>
   select(bblid, scanid, group, domain, measure, cnb)
 
 test_tertile_cnb <-
@@ -2489,17 +2490,23 @@ test_tertile_cnb <-
 posthoc_tertile_cnb <-
   test_tertile_cnb |>
   mutate(
-    posthoc = map(model, \(m) m |> TukeyHSD() |> tidy() |> clean_names()),
+    posthoc = map(model, \(m) {
+      emmeans(m, ~ group) |>
+        pairs(adjust = "tukey") |>
+        summary(infer = c(TRUE, TRUE)) |>
+        as_tibble() |>
+        clean_names()
+    }),
     sigma = map_dbl(model, sigma)
   ) |>
   select(domain, measure, posthoc, sigma) |>
   unnest(posthoc) |>
   rename(
     mean_difference = estimate,
-    p_tukey = adj_p_value,
+    p_tukey = p_value,
   ) |>
   mutate(
-    ci = sprintf("[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", lower_cl, upper_cl),
     cohens_d = mean_difference / sigma,
     significance = case_when(
       p_tukey < 0.001 ~ "***",
@@ -2510,7 +2517,7 @@ posthoc_tertile_cnb <-
   ) |>
   separate_wider_delim(
     contrast,
-    delim = "_",
+    delim = " - ",
     names = c("group1", "group2"),
     cols_remove = FALSE
   ) |>
@@ -2570,16 +2577,18 @@ sig_tertile_cnb <-
 #| scale: global
 #| cnb-metric: accuracy
 labels_tertile_cnb_acc <-
-  result_tertile_cnb |>
+  test_tertile_cnb |>
   filter(measure == "Accuracy") |>
   mutate(label = str_trim(str_c(domain, significance, sep = "\n"))) |>
   select(domain, label) |>
   deframe()
 
-result_tertile_cnb |>
+result_omnibus_tertile_cnb_acc <-
+  test_tertile_cnb |>
   filter(measure == "Accuracy") |>
   select(-measure) |>
   arrange(domain) |>
+  select(domain, f, df1, df2, eta2_partial, p, p_fdr, significance) |>
   kbl(
     col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
@@ -2591,15 +2600,18 @@ result_tertile_cnb |>
     )
   )
 
-ggplot(
-  data = summary_tertile_cnb |>
-    filter(measure == "Accuracy"),
-  mapping = aes(
-    x = as.numeric(domain),
-    y = mean, ymin = lower, ymax = upper,
-    group = group, color = group
-  )
-) +
+result_omnibus_tertile_cnb_acc
+
+plot_omnibus_tertile_cnb_acc <-
+  ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Accuracy"),
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group
+    )
+  ) +
   geom_errorbar(position = position_dodge(width = 0.3), width = 0.1) +
   geom_line(position = position_dodge(width = 0.3)) +
   geom_point(position = position_dodge(width = 0.3)) +
@@ -2608,13 +2620,13 @@ ggplot(
     labels = labels_tertile_cnb_acc[levels(summary_tertile_cnb$domain)]
   ) +
   color_scale_group +
-  labs(
-    x = "Domain",
-    y = "Accuracy"
-  ) +
+  labs(x = "Domain", y = "Accuracy") +
   theme_linedraw()
 
-posthoc_tertile_cnb |>
+plot_omnibus_tertile_cnb_acc
+
+results_posthoc_tertile_cnb_acc <-
+  posthoc_tertile_cnb |>
   filter(measure == "Accuracy") |>
   select(
     domain, contrast, mean_difference,
@@ -2635,15 +2647,18 @@ posthoc_tertile_cnb |>
     )
   )
 
-ggplot(
-  data = summary_tertile_cnb |>
-    filter(measure == "Accuracy"),
-  mapping = aes(
-    x = as.numeric(domain),
-    y = mean, ymin = lower, ymax = upper,
-    group = group, color = group, fill = group
-  )
-) +
+results_posthoc_tertile_cnb_acc
+
+plot_posthoc_tertile_cnb_acc <-
+  ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Accuracy"),
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group, fill = group
+    )
+  ) +
   geom_ribbon(alpha = 0.25, color = NA) +
   geom_line() +
   geom_point() +
@@ -2660,12 +2675,10 @@ ggplot(
   ) +
   color_scale_group +
   fill_scale_group +
-  labs(
-    x = "Domain",
-    y = "Accuracy"
-  ) +
+  labs(x = "Domain", y = "Accuracy") +
   theme_linedraw()
 
+plot_posthoc_tertile_cnb_acc
 ```
 
 :::
@@ -2682,16 +2695,18 @@ ggplot(
 #| scale: global
 #| cnb-metric: speed
 labels_tertile_cnb_spd <-
-  result_tertile_cnb |>
+  test_tertile_cnb |>
   filter(measure == "Speed") |>
   mutate(label = str_trim(str_c(domain, significance, sep = "\n"))) |>
   select(domain, label) |>
   deframe()
 
-result_tertile_cnb |>
+result_omnibus_tertile_cnb_spd <-
+  test_tertile_cnb |>
   filter(measure == "Speed") |>
   select(-measure) |>
   arrange(domain) |>
+  select(domain, f, df1, df2, eta2_partial, p, p_fdr, significance) |>
   kbl(
     col.names = c("Domain", "F", "df1", "df2", "η²", "p", "pFDR", ""),
     digits = c(NA, 1, 0, 3, 3, 5, 5, NA),
@@ -2703,15 +2718,18 @@ result_tertile_cnb |>
     )
   )
 
-ggplot(
-  data = summary_tertile_cnb |>
-    filter(measure == "Speed"),
-  mapping = aes(
-    x = as.numeric(domain),
-    y = mean, ymin = lower, ymax = upper,
-    group = group, color = group
-  )
-) +
+result_omnibus_tertile_cnb_spd
+
+plot_omnibus_tertile_cnb_spd <-
+  ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Speed"),
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group
+    )
+  ) +
   geom_errorbar(position = position_dodge(width = 0.3), width = 0.1) +
   geom_line(position = position_dodge(width = 0.3)) +
   geom_point(position = position_dodge(width = 0.3)) +
@@ -2720,13 +2738,13 @@ ggplot(
     labels = labels_tertile_cnb_spd[levels(summary_tertile_cnb$domain)]
   ) +
   color_scale_group +
-  labs(
-    x = "Domain",
-    y = "Speed"
-  ) +
+  labs(x = "Domain", y = "Speed") +
   theme_linedraw()
 
-posthoc_tertile_cnb |>
+plot_omnibus_tertile_cnb_spd
+
+results_posthoc_tertile_cnb_spd <-
+  posthoc_tertile_cnb |>
   filter(measure == "Speed") |>
   select(
     domain, contrast, mean_difference,
@@ -2747,15 +2765,18 @@ posthoc_tertile_cnb |>
     )
   )
 
-ggplot(
-  data = summary_tertile_cnb |>
-    filter(measure == "Speed"),
-  mapping = aes(
-    x = as.numeric(domain),
-    y = mean, ymin = lower, ymax = upper,
-    group = group, color = group, fill = group
-  )
-) +
+results_posthoc_tertile_cnb_spd
+
+plot_posthoc_tertile_cnb_spd <-
+  ggplot(
+    data = summary_tertile_cnb |>
+      filter(measure == "Speed"),
+    mapping = aes(
+      x = as.numeric(domain),
+      y = mean, ymin = lower, ymax = upper,
+      group = group, color = group, fill = group
+    )
+  ) +
   geom_ribbon(alpha = 0.25, color = NA) +
   geom_line() +
   geom_point() +
@@ -2772,11 +2793,10 @@ ggplot(
   ) +
   color_scale_group +
   fill_scale_group +
-  labs(
-    x = "Domain",
-    y = "Speed"
-  ) +
+  labs(x = "Domain", y = "Speed") +
   theme_linedraw()
+
+plot_posthoc_tertile_cnb_spd
 ```
 
 :::
