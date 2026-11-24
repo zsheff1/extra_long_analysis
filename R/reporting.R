@@ -56,9 +56,9 @@ report_aic <- function(models) {
   models |>
     tibble::enframe(name = "identifier", value = "model") |>
     dplyr::mutate(
-      formula = purrr::map_chr(model, \(x) deparse1(stats::formula(x))),
-      df = purrr::map_dbl(model, \(x) attr(stats::logLik(x), "df")),
-      aic = purrr::map_dbl(model, \(x) stats::AIC(x)),
+      formula = purrr::map_chr(model, \(x) deparse1(stats::formula(x$gam))),
+      df = purrr::map_dbl(model, \(x) attr(stats::logLik(x$lme), "df")),
+      aic = purrr::map_dbl(model, \(x) stats::AIC(x$lme)),
       delta_aic = aic - min(aic)
     ) |>
     dplyr::select(-model) |>
