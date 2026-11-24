@@ -2152,7 +2152,6 @@ test_lgi_cnb <-
   )
 ```
 
-
 #### Accuracy
 
 ```{r}
@@ -3287,16 +3286,16 @@ data_lgi_age_ses <-
 test_age_ses <-
   lme(age ~ ses, random = ~ 1 | bblid, data = data_lgi_age_ses) |>
   broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
-  clean_names() |>
+  filter(term == "ses") |>
   transmute(
-    term,
+    term = "age ~ ses",
     b = estimate,
-    ci = sprintf(fmt = "[%.3f, %.3f]", conf_low, conf_high),
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
     t = statistic,
-    p_value
+    p = p.value
   ) |>
   kbl(
-    col.names = c("Term", "b", "95% CI", "t", "p"),
+    col.names = c("", "b", "95% CI", "t", "p"),
     align = "lrrrr",
     digits = c(NA, 3, NA, 3, 5)
   )
@@ -3599,11 +3598,24 @@ data_lgi_age_sex <-
 
 ```{r}
 #| label: lgi-age-sex-test
-t.test(
-  age ~ sex,
-  data = data_lgi_age_sex,
-  var.equal = TRUE
-)
+test_age_sex <-
+  lme(age ~ sex, random = ~ 1 | bblid, data = data_lgi_age_sex) |>
+  broom.mixed::tidy(effects = "fixed", conf.int = TRUE) |>
+  filter(term == "sexFemale") |>
+  transmute(
+    term = "age ~ sex",
+    b = estimate,
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
+    t = statistic,
+    p = p.value
+  ) |>
+  kbl(
+    col.names = c("", "b", "95% CI", "t", "p"),
+    align = "lrrrr",
+    digits = c(NA, 3, NA, 3, 5)
+  )
+
+test_age_sex
 
 plot_age_sex <-
   ggplot(
@@ -3785,30 +3797,58 @@ data_lgi_age_trauma <-
 
 ```{r}
 #| label: lgi-age-trauma-test
-test_age_trauma <-
-  cor.test(data_lgi_age_trauma$age, data_lgi_age_trauma$trauma)
+test_age_trauma <- lm(
+  trauma ~ age,
+  data = data_lgi_age_trauma |>
+    slice_min(age, n = 1, by = bblid)
+)
 
-test_age_trauma
+results_age_trauma <-
+  test_age_trauma |>
+  tidy(conf.int = TRUE) |>
+  filter(term == "age") |>
+  transmute(
+    term = "trauma ~ age",
+    b = estimate,
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
+    t = statistic,
+    p = p.value
+  ) |>
+  kbl(
+    col.names = c("", "b", "95% CI", "t", "p"),
+    align = "lrrrr",
+    digits = c(NA, 3, NA, 3, 5)
+  )
+
+results_age_trauma
+
+prediction_age_trauma <-
+  predict_response(test_age_trauma, terms = "age [n=200]") |>
+  as_tibble() |>
+  transmute(age = x, trauma = predicted, lower = conf.low, upper = conf.high)
 
 plot_age_trauma <-
-  ggplot(data = data_lgi_age_trauma, aes(x = age, y = trauma)) +
+  ggplot(
+    mapping = aes(x = age, y = trauma)
+  ) +
   geom_point(
+    data = data_lgi_age_trauma |>
+      slice_min(age, n = 1, by = bblid),
     position = position_jitter(height = 0.25),
     alpha = 0.25,
     size = 1
   ) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
+  geom_ribbon(
+    data = prediction_age_trauma,
+    mapping = aes(ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_line(data = prediction_age_trauma, linewidth = 0.75) +
   labs(
     title = "Correlation of Age and Trauma",
-    subtitle = report_correlation(test_age_trauma),
+    subtitle = report_lme(test_age_trauma, "age") |>
+      str_replace_all("β", "b"),
     x = "Age",
     y = "Trauma*",
     caption = str_c(
@@ -4130,15 +4170,33 @@ data_lgi_ses_sex <-
 
 ```{r}
 #| label: lgi-ses-sex-test
-t.test(
-  ses ~ sex,
-  data = data_lgi_ses_sex,
-  var.equal = TRUE
-)
+test_ses_sex <-
+  lm(
+    ses ~ sex,
+    data = data_lgi_ses_sex |>
+      slice_min(scanid, n = 1, by = bblid)
+  ) |>
+  tidy(conf.int = TRUE) |>
+  filter(term == "sexFemale") |>
+  transmute(
+    term = "ses ~ sex",
+    b = estimate,
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
+    t = statistic,
+    p = p.value
+  ) |>
+  kbl(
+    col.names = c("", "b", "95% CI", "t", "p"),
+    align = "lrrrr",
+    digits = c(NA, 3, NA, 3, 5)
+  )
+
+test_ses_sex
 
 plot_ses_sex <-
   ggplot(
-    data = data_lgi_ses_sex,
+    data = data_lgi_ses_sex |>
+      slice_min(scanid, n = 1, by = bblid),
     mapping = aes(x = ses, group = sex, color = sex, fill = sex)
   ) +
   geom_histogram(position = "identity", binwidth = 0.2, alpha = 0.5) +
@@ -4381,30 +4439,56 @@ data_lgi_ses_trauma <-
 
 ```{r}
 #| label: lgi-ses-trauma-test
-test_ses_trauma <-
-  cor.test(data_lgi_ses_trauma$ses, data_lgi_ses_trauma$trauma)
+test_ses_trauma <- lm(
+  trauma ~ ses,
+  data = data_lgi_ses_trauma |>
+    slice_min(scanid, n = 1, by = bblid)
+)
 
-test_ses_trauma
+results_ses_trauma <-
+  test_ses_trauma |>
+  tidy(conf.int = TRUE) |>
+  filter(term == "ses") |>
+  transmute(
+    term = "trauma ~ ses",
+    b = estimate,
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
+    t = statistic,
+    p = p.value
+  ) |>
+  kbl(
+    col.names = c("", "b", "95% CI", "t", "p"),
+    align = "lrrrr",
+    digits = c(NA, 3, NA, 3, 5)
+  )
+
+results_ses_trauma
+
+prediction_ses_trauma <-
+  predict_response(test_ses_trauma, terms = "ses [n=200]") |>
+  as_tibble() |>
+  transmute(ses = x, trauma = predicted, lower = conf.low, upper = conf.high)
 
 plot_ses_trauma <-
-  ggplot(data = data_lgi_ses_trauma, aes(x = ses, y = trauma)) +
+  ggplot(mapping = aes(x = ses, y = trauma)) +
   geom_point(
+    data = data_lgi_ses_trauma |>
+      slice_min(scanid, n = 1, by = bblid),
     position = position_jitter(height = 0.25),
     alpha = 0.25,
     size = 1
   ) +
-  geom_smooth(
-    method = "lm",
-    formula = y ~ x,
-    se = TRUE,
-    color = "black",
-    fill = "black",
-    linewidth = 0.75,
-    alpha = 0.5
+  geom_ribbon(
+    data = prediction_ses_trauma,
+    mapping = aes(ymin = lower, ymax = upper),
+    alpha = 0.5,
+    color = NA
   ) +
+  geom_line(data = prediction_ses_trauma, linewidth = 0.75) +
   labs(
     title = "Correlation of SES and Trauma",
-    subtitle = report_correlation(test_ses_trauma),
+    subtitle = report_lme(test_ses_trauma, "ses") |>
+      str_replace_all("β", "b"),
     x = "SES",
     y = "Trauma*",
     caption = str_c(
@@ -4727,11 +4811,28 @@ data_lgi_sex_trauma <-
 
 ```{r}
 #| label: lgi-sex-trauma-test
-t.test(
-  trauma ~ sex,
-  data = data_lgi_sex_trauma,
-  var.equal = TRUE
-)
+test_sex_trauma <-
+  lm(
+    trauma ~ sex,
+    data = data_lgi_sex_trauma |>
+      slice_min(scanid, n = 1, by = bblid)
+  ) |>
+  tidy(conf.int = TRUE) |>
+  filter(term == "sexFemale") |>
+  transmute(
+    term = "trauma ~ sex", 
+    b = estimate,
+    ci = sprintf(fmt = "[%.3f, %.3f]", conf.low, conf.high),
+    t = statistic,
+    p = p.value
+  ) |>
+  kbl(
+    col.names = c("", "b", "95% CI", "t", "p"),
+    align = "lrrrr",
+    digits = c(NA, 3, NA, 3, 5)
+  )
+
+test_sex_trauma
 ```
 
 ::: {.content-visible when-profile="scratch"}
