@@ -2,3 +2,4 @@
 /.quarto/
 *.rmarkdown
 *_files/
+.vdoc.*.r
